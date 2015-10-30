@@ -64,7 +64,7 @@ public class BytesContainer {
   private void resize() {
     int newLength = bytes.length;
     while (newLength < offset)
-      newLength *= 2;
+      newLength <<= 1;
     final byte[] newBytes = new byte[newLength];
     System.arraycopy(bytes, 0, newBytes, 0, bytes.length);
     bytes = newBytes;
