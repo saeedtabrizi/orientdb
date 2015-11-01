@@ -4,13 +4,14 @@ package com.orientechnologies.common.serialization.protobuf;
 
 //ORecord instance
 message Record {
-    RID rid = 1;
-    int64 version = 2;
-
     oneof data {
-        bytes raw = 3;
-        Document document = 4;
+        bytes raw = 1;
+        Document document = 2;
     }
+
+
+    RID rid = 3;
+    int64 version = 4;
 }
 
 //additional attributes of ODocument instance

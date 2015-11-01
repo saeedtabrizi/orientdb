@@ -2,9 +2,11 @@ package com.orientechnologies.orient.core.serialization.serializer.record.binary
 
 import com.google.protobuf.*;
 import com.orientechnologies.common.exception.OException;
+import com.orientechnologies.common.serialization.types.OIntegerSerializer;
+import com.orientechnologies.common.types.OModifiableInteger;
 import com.orientechnologies.common.util.OPair;
+import com.orientechnologies.common.util.OTriple;
 import com.orientechnologies.orient.core.exception.OSerializationException;
-import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OProperty;
@@ -18,9 +20,6 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.*;
 
-/**
- * Created by lomak_000 on 10/30/2015.
- */
 public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer {
   private static final Charset UTF8 = Charset.forName("UTF-8");
 
@@ -46,19 +45,19 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
       final List<Map.Entry<String, ODocumentEntry>> fields = new ArrayList<Map.Entry<String, ODocumentEntry>>(
           ODocumentInternal.rawEntries(document));
 
-      final Map<String, Integer> fieldPositionMap = new HashMap<String, Integer>();
-
       int containerSize = 0;
       final ArrayList<Integer> messagesSize = new ArrayList<Integer>(64);
+      final List<OPair<Integer, Integer>> hashCodePositionMap = new ArrayList<OPair<Integer, Integer>>();
 
       // Document document = 4;
-      final int docSize[] = computeDocumentSize(clazz != null ? clazz.getName() : null, document, fields, props);
+      final int docSize[] = computeDocumentSize(clazz != null ? clazz.getName() : null, document, fields, props,
+          hashCodePositionMap);
       for (int ds : docSize) {
         messagesSize.add(ds);
       }
 
       containerSize += docSize[0];
-      containerSize += computeEmbeddedMessageHeaderSize(docSize[0], 2);
+      containerSize += computeEmbeddedMessageHeaderSize(2, docSize[0]);
 
       final int offset = bytes.alloc(containerSize);
 
@@ -67,12 +66,41 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
       final Iterator<Integer> sizesIterator = messagesSize.iterator();
 
       writeEmbeddedMessageHeader(sizesIterator.next(), 2, codedOutputStream);
-      writeDocument(clazz != null ? clazz.getName() : null, document, fields, codedOutputStream, sizesIterator);
+      writeDocument(clazz != null ? clazz.getName() : null, document, fields, hashCodePositionMap, codedOutputStream,
+          sizesIterator);
 
       assert containerSize == codedOutputStream.getTotalBytesWritten();
     } catch (IOException ioe) {
       throw OException.wrapException(new OSerializationException("Error during document serialization"), ioe);
     }
+  }
+
+  /**
+   * <code>
+   *  message Record {
+   *    oneof data {
+   *      bytes raw = 1;
+   *      Document document = 2;
+   *    }
+   *
+   *    RID rid = 3;
+   *    int64 version = 4;
+   *  }
+   * </code>
+   */
+  @Override
+  public void deserialize(ODocument document, BytesContainer bytes) {
+    while (bytes.offset < bytes.bytes.length) {
+      final int tag = readRawVarint32(bytes);
+      if (tag == 18) {
+        readDocument(document, bytes, null, null);
+        break;
+      } else {
+        skipField(tag, bytes);
+      }
+    }
+
+    ORecordInternal.clearSource(document);
   }
 
   /**
@@ -92,23 +120,27 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
   }
 
   /**
-   * message Document {<br/>
-   * string class = 1;<br/>
-   * map<string, Item> fields = 2;<br/>
-   * }<br/>
+   * <code>
+   *  message Document {
+   *    reserved 1;
+   *    string class = 2;
+   *    map<string, Item> fields = 3;
+   *  }
+   *  </code>
    */
   private static int[] computeDocumentSize(String className, ODocument document, List<Map.Entry<String, ODocumentEntry>> fields,
-      final Map<String, OProperty> props) {
+      final Map<String, OProperty> props, final List<OPair<Integer, Integer>> hashCodePositionMap) {
 
     int size = 0;
 
     if (className != null) {
-      size += CodedOutputStream.computeStringSize(1, className);
+      size += CodedOutputStream.computeStringSize(2, className);
     }
 
     int[] sizes = new int[fields.size() * 2 + 1];
-    int sizesIndex = 1;
+    int sizesIndex = 2;
 
+    final Map<String, Integer> fieldPositionMap = new HashMap<String, Integer>();
     for (Map.Entry<String, ODocumentEntry> entry : fields) {
       ODocumentEntry docEntry = entry.getValue();
 
@@ -135,10 +167,16 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
               "Impossible serialize value of type " + value.getClass() + " with the ODocument binary serializer");
         }
 
-        final int[] entrySize = computeMapEntrySize(entry.getKey(), value, type);
+        final int entryPosition = size;
+        final int[] entrySize = computeFieldMapEntrySize(entry.getKey(), value, type);
 
         size += entrySize[0];
-        size += computeEmbeddedMessageHeaderSize(entrySize[0], 2);
+
+        final int fieldMapEntryTagSize = CodedOutputStream.computeTagSize(3);
+        final int fieldMapEntrySizeSize = CodedOutputStream.computeRawVarint32Size(entrySize[0]);
+        size += fieldMapEntrySizeSize + fieldMapEntryTagSize;
+
+        fieldPositionMap.put(entry.getKey(), entryPosition + fieldMapEntryTagSize);
 
         if (sizesIndex + entrySize.length > sizes.length) {
           int[] newSizes = new int[sizesIndex + entrySize.length];
@@ -154,15 +192,40 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
     }
 
     assert sizesIndex == sizes.length;
+
+    int indexSize = 0;
+    for (Map.Entry<String, Integer> entry : fieldPositionMap.entrySet()) {
+      final int hashCode = entry.getKey().hashCode();
+      hashCodePositionMap.add(new OPair<Integer, Integer>(hashCode, entry.getValue()));
+
+      indexSize += OIntegerSerializer.INT_SIZE;
+      indexSize += CodedOutputStream.computeRawVarint32Size(entry.getValue());
+    }
+
+    sizes[1] = indexSize;
+    indexSize += computeEmbeddedMessageHeaderSize(1, indexSize);
+
+    size += indexSize;
+
     sizes[0] = size;
 
     return sizes;
   }
 
   private static void writeDocument(String className, ODocument document, List<Map.Entry<String, ODocumentEntry>> fields,
-      CodedOutputStream codedOutputStream, Iterator<Integer> sizesIterator) throws IOException {
+      final List<OPair<Integer, Integer>> hashCodePositionMap, CodedOutputStream codedOutputStream, Iterator<Integer> sizesIterator)
+          throws IOException {
+
+    writeEmbeddedMessageHeader(sizesIterator.next(), 1, codedOutputStream);
+    for (Map.Entry<Integer, Integer> indexEntry : hashCodePositionMap) {
+      byte[] bhs = new byte[OIntegerSerializer.INT_SIZE];
+      OIntegerSerializer.INSTANCE.serializeNative(indexEntry.getKey(), bhs, 0);
+      codedOutputStream.writeRawBytes(bhs);
+      codedOutputStream.writeRawVarint32(indexEntry.getValue());
+    }
+
     if (className != null) {
-      codedOutputStream.writeString(1, className);
+      codedOutputStream.writeString(2, className);
     }
 
     for (Map.Entry<String, ODocumentEntry> entry : fields) {
@@ -175,8 +238,8 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
 
       if (value != null) {
         final int messageSize = sizesIterator.next();
-        writeEmbeddedMessageHeader(messageSize, 2, codedOutputStream);
-        writeMapEntry(entry.getKey(), value, docEntry.type, codedOutputStream, sizesIterator);
+        writeEmbeddedMessageHeader(messageSize, 3, codedOutputStream);
+        writeFieldMapEntry(entry.getKey(), value, docEntry.type, codedOutputStream, sizesIterator);
       }
     }
   }
@@ -191,14 +254,17 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
    * }<br/>
    * repeated MapFieldEntry map_field = N;<br/>
    */
-  private static int[] computeMapEntrySize(String key, Object value, OType type) {
+  private static int[] computeFieldMapEntrySize(String key, Object value, OType type) {
     int size = 0;
 
-    size += CodedOutputStream.computeStringSize(1, key);
+    final int stringKeySize = CodedOutputStream.computeStringSize(1, key);
+    size += stringKeySize;
 
     final int[] itemSize = computeItemSize(value, type);
     size += itemSize[0];
-    size += computeEmbeddedMessageHeaderSize(itemSize[0], 2);
+
+    final int itemHeaderSize = computeEmbeddedMessageHeaderSize(2, itemSize[0]);
+    size += itemHeaderSize;
 
     final int[] sizes = new int[itemSize.length + 1];
     sizes[0] = size;
@@ -207,7 +273,7 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
     return sizes;
   }
 
-  private static void writeMapEntry(String key, Object value, OType type, CodedOutputStream codedOutputStream,
+  private static void writeFieldMapEntry(String key, Object value, OType type, CodedOutputStream codedOutputStream,
       Iterator<Integer> sizesIterator) throws IOException {
     codedOutputStream.writeString(1, key);
 
@@ -300,38 +366,17 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
     codedOutputStream.writeSInt32(1, ((Number) value).intValue());
   }
 
-  /**
-   * message RID { <br/>
-   * sint32 cluster_id = 1; <br/>
-   * sint64 cluster_pos = 2; <br/>
-   * } <br/>
-   */
-  private static int computeRIDSize(ORID rid) {
+  private static int computeEmbeddedMessageHeaderSize(int fieldNumber, int messageSize) {
     int size = 0;
-
-    // sint32 cluster_id = 1;
-    size += CodedOutputStream.computeSInt32Size(1, rid.getClusterId());
-    // sint64 cluster_pos = 2;
-    size += CodedOutputStream.computeSInt64Size(2, rid.getClusterPosition());
-
-    return size;
-  }
-
-  private static void writeRID(ORID rid, CodedOutputStream codedOutputStream) throws IOException {
-    codedOutputStream.writeSInt32(1, rid.getClusterId());
-    codedOutputStream.writeSInt64(2, rid.getClusterPosition());
-  }
-
-  private static int computeEmbeddedMessageHeaderSize(int messageSize, int tag) {
-    int size = 0;
-    size += CodedOutputStream.computeTagSize(tag);
+    size += CodedOutputStream.computeTagSize(fieldNumber);
     size += CodedOutputStream.computeRawVarint32Size(messageSize);
 
     return size;
   }
 
-  private static void writeEmbeddedMessageHeader(int messageSize, int tag, CodedOutputStream codedOutputStream) throws IOException {
-    codedOutputStream.writeTag(tag, 2);
+  private static void writeEmbeddedMessageHeader(int messageSize, int fieldNumber, CodedOutputStream codedOutputStream)
+      throws IOException {
+    codedOutputStream.writeTag(fieldNumber, 2);
     codedOutputStream.writeRawVarint32(messageSize);
   }
 
@@ -367,36 +412,6 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
   }
 
   /**
-   * <code>
-   *   message Record {
-   *    RID rid = 1;
-   *    int64 version = 2;
-   *
-   *    oneof data {
-   *      bytes raw = 3;
-   *      Document document = 4;
-   *    }
-   *  }
-   * </code>
-   */
-  @Override
-  public void deserialize(ODocument document, BytesContainer bytes) {
-    while (bytes.offset < bytes.bytes.length) {
-      int tag = readRawVarint32(bytes);
-      switch (WireFormat.getTagFieldNumber(tag)) {
-      case 4: {
-        readDocument(document, bytes, null);
-        break;
-      }
-      default:
-        skipField(tag, bytes);
-      }
-    }
-
-    ORecordInternal.clearSource(document);
-  }
-
-  /**
    * message RID { <br/>
    * sint32 cluster_id = 1; <br/>
    * sint64 cluster_pos = 2; <br/>
@@ -427,12 +442,15 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
   }
 
   /**
-   * message Document {<br/>
-   * string class = 1;<br/>
-   * map<string, Item> fields = 2;<br/>
-   * }<br/>
+   * <code>
+   *  message Document {
+   *    reserved 1;
+   *    string class = 2;
+   *    map<string, Item> fields = 3;
+   *  }
+   *  </code>
    */
-  private void readDocument(ODocument document, BytesContainer bytesContainer, byte[][] fieldsToInclude) {
+  private void readDocument(ODocument document, BytesContainer bytesContainer, byte[][] fieldsToInclude, String[] fieldNames) {
     final int messageLength = readRawVarint32(bytesContainer);
     final int bytesRead = bytesContainer.offset;
 
@@ -443,15 +461,23 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
       } else {
         final int tag = readRawVarint32(bytesContainer);
         switch (tag) {
-        case 1: {
+        case 10: {
+          if (readHashIndexPositionMap(bytesContainer, document, fieldsToInclude, fieldNames))
+            return;
+          break;
+        }
+        case 18: {
           final String className = readString(bytesContainer);
           if (className.length() > 0)
             ODocumentInternal.fillClassNameIfNeeded(document, className);
           break;
         }
-        case 18: {
-          if (readMapItem(document, bytesContainer, fieldsToInclude))
+        case 26: {
+          final OTriple<String, OType, Object> fieldValue = readMapItem(bytesContainer, fieldsToInclude);
+          if (fieldValue != null) {
+            ODocumentInternal.rawField(document, fieldValue.key, fieldValue.value.value, fieldValue.value.key);
             fieldsRead++;
+          }
 
           break;
         }
@@ -460,6 +486,124 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
         }
       }
     }
+  }
+
+  private boolean readHashIndexPositionMap(BytesContainer bytesContainer, ODocument document, byte[][] fieldsToInclude,
+      String[] fieldNames) {
+    final int messageLength = readRawVarint32(bytesContainer);
+    final int bytesRead = bytesContainer.offset;
+
+    int fieldRead = 0;
+    if (fieldsToInclude != null) {
+      final int endOffset = bytesRead + messageLength;
+
+      while (messageLength > bytesContainer.offset - bytesRead) {
+        if (fieldRead >= fieldNames.length) {
+          break;
+        }
+
+        final int hashCode = OIntegerSerializer.INSTANCE.deserializeNative(bytesContainer.bytes, bytesContainer.offset);
+        bytesContainer.offset += OIntegerSerializer.INT_SIZE;
+
+        boolean match = false;
+
+        for (int i = 0; i < fieldNames.length; i++) {
+          String fieldName = fieldNames[i];
+          final int shc = fieldName.hashCode();
+          if (shc == hashCode) {
+            final int position = readRawVarint32(bytesContainer);
+            match = true;
+            final int offset = bytesContainer.offset;
+
+            bytesContainer.offset = position + endOffset;
+            final OTriple<String, OType, Object> fieldValue = readMapItem(bytesContainer, new byte[][] { fieldsToInclude[i] });
+            bytesContainer.offset = offset;
+
+            if (fieldValue != null) {
+              ODocumentInternal.rawField(document, fieldValue.key, fieldValue.value.value, fieldValue.value.key);
+              fieldRead++;
+              break;
+            }
+          }
+        }
+
+        if (!match)
+          skipRawVarint(bytesContainer);
+      }
+
+      bytesContainer.offset = bytesRead + messageLength;
+      return true;
+    }
+
+    bytesContainer.offset = bytesRead + messageLength;
+    return false;
+  }
+
+  private static long readSInt64(BytesContainer bytesContainer) {
+    return decodeZigZag64(readRawVarint64(bytesContainer));
+  }
+
+  private static long decodeZigZag64(final long n) {
+    return (n >>> 1) ^ -(n & 1);
+  }
+
+  private static long readRawVarint64(BytesContainer bytesContainer) {
+    fastpath: {
+      int pos = bytesContainer.offset;
+
+      if (bytesContainer.bytes.length == pos) {
+        break fastpath;
+      }
+
+      final byte[] buffer = bytesContainer.bytes;
+      long x;
+      int y;
+      if ((y = buffer[pos++]) >= 0) {
+        bytesContainer.offset = pos;
+        return y;
+      } else if (bytesContainer.bytes.length - pos < 9) {
+        break fastpath;
+      } else if ((y ^= (buffer[pos++] << 7)) < 0) {
+        x = y ^ (~0 << 7);
+      } else if ((y ^= (buffer[pos++] << 14)) >= 0) {
+        x = y ^ ((~0 << 7) ^ (~0 << 14));
+      } else if ((y ^= (buffer[pos++] << 21)) < 0) {
+        x = y ^ ((~0 << 7) ^ (~0 << 14) ^ (~0 << 21));
+      } else if ((x = ((long) y) ^ ((long) buffer[pos++] << 28)) >= 0L) {
+        x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
+      } else if ((x ^= ((long) buffer[pos++] << 35)) < 0L) {
+        x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
+      } else if ((x ^= ((long) buffer[pos++] << 42)) >= 0L) {
+        x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
+      } else if ((x ^= ((long) buffer[pos++] << 49)) < 0L) {
+        x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49);
+      } else {
+        x ^= ((long) buffer[pos++] << 56);
+        x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42) ^ (~0L << 49) ^ (~0L << 56);
+        if (x < 0L) {
+          if (buffer[pos++] < 0L) {
+            break fastpath;
+          }
+        }
+      }
+
+      bytesContainer.offset = pos;
+      return x;
+    }
+
+    return readRawVarint64SlowPath(bytesContainer);
+  }
+
+  private static long readRawVarint64SlowPath(BytesContainer bytesContainer) {
+    long result = 0;
+    for (int shift = 0; shift < 64; shift += 7) {
+      final byte b = bytesContainer.bytes[bytesContainer.offset++];
+      result |= (long) (b & 0x7F) << shift;
+      if ((b & 0x80) == 0) {
+        return result;
+      }
+    }
+    throw new OSerializationException("Invalid varint64 format");
   }
 
   /**
@@ -472,7 +616,7 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
    * }<br/>
    * repeated MapFieldEntry map_field = N;<br/>
    */
-  private static boolean readMapItem(ODocument document, BytesContainer bytesContainer, byte[][] fieldsToInclude) {
+  private static OTriple<String, OType, Object> readMapItem(BytesContainer bytesContainer, byte[][] fieldsToInclude) {
     final int messageLength = readRawVarint32(bytesContainer);
     final int bytesRead = bytesContainer.offset;
 
@@ -517,15 +661,12 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
       }
     }
 
-    if (fieldNameLen >= 0 && itemValue != null)
-
-    {
-      ODocumentInternal.rawField(document, new String(bytesContainer.bytes, fieldNameStart, fieldNameLen, UTF8), itemValue.value,
-          itemValue.key);
-      return true;
+    if (fieldNameLen >= 0 && itemValue != null) {
+      return new OTriple<String, OType, Object>(new String(bytesContainer.bytes, fieldNameStart, fieldNameLen, UTF8), itemValue.key,
+          itemValue.value);
     }
 
-    return false;
+    return null;
 
   }
 
@@ -593,6 +734,19 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
     return n >>> 1 ^ -(n & 1);
   }
 
+  /**
+   * <code>
+   *  message Record {
+   *    oneof data {
+   *      bytes raw = 1;
+   *      Document document = 2;
+   *    }
+   *
+   *    RID rid = 3;
+   *    int64 version = 4;
+   *  }
+   * </code>
+   */
   @Override
   public void deserializePartial(ODocument document, BytesContainer bytes, String[] iFields) {
     byte[][] fieldNames = new byte[iFields.length][];
@@ -602,8 +756,8 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
 
     while (bytes.offset <= bytes.bytes.length) {
       int tag = readRawVarint32(bytes);
-      if (tag == 34) {
-        readDocument(document, bytes, fieldNames);
+      if (tag == 18) {
+        readDocument(document, bytes, fieldNames, iFields);
         break;
       } else {
         skipField(tag, bytes);
@@ -612,39 +766,39 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
   }
 
   private static int readRawVarint32(BytesContainer bytesContainer) {
-    byte tmp = bytesContainer.bytes[bytesContainer.offset++];
-    if (tmp >= 0) {
-      return tmp;
-    }
+    fastpath: {
+      int pos = bytesContainer.offset;
 
-    int result = tmp & 0x7f;
-    if ((tmp = bytesContainer.bytes[bytesContainer.offset++]) >= 0) {
-      result |= tmp << 7;
-    } else {
-      result |= (tmp & 0x7f) << 7;
-      if ((tmp = bytesContainer.bytes[bytesContainer.offset++]) >= 0) {
-        result |= tmp << 14;
+      if (bytesContainer.bytes.length == pos) {
+        break fastpath;
+      }
+
+      final byte[] buffer = bytesContainer.bytes;
+      int x;
+      if ((x = buffer[pos++]) >= 0) {
+        bytesContainer.offset = pos;
+        return x;
+      } else if (bytesContainer.bytes.length - pos < 9) {
+        break fastpath;
+      } else if ((x ^= (buffer[pos++] << 7)) < 0) {
+        x ^= (~0 << 7);
+      } else if ((x ^= (buffer[pos++] << 14)) >= 0) {
+        x ^= (~0 << 7) ^ (~0 << 14);
+      } else if ((x ^= (buffer[pos++] << 21)) < 0) {
+        x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21);
       } else {
-        result |= (tmp & 0x7f) << 14;
-        if ((tmp = bytesContainer.bytes[bytesContainer.offset++]) >= 0) {
-          result |= tmp << 21;
-        } else {
-          result |= (tmp & 0x7f) << 21;
-          result |= (tmp = bytesContainer.bytes[bytesContainer.offset++]) << 28;
-          if (tmp < 0) {
-            // Discard upper 32 bits.
-            for (int i = 0; i < 5; i++) {
-              if (bytesContainer.bytes[bytesContainer.offset++] >= 0) {
-                return result;
-              }
-            }
-            throw new OSerializationException("Mailformed format");
-          }
+        int y = buffer[pos++];
+        x ^= y << 28;
+        x ^= (~0 << 7) ^ (~0 << 14) ^ (~0 << 21) ^ (~0 << 28);
+        if (y < 0 && buffer[pos++] < 0 && buffer[pos++] < 0 && buffer[pos++] < 0 && buffer[pos++] < 0 && buffer[pos++] < 0) {
+          break fastpath;
         }
       }
+      bytesContainer.offset = pos;
+      return x;
     }
 
-    return result;
+    return (int) readRawVarint64SlowPath(bytesContainer);
   }
 
   private static boolean skipField(int tag, BytesContainer bytesContainer) {
@@ -684,15 +838,26 @@ public class OProtobufDocumentBinarySerializerV0 implements ODocumentSerializer 
   }
 
   private static void skipRawVarint(BytesContainer bytesContainer) {
-    byte[] bytes = bytesContainer.bytes;
-    int pos = bytesContainer.offset;
+    if (bytesContainer.bytes.length - bytesContainer.offset >= 10) {
+      final byte[] buffer = bytesContainer.bytes;
+      int pos = bytesContainer.offset;
+      for (int i = 0; i < 10; i++) {
+        if (buffer[pos++] >= 0) {
+          bytesContainer.offset = pos;
+          return;
+        }
+      }
+    }
+    skipRawVarintSlowPath(bytesContainer);
+  }
 
-    for (int i = 0; i < 10; ++i) {
-      if (bytes[pos++] >= 0) {
-        bytesContainer.offset = pos;
+  private static void skipRawVarintSlowPath(BytesContainer bytesContainer) {
+    for (int i = 0; i < 10; i++) {
+      if (bytesContainer.bytes[bytesContainer.offset++] >= 0) {
         return;
       }
     }
+    throw new OSerializationException("Malformed varint");
   }
 
   @Override
