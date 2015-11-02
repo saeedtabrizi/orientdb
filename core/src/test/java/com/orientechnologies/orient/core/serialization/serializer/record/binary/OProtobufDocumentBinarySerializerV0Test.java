@@ -28,21 +28,15 @@ public class OProtobufDocumentBinarySerializerV0Test {
 
     BytesContainer nContainer = new BytesContainer(bytesContainer.fitBytes());
 
-    long sum = 0;
-    for (int n = 0; n < 5; n++) {
-      long start = System.nanoTime();
-      for (int i = 0; i < 1000000; i++) {
-        ODocument nDoc = new ODocument();
-        final String fieldName = "field" + (n * 10);
-        documentSerializer.deserializePartial(nDoc, nContainer, new String[] { fieldName });
-        nContainer.offset = 0;
-      }
-      long end = System.nanoTime();
-
-      sum += (end - start) / 1000000;
+    long start = System.nanoTime();
+    for (int i = 0; i < 1000000; i++) {
+      ODocument nDoc = new ODocument();
+      documentSerializer.deserialize(nDoc, nContainer);
+      nContainer.offset = 0;
     }
+    long end = System.nanoTime();
 
-    System.out.println(sum / 5);
+    System.out.println((end - start) / 1000000);
   }
 
   public void testClassicBinarySerializer() throws Exception {
@@ -59,24 +53,16 @@ public class OProtobufDocumentBinarySerializerV0Test {
 
     BytesContainer nContainer = new BytesContainer(bytesContainer.fitBytes());
 
-    long sum = 0;
+    long start = System.nanoTime();
 
-    for (int n = 0; n < 5; n++) {
-      long start = System.nanoTime();
-
-      for (int i = 0; i < 1000000; i++) {
-        ODocument nDoc = new ODocument();
-
-        final String fieldName = "field" + (n * 10);
-        documentSerializer.deserializePartial(nDoc, nContainer, new String[] {fieldName});
-        nContainer.offset = 0;
-      }
-
-      long end = System.nanoTime();
-
-      sum += (end - start) / 1000000;
+    for (int i = 0; i < 1000000; i++) {
+      ODocument nDoc = new ODocument();
+      documentSerializer.deserialize(nDoc, nContainer);
+      nContainer.offset = 0;
     }
 
-    System.out.println(sum / 5);
+    long end = System.nanoTime();
+
+    System.out.println((end - start) / 1000000);
   }
 }
