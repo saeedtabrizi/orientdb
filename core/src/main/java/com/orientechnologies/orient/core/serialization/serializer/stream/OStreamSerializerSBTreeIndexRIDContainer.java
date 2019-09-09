@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.serialization.serializer.stream;
@@ -26,22 +26,20 @@ import com.orientechnologies.common.serialization.types.OLongSerializer;
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
-import com.orientechnologies.orient.core.db.record.ridbag.sbtree.OIndexRIDContainer;
-import com.orientechnologies.orient.core.db.record.ridbag.sbtree.OIndexRIDContainerSBTree;
-import com.orientechnologies.orient.core.index.sbtreebonsai.local.OBonsaiBucketPointer;
 import com.orientechnologies.orient.core.serialization.serializer.binary.impl.OLinkSerializer;
 import com.orientechnologies.orient.core.storage.impl.local.OAbstractPaginatedStorage;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OWALChanges;
+import com.orientechnologies.orient.core.storage.index.sbtreebonsai.local.OBonsaiBucketPointer;
+import com.orientechnologies.orient.core.storage.ridbag.sbtree.OIndexRIDContainer;
+import com.orientechnologies.orient.core.storage.ridbag.sbtree.OIndexRIDContainerSBTree;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Set;
 
 import static com.orientechnologies.orient.core.serialization.serializer.binary.impl.OLinkSerializer.RID_SIZE;
 
-public class OStreamSerializerSBTreeIndexRIDContainer implements OStreamSerializer, OBinarySerializer<OIndexRIDContainer> {
-  public static final String                                   NAME     = "icn";
+public class OStreamSerializerSBTreeIndexRIDContainer implements OBinarySerializer<OIndexRIDContainer> {
   public static final OStreamSerializerSBTreeIndexRIDContainer INSTANCE = new OStreamSerializerSBTreeIndexRIDContainer();
 
   public static final byte ID                       = 21;
@@ -60,24 +58,6 @@ public class OStreamSerializerSBTreeIndexRIDContainer implements OStreamSerializ
   public static final int                SBTREE_CONTAINER_SIZE =
       2 * OBooleanSerializer.BOOLEAN_SIZE + 2 * OLongSerializer.LONG_SIZE + OIntegerSerializer.INT_SIZE;
   public static final OLinkSerializer    LINK_SERIALIZER       = OLinkSerializer.INSTANCE;
-
-  public Object fromStream(final byte[] iStream) throws IOException {
-    if (iStream == null)
-      return null;
-
-    throw new UnsupportedOperationException("not implemented yet");
-  }
-
-  public byte[] toStream(final Object iObject) throws IOException {
-    if (iObject == null)
-      return null;
-
-    throw new UnsupportedOperationException("not implemented yet");
-  }
-
-  public String getName() {
-    return NAME;
-  }
 
   @Override
   public int getObjectSize(OIndexRIDContainer object, Object... hints) {
@@ -164,8 +144,8 @@ public class OStreamSerializerSBTreeIndexRIDContainer implements OStreamSerializ
       final long pageIndex = LONG_SERIALIZER.deserializeNative(stream, offset + SBTREE_ROOTINDEX_OFFSET);
       final int pageOffset = INT_SERIALIZER.deserializeNative(stream, offset + SBTREE_ROOTOFFSET_OFFSET);
       final OBonsaiBucketPointer rootPointer = new OBonsaiBucketPointer(pageIndex, pageOffset);
-      final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.INSTANCE.get();
-      final OIndexRIDContainerSBTree underlying = new OIndexRIDContainerSBTree(fileId, rootPointer, durable,
+      final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.instance().get();
+      final OIndexRIDContainerSBTree underlying = new OIndexRIDContainerSBTree(fileId, rootPointer,
           (OAbstractPaginatedStorage) db.getStorage().getUnderlying());
       return new OIndexRIDContainer(fileId, underlying, durable);
     }
@@ -236,8 +216,8 @@ public class OStreamSerializerSBTreeIndexRIDContainer implements OStreamSerializ
       final int pageOffset = buffer.getInt();
 
       final OBonsaiBucketPointer rootPointer = new OBonsaiBucketPointer(pageIndex, pageOffset);
-      final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.INSTANCE.get();
-      final OIndexRIDContainerSBTree underlying = new OIndexRIDContainerSBTree(fileId, rootPointer, durable,
+      final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.instance().get();
+      final OIndexRIDContainerSBTree underlying = new OIndexRIDContainerSBTree(fileId, rootPointer,
           (OAbstractPaginatedStorage) db.getStorage().getUnderlying());
       return new OIndexRIDContainer(fileId, underlying, durable);
     }
@@ -280,8 +260,8 @@ public class OStreamSerializerSBTreeIndexRIDContainer implements OStreamSerializ
       final long pageIndex = walChanges.getLongValue(buffer, offset + SBTREE_ROOTINDEX_OFFSET);
       final int pageOffset = walChanges.getIntValue(buffer, offset + SBTREE_ROOTOFFSET_OFFSET);
       final OBonsaiBucketPointer rootPointer = new OBonsaiBucketPointer(pageIndex, pageOffset);
-      final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.INSTANCE.get();
-      final OIndexRIDContainerSBTree underlying = new OIndexRIDContainerSBTree(fileId, rootPointer, durable,
+      final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.instance().get();
+      final OIndexRIDContainerSBTree underlying = new OIndexRIDContainerSBTree(fileId, rootPointer,
           (OAbstractPaginatedStorage) db.getStorage().getUnderlying());
       return new OIndexRIDContainer(fileId, underlying, durable);
     }

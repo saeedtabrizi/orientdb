@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,6 +32,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 @Test(groups = "sql-select")
@@ -86,14 +87,14 @@ public class SQLSelectProjectionsTest extends DocumentDBBaseTest {
   @Test
   public void queryProjectionLinkedAndFunction() {
     List<ODocument> result = database.command(
-        new OSQLSynchQuery<ODocument>("select name.toUppercase(), address.city.country.name from Profile")).execute();
+        new OSQLSynchQuery<ODocument>("select name.toUpperCase(Locale.ENGLISH), address.city.country.name from Profile")).execute();
 
     Assert.assertTrue(result.size() != 0);
 
     for (ODocument d : result) {
       Assert.assertTrue(d.fieldNames().length <= 2);
       if (d.field("name") != null)
-        Assert.assertTrue(d.field("name").equals(((String) d.field("name")).toUpperCase()));
+        Assert.assertTrue(d.field("name").equals(((String) d.field("name")).toUpperCase(Locale.ENGLISH)));
 
       Assert.assertNull(d.getClassName());
       Assert.assertEquals(ORecordInternal.getRecordType(d), ODocument.RECORD_TYPE);
@@ -103,7 +104,7 @@ public class SQLSelectProjectionsTest extends DocumentDBBaseTest {
   @Test
   public void queryProjectionSameFieldTwice() {
     List<ODocument> result = database.command(
-        new OSQLSynchQuery<ODocument>("select name, name.toUppercase() from Profile where name is not null")).execute();
+        new OSQLSynchQuery<ODocument>("select name, name.toUpperCase(Locale.ENGLISH) from Profile where name is not null")).execute();
 
     Assert.assertTrue(result.size() != 0);
 
@@ -249,7 +250,7 @@ public class SQLSelectProjectionsTest extends DocumentDBBaseTest {
     Assert.assertEquals(result.size(), 1);
 
     for (ODocument d : result)
-      Assert.assertEquals(d.field("result"), 5);
+      Assert.assertEquals(d.<Object>field("result"), 5);
 
   }
 
@@ -288,21 +289,21 @@ public class SQLSelectProjectionsTest extends DocumentDBBaseTest {
     List<ODocument> result = database.command(new OSQLSynchQuery<ODocument>("SELECT set(name)[0-1] as set from OUser")).execute();
     Assert.assertEquals(result.size(), 1);
     for (ODocument d : result) {
-      Assert.assertTrue(OMultiValue.isMultiValue(d.field("set")));
+      Assert.assertTrue(OMultiValue.isMultiValue(d.<Object>field("set")));
       Assert.assertTrue(OMultiValue.getSize(d.field("set")) <= 2);
     }
 
     result = database.command(new OSQLSynchQuery<ODocument>("SELECT set(name)[0,1] as set from OUser")).execute();
     Assert.assertEquals(result.size(), 1);
     for (ODocument d : result) {
-      Assert.assertTrue(OMultiValue.isMultiValue(d.field("set")));
+      Assert.assertTrue(OMultiValue.isMultiValue(d.<Object>field("set")));
       Assert.assertTrue(OMultiValue.getSize(d.field("set")) <= 2);
     }
 
     result = database.command(new OSQLSynchQuery<ODocument>("SELECT set(name)[0] as unique from OUser")).execute();
     Assert.assertEquals(result.size(), 1);
     for (ODocument d : result) {
-      Assert.assertFalse(OMultiValue.isMultiValue(d.field("unique")));
+      Assert.assertFalse(OMultiValue.isMultiValue(d.<Object>field("unique")));
     }
   }
 

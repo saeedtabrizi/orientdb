@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -22,13 +22,15 @@ package com.orientechnologies.orient.core.storage.impl.local.paginated.wal;
 
 import com.orientechnologies.common.serialization.types.OLongSerializer;
 
+import java.nio.ByteBuffer;
+
 /**
- * @author Andrey Lomakin
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 30.04.13
  */
 public class OFuzzyCheckpointStartRecord extends OAbstractCheckPointStartRecord {
-  private OLogSequenceNumber lsn;
-  private OLogSequenceNumber flushedLsn;
+  private volatile OLogSequenceNumber lsn;
+  private          OLogSequenceNumber flushedLsn;
 
   public OFuzzyCheckpointStartRecord() {
   }
@@ -50,6 +52,14 @@ public class OFuzzyCheckpointStartRecord extends OAbstractCheckPointStartRecord 
     offset += OLongSerializer.LONG_SIZE;
 
     return offset;
+  }
+
+  @Override
+  public void toStream(final ByteBuffer buffer) {
+    super.toStream(buffer);
+
+    buffer.putLong(flushedLsn.getSegment());
+    buffer.putLong(flushedLsn.getPosition());
   }
 
   @Override
@@ -84,6 +94,11 @@ public class OFuzzyCheckpointStartRecord extends OAbstractCheckPointStartRecord 
   @Override
   public void setLsn(OLogSequenceNumber lsn) {
     this.lsn = lsn;
+  }
+
+  @Override
+  public byte getId() {
+    return WALRecordTypes.FUZZY_CHECKPOINT_START_RECORD;
   }
 
   @Override

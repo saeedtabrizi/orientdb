@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2012 Luca Molino (molino.luca--AT--gmail.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import javassist.util.proxy.MethodFilter;
 import com.orientechnologies.common.log.OLogManager;
 
 /**
- * @author luca.molino Original implementation
+ * @author Luca Molino (molino.luca--at--gmail.com) Original implementation
  * @author Janos Haber Scala binding
  * 
  */
@@ -59,7 +59,7 @@ public class OObjectMethodFilter implements MethodFilter {
 
   public String getFieldName(final Method m) {
     String fieldName = fieldNameCache.get(m);
-    if (fieldName != null){
+    if (fieldName != null) {
       return fieldName;
     }
     final String methodName = m.getName();
@@ -74,7 +74,7 @@ public class OObjectMethodFilter implements MethodFilter {
     else if (isScalaClass(clz)) {
       fieldName = getScalaFieldName(clz, methodName);
     }
-    if (fieldName != null){
+    if (fieldName != null) {
       fieldNameCache.put(m, fieldName);
       return fieldName;
     }
@@ -91,21 +91,20 @@ public class OObjectMethodFilter implements MethodFilter {
 
   public boolean isSetterMethod(final Method m) throws SecurityException, NoSuchFieldException {
     Boolean cachedIsSetter = isSetterCache.get(m);
-    if (cachedIsSetter != null){
+    if (cachedIsSetter != null) {
       return cachedIsSetter;
     }
     String methodName = m.getName();
     Class<?> clz = m.getDeclaringClass();
-    if (!methodName.startsWith("set") || !checkIfFirstCharAfterPrefixIsUpperCase(methodName, "set")
-        || (isScalaClass(clz) && !methodName.endsWith("_$eq"))){
+    if (!methodName.startsWith("set") || !checkIfFirstCharAfterPrefixIsUpperCase(methodName, "set") || (isScalaClass(clz) && !methodName.endsWith("_$eq"))) {
       isSetterCache.put(m, false);
       return false;
     }
-    if (m.getParameterTypes() != null && m.getParameterTypes().length != 1){
+    if (m.getParameterTypes() != null && m.getParameterTypes().length != 1) {
       isSetterCache.put(m, false);
       return false;
     }
-    if (OObjectEntitySerializer.isTransientField(m.getDeclaringClass(), getFieldName(m))){
+    if (OObjectEntitySerializer.isTransientField(m.getDeclaringClass(), getFieldName(m))) {
       isSetterCache.put(m, false);
       return false;
     }
@@ -125,7 +124,7 @@ public class OObjectMethodFilter implements MethodFilter {
 
   public boolean isGetterMethod(Method m) throws SecurityException, NoSuchFieldException {
     Boolean cachedIsGetter = isGetterCache.get(m);
-    if (cachedIsGetter != null){
+    if (cachedIsGetter != null) {
       return cachedIsGetter;
     }
     String methodName = m.getName();
@@ -141,11 +140,11 @@ public class OObjectMethodFilter implements MethodFilter {
       isGetterCache.put(m, false);
       return false;
     }
-    if (m.getParameterTypes() != null && m.getParameterTypes().length > 0){
+    if (m.getParameterTypes() != null && m.getParameterTypes().length > 0) {
       isGetterCache.put(m, false);
       return false;
     }
-    if (methodName.length() <= prefixLength){
+    if (methodName.length() <= prefixLength) {
       isGetterCache.put(m, false);
       return false;
     }

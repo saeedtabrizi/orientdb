@@ -1,6 +1,6 @@
 /*
  *
- *  * Copyright 2014 Orient Technologies.
+ *  * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  * Licensed under the Apache License, Version 2.0 (the "License");
  *  * you may not use this file except in compliance with the License.
@@ -18,16 +18,17 @@
 
 package com.orientechnologies.lucene.test;
 
+import com.orientechnologies.orient.core.command.script.OCommandScript;
 import com.orientechnologies.orient.core.index.OIndexEngineException;
-import com.orientechnologies.orient.core.metadata.schema.OClass;
-import com.orientechnologies.orient.core.metadata.schema.OSchema;
-import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import org.junit.After;
+import org.assertj.core.api.Assertions;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.io.InputStream;
+import java.util.List;
 
 /**
  * Created by enricorisa on 02/10/14.
@@ -40,27 +41,20 @@ public class LuceneQueryErrorTest extends BaseLuceneTest {
 
   @Before
   public void init() {
-    initDB();
-    OSchema schema = databaseDocumentTx.getMetadata().getSchema();
-    OClass v = schema.getClass("V");
-    OClass song = schema.createClass("Song");
-    song.setSuperClass(v);
-    song.createProperty("title", OType.STRING);
-    song.createProperty("author", OType.STRING);
+    InputStream stream = ClassLoader.getSystemResourceAsStream("testLuceneIndex.sql");
 
-    databaseDocumentTx.command(new OCommandSQL("create index Song.title on Song (title) FULLTEXT ENGINE LUCENE")).execute();
+    db.command(new OCommandScript("sql", getScriptFromStream(stream))).execute();
+
+    db.command(new OCommandSQL("create index Song.title on Song (title) FULLTEXT ENGINE LUCENE")).execute();
 
   }
 
-  @After
-  public void deInit() {
-    deInitDB();
-  }
-
-  @Test(expected = OIndexEngineException.class)
+  @Test
   public void testQueryError() {
 
     String query = "select * from Song where [title] LUCENE \"\" ";
-    databaseDocumentTx.query(new OSQLSynchQuery<ODocument>(query));
+    List<?> result = db.query(new OSQLSynchQuery<ODocument>(query));
+
+    Assertions.assertThat(result).isEmpty();
   }
 }

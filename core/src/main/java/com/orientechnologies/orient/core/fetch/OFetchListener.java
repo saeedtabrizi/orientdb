@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,19 +14,20 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.fetch;
 
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.exception.OFetchException;
+import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 
 /**
  * Listener interface used while fetching records.
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public interface OFetchListener {
@@ -59,7 +60,7 @@ public interface OFetchListener {
       final ODocument iLinked, final OFetchContext iContext) throws OFetchException;
 
   void processStandardField(final ODocument iRecord, final Object iFieldValue, final String iFieldName,
-      final OFetchContext iContext, final Object iUserObject, String iFormat) throws OFetchException;
+      final OFetchContext iContext, final Object iUserObject, String iFormat, OType filedType) throws OFetchException;
 
   void skipStandardField(final ODocument iRecord, final String iFieldName, final OFetchContext iContext, final Object iUserObject,
       String iFormat) throws OFetchException;

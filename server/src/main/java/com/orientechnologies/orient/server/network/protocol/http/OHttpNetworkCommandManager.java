@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
 
 public class OHttpNetworkCommandManager {
 
-  private static final String               URL_PART_PATTERN = "([a-zA-Z0-9%:\\\\+]*)";
+  private static final String URL_PART_PATTERN = "([a-zA-Z0-9%:\\\\+]*)";
 
   private final Map<String, OServerCommand> exactCommands    = new ConcurrentHashMap<String, OServerCommand>();
   private final Map<String, OServerCommand> wildcardCommands = new ConcurrentHashMap<String, OServerCommand>();
@@ -60,7 +60,8 @@ public class OHttpNetworkCommandManager {
     if (cmd == null) {
       // TRY WITH WILDCARD COMMANDS
       // TODO: OPTIMIZE SEARCH!
-      String partLeft, partRight;
+      String partLeft;
+      String partRight;
       for (Entry<String, OServerCommand> entry : wildcardCommands.entrySet()) {
         final int wildcardPos = entry.getKey().indexOf('*');
         partLeft = entry.getKey().substring(0, wildcardPos);

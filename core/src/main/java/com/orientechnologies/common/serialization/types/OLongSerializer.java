@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -86,19 +86,27 @@ public class OLongSerializer implements OBinarySerializer<Long> {
 
   @Override
   public void serializeNativeObject(final Long object, final byte[] stream, final int startPosition, final Object... hints) {
+    checkBoundaries(stream, startPosition);
+
     CONVERTER.putLong(stream, startPosition, object, ByteOrder.nativeOrder());
   }
 
   @Override
   public Long deserializeNativeObject(final byte[] stream, final int startPosition) {
+    checkBoundaries(stream, startPosition);
+
     return CONVERTER.getLong(stream, startPosition, ByteOrder.nativeOrder());
   }
 
   public void serializeNative(final long object, final byte[] stream, final int startPosition, final Object... hints) {
+    checkBoundaries(stream, startPosition);
+
     CONVERTER.putLong(stream, startPosition, object, ByteOrder.nativeOrder());
   }
 
   public long deserializeNative(final byte[] stream, final int startPosition) {
+    checkBoundaries(stream, startPosition);
+
     return CONVERTER.getLong(stream, startPosition, ByteOrder.nativeOrder());
   }
 
@@ -153,5 +161,12 @@ public class OLongSerializer implements OBinarySerializer<Long> {
   @Override
   public int getObjectSizeInByteBuffer(ByteBuffer buffer, OWALChanges walChanges, int offset) {
     return LONG_SIZE;
+  }
+
+  private static void checkBoundaries(byte[] stream, int startPosition) {
+    if (startPosition + LONG_SIZE > stream.length) {
+      throw new IllegalStateException(
+          "Requested stream size is " + (startPosition + LONG_SIZE) + " but provided stream has size " + stream.length);
+    }
   }
 }

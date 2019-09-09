@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,11 +14,12 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
 
+import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.orient.core.command.OCommandDistributedReplicateRequest;
 import com.orientechnologies.orient.core.command.OCommandRequest;
 import com.orientechnologies.orient.core.command.OCommandRequestText;
@@ -38,7 +39,7 @@ import java.util.Map;
 /**
  * SQL ALTER PROPERTY command: Changes an attribute of an existent property in the target class.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 @SuppressWarnings("unchecked")
 public class OCommandExecutorSQLAlterClass extends OCommandExecutorSQLAbstract implements OCommandDistributedReplicateRequest {
@@ -92,18 +93,19 @@ public class OCommandExecutorSQLAlterClass extends OCommandExecutorSQLAbstract i
       try {
         attribute = OClass.ATTRIBUTES.valueOf(attributeAsString.toUpperCase(Locale.ENGLISH));
       } catch (IllegalArgumentException e) {
-        throw new OCommandSQLParsingException("Unknown class's attribute '" + attributeAsString + "'. Supported attributes are: "
-            + Arrays.toString(OClass.ATTRIBUTES.values()), parserText, oldPos);
+        throw OException.wrapException(new OCommandSQLParsingException(
+            "Unknown class's attribute '" + attributeAsString + "'. Supported attributes are: " + Arrays
+                .toString(OClass.ATTRIBUTES.values()), parserText, oldPos), e);
       }
 
       value = parserText.substring(pos + 1).trim();
 
-      if("addcluster".equalsIgnoreCase(attributeAsString) || "removecluster".equalsIgnoreCase(attributeAsString) ){
+      if ("addcluster".equalsIgnoreCase(attributeAsString) || "removecluster".equalsIgnoreCase(attributeAsString)) {
         value = decodeClassName(value);
       }
       OAlterClassStatement stm = (OAlterClassStatement) preParsedStatement;
       if (this.preParsedStatement != null && stm.property == ATTRIBUTES.CUSTOM) {
-        value = "" + stm.customKey.getValue() + "=" + stm.customValue.toString();
+        value = "" + stm.customKey.getStringValue() + "=" + stm.customValue.toString();
       }
 
       if (parserTextUpperCase.endsWith("UNSAFE")) {
@@ -163,12 +165,12 @@ public class OCommandExecutorSQLAlterClass extends OCommandExecutorSQLAbstract i
     }
     cls.set(attribute, value);
 
-    return null;
+    return Boolean.TRUE;
   }
 
   @Override
   public long getDistributedTimeout() {
-    return OGlobalConfiguration.DISTRIBUTED_COMMAND_TASK_SYNCH_TIMEOUT.getValueAsLong();
+    return getDatabase().getConfiguration().getValueAsLong(OGlobalConfiguration.DISTRIBUTED_COMMAND_QUICK_TASK_SYNCH_TIMEOUT);
   }
 
   protected void checkClassExists(ODatabaseDocument database, String targetClass, String superClass) {
@@ -176,8 +178,8 @@ public class OCommandExecutorSQLAlterClass extends OCommandExecutorSQLAbstract i
       superClass = superClass.substring(1);
     }
     if (database.getMetadata().getSchema().getClass(decodeClassName(superClass)) == null) {
-      throw new OCommandExecutionException("Cannot alter superClass of '" + targetClass + "' because " + superClass
-          + " class not found");
+      throw new OCommandExecutionException(
+          "Cannot alter superClass of '" + targetClass + "' because " + superClass + " class not found");
     }
   }
 

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *  
  */
 
@@ -25,24 +25,19 @@ import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import org.testng.Assert;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
-
+import org.junit.Assert;import org.junit.After; import org.junit.Before; import org.junit.Test;
 import java.util.Map;
 
-@Test
 public class DocumentTest {
   private ODatabaseDocumentTx db;
 
-  @BeforeClass
+  @Before
   public void before() {
     db = new ODatabaseDocumentTx("memory:" + DocumentTest.class.getSimpleName());
     db.create();
   }
 
-  @AfterClass
+  @After
   public void after() {
     db.drop();
   }
@@ -85,7 +80,7 @@ public class DocumentTest {
   }
 
   @Test
-  public void testConvertionOnTypeSet() {
+  public void testConversionOnTypeSet() {
     ODocument doc = new ODocument();
 
     doc.field("some", 3);

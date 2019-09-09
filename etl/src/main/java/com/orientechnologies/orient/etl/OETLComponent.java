@@ -1,6 +1,6 @@
 /*
  *
- *  * Copyright 2010-2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  * Copyright 2010-2016 OrientDB LTD (info(-at-)orientdb.com)
  *  *
  *  * Licensed under the Apache License, Version 2.0 (the "License");
  *  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 package com.orientechnologies.orient.etl;
 
 import com.orientechnologies.orient.core.command.OCommandContext;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 
 /**
@@ -33,13 +34,13 @@ public interface OETLComponent {
 
   /**
    * Called by the @OETLProcessor
-   * @param processor
+   *
    * @param configuration
    * @param context
    */
-  void configure(OETLProcessor processor, ODocument configuration, OCommandContext context);
+  void configure(ODocument configuration, OCommandContext context);
 
-  void begin();
+  void begin(ODatabaseDocument db);
 
   void end();
 
@@ -49,4 +50,6 @@ public interface OETLComponent {
    * @return the name of the component
    */
   String getName();
+
+  void setProcessor(OETLProcessor processor);
 }

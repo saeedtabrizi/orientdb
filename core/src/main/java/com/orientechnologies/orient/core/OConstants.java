@@ -1,77 +1,124 @@
-/*
- *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
- *  *
- *  *  Licensed under the Apache License, Version 2.0 (the "License");
- *  *  you may not use this file except in compliance with the License.
- *  *  You may obtain a copy of the License at
- *  *
- *  *       http://www.apache.org/licenses/LICENSE-2.0
- *  *
- *  *  Unless required by applicable law or agreed to in writing, software
- *  *  distributed under the License is distributed on an "AS IS" BASIS,
- *  *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  *  See the License for the specific language governing permissions and
- *  *  limitations under the License.
- *  *
- *  * For more information: http://www.orientechnologies.com
- *
- */
 package com.orientechnologies.orient.core;
 
+import com.orientechnologies.common.log.OLogManager;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
+
 public class OConstants {
-  public static final String  ORIENT_VERSION       = "2.2.0-SNAPSHOT";
+  public static final String ORIENT_URL = "https://www.orientdb.com";
+  public static final String COPYRIGHT  = "Copyrights (c) 2017 OrientDB LTD";
+  public static final String CODENAME   = "Veloce";
 
-  public static final int     ORIENT_VERSION_MAJOR = 2;
-  public static final int     ORIENT_VERSION_MINOR = 2;
-  public static final int     ORIENT_VERSION_HOFIX = 0;
-  public static final boolean SNAPSHOT             = true;
+  private static final Properties properties = new Properties();
 
-  public static final String  ORIENT_URL           = "www.orientdb.com";
-  public static final String  COPYRIGHT            = "Copyrights (c) 2015 Orient Technologies LTD";
+  static {
+    final InputStream inputStream = OConstants.class.getResourceAsStream("/com/orientechnologies/orientdb.properties");
+    try {
+      properties.load(inputStream);
+    } catch (IOException e) {
+      OLogManager.instance().errorNoDb(OConstants.class, "Failed to load OrientDB properties", e);
+    } finally {
+      if (inputStream != null) {
+        try {
+          inputStream.close();
+        } catch (IOException ignore) {
+          // Ignore
+        }
+      }
+    }
+
+  }
+
+  /**
+   * @return Major part of OrientDB version
+   */
+  public static int getVersionMajor() {
+    final String[] versions = properties.getProperty("version").split("\\.");
+    if (versions.length == 0) {
+      OLogManager.instance().errorNoDb(OConstants.class, "Can not retrieve version information for this build", null);
+      return -1;
+    }
+
+    try {
+      return Integer.parseInt(versions[0]);
+    } catch (NumberFormatException nfe) {
+      OLogManager.instance().errorNoDb(OConstants.class, "Can not retrieve major version information for this build", nfe);
+      return -1;
+    }
+  }
+
+  /**
+   * @return Minor part of OrientDB version
+   */
+  public static int getVersionMinor() {
+    final String[] versions = properties.getProperty("version").split("\\.");
+    if (versions.length < 2) {
+      OLogManager.instance().errorNoDb(OConstants.class, "Can not retrieve minor version information for this build", null);
+      return -1;
+    }
+
+    try {
+      return Integer.parseInt(versions[1]);
+    } catch (NumberFormatException nfe) {
+      OLogManager.instance().errorNoDb(OConstants.class, "Can not retrieve minor version information for this build", nfe);
+      return -1;
+    }
+  }
+
+  /**
+   * @return Hotfix part of OrientDB version
+   */
+  @SuppressWarnings("unused")
+  public static int getVersionHotfix() {
+    final String[] versions = properties.getProperty("version").split("\\.");
+    if (versions.length < 3) {
+      return 0;
+    }
+
+    try {
+      String hotfix = versions[2];
+      int snapshotIndex = hotfix.indexOf("-SNAPSHOT");
+
+      if (snapshotIndex != -1) {
+        hotfix = hotfix.substring(0, snapshotIndex);
+      }
+
+      return Integer.parseInt(hotfix);
+    } catch (NumberFormatException nfe) {
+      OLogManager.instance().errorNoDb(OConstants.class, "Can not retrieve hotfix version information for this build", nfe);
+      return -1;
+    }
+  }
+
+  /**
+   * @return Returns only current version without build number and etc.
+   */
+  public static String getRawVersion() {
+    return properties.getProperty("version");
+  }
 
   /**
    * Returns the complete text of the current OrientDB version.
    */
   public static String getVersion() {
-    final StringBuilder buffer = new StringBuilder();
-    buffer.append(OConstants.ORIENT_VERSION);
-
-    final String buildNumber = System.getProperty("orientdb.build.number");
-
-    if (buildNumber != null) {
-      buffer.append(" (build ");
-      buffer.append(buildNumber);
-      buffer.append(")");
-    }
-
-    return buffer.toString();
-  }
-
-  /**
-   * Returns current OrientDB version as array with 3 integers: major, minor and hotfix numbers. Example: [2,2,0].
-   */
-  public static int[] getVersionNumber() {
-    return new int[] { ORIENT_VERSION_MAJOR, ORIENT_VERSION_MINOR, ORIENT_VERSION_HOFIX };
+    return properties.getProperty("version") + " - " + CODENAME + " (build " + properties.getProperty("revision") + ", branch "
+        + properties.getProperty("branch") + ")";
   }
 
   /**
    * Returns true if current OrientDB version is a snapshot.
    */
   public static boolean isSnapshot() {
-    return SNAPSHOT;
+    return properties.getProperty("version").endsWith("SNAPSHOT");
   }
 
   /**
-   * Returns the build number if any.
-   * 
-   * @return
+   * @return the build number if any.
    */
   public static String getBuildNumber() {
-    final String buildNumber = System.getProperty("orientdb.build.number");
-    if (buildNumber == null)
-      return null;
-
-    return buildNumber;
+    return properties.getProperty("revision");
   }
 }
+

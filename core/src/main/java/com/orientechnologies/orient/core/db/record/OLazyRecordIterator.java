@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.db.record;
@@ -32,15 +32,14 @@ import com.orientechnologies.orient.core.record.ORecordInternal;
 /**
  * Lazy implementation of Iterator that load the records only when accessed. It keep also track of changes to the source record
  * avoiding to call setDirty() by hand.
- * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OLazyRecordIterator implements OLazyIterator<OIdentifiable>, OResettable {
-  final private ORecord                           sourceRecord;
-  final private Iterable<? extends OIdentifiable> source;
-  private Iterator<? extends OIdentifiable>       underlying;
-  final private boolean                           autoConvert2Record;
+  private final ORecordElement                    sourceRecord;
+  private final Iterable<? extends OIdentifiable> source;
+  private       Iterator<? extends OIdentifiable> underlying;
+  private final boolean                           autoConvert2Record;
 
   public OLazyRecordIterator(final Iterator<? extends OIdentifiable> iIterator, final boolean iConvertToRecord) {
     this.sourceRecord = null;
@@ -49,7 +48,7 @@ public class OLazyRecordIterator implements OLazyIterator<OIdentifiable>, OReset
     this.source = null;
   }
 
-  public OLazyRecordIterator(final ORecord iSourceRecord, final Iterator<? extends OIdentifiable> iIterator,
+  public OLazyRecordIterator(final ORecordElement iSourceRecord, final Iterator<? extends OIdentifiable> iIterator,
       final boolean iConvertToRecord) {
     this.sourceRecord = iSourceRecord;
     this.underlying = iIterator;
@@ -71,7 +70,7 @@ public class OLazyRecordIterator implements OLazyIterator<OIdentifiable>, OReset
     if (value == null)
       return null;
 
-    if (value instanceof ORecordId && autoConvert2Record && ODatabaseRecordThreadLocal.INSTANCE.isDefined()) {
+    if (value instanceof ORecordId && autoConvert2Record && ODatabaseRecordThreadLocal.instance().isDefined()) {
       try {
         final ORecord rec = ((ORecordId) value).getRecord();
         if (sourceRecord != null && rec != null)

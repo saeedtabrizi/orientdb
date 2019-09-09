@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.db;
@@ -36,7 +36,7 @@ import java.util.Iterator;
  * storage you should close pool factory at the end of it's usage, it also may be closed on application shutdown but you should not
  * rely on this behaviour.
  *
- * @author Andrey Lomakin (a.lomakin-at-orientechnologies.com)
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 06/11/14
  */
 public class OPartitionedDatabasePoolFactory extends OOrientListenerAbstract {
@@ -45,15 +45,12 @@ public class OPartitionedDatabasePoolFactory extends OOrientListenerAbstract {
 
   private final ConcurrentLinkedHashMap<PoolIdentity, OPartitionedDatabasePool> poolStore;
 
-  private final EvictionListener<PoolIdentity, OPartitionedDatabasePool>        evictionListener = new EvictionListener<PoolIdentity, OPartitionedDatabasePool>() {
-                                                                                                   @Override
-                                                                                                   public void onEviction(
-                                                                                                       final PoolIdentity poolIdentity,
-                                                                                                       final OPartitionedDatabasePool partitionedDatabasePool) {
-                                                                                                     partitionedDatabasePool
-                                                                                                         .close();
-                                                                                                   }
-                                                                                                 };
+  private final EvictionListener<PoolIdentity, OPartitionedDatabasePool> evictionListener = new EvictionListener<PoolIdentity, OPartitionedDatabasePool>() {
+    @Override
+    public void onEviction(final PoolIdentity poolIdentity, final OPartitionedDatabasePool partitionedDatabasePool) {
+      partitionedDatabasePool.close();
+    }
+  };
 
   public OPartitionedDatabasePoolFactory() {
     this(100);
@@ -113,7 +110,7 @@ public class OPartitionedDatabasePoolFactory extends OOrientListenerAbstract {
       poolStore.remove(poolIdentity, pool);
 
     while (true) {
-      pool = new OPartitionedDatabasePool(url, userName, userPassword, 64, maxPoolSize);
+      pool = new OPartitionedDatabasePool(url, userName, userPassword, 8, maxPoolSize);
 
       final OPartitionedDatabasePool oldPool = poolStore.putIfAbsent(poolIdentity, pool);
 

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
@@ -46,7 +46,7 @@ import java.util.*;
  * <p>
  * IMPORTANT: this class is only for internal usage!
  * </p>
- * 
+ *
  * @author Artem Orobets
  */
 
@@ -67,9 +67,9 @@ public class OChainedIndexProxy<T> implements OIndex<T> {
    * Create proxies that support maximum number of different operations. In case when several different indexes which support
    * different operations (e.g. indexes of {@code UNIQUE} and {@code FULLTEXT} types) are possible, the creates the only one index
    * of each type.
-   * 
-   * @param longChain
-   *          - property chain from the query, which should be evaluated
+   *
+   * @param longChain - property chain from the query, which should be evaluated
+   *
    * @return proxies needed to process query.
    */
   public static <T> Collection<OChainedIndexProxy<T>> createProxies(OClass iSchemaClass, OSQLFilterItemField.FieldChain longChain) {
@@ -155,7 +155,6 @@ public class OChainedIndexProxy<T> implements OIndex<T> {
 
   /**
    * Finds the index that fits better as a base index in chain.
-   * 
    * Requirements to the base index:
    * <ul>
    * <li>Should be unique or not unique. Other types cannot be used to get all documents with required links.</li>
@@ -164,9 +163,9 @@ public class OChainedIndexProxy<T> implements OIndex<T> {
    * <li>Hash index is better than tree based indexes.</li>
    * <li>Non composite indexes is better that composite.</li>
    * </ul>
-   * 
-   * @param indexes
-   *          where search
+   *
+   * @param indexes where search
+   *
    * @return the index that fits better as a base index in chain
    */
   protected static OIndex<?> findBestIndex(Iterable<OIndex<?>> indexes) {
@@ -221,16 +220,15 @@ public class OChainedIndexProxy<T> implements OIndex<T> {
 
   /**
    * Checks if index can be used as base index.
-   * 
    * Requirements to the base index:
    * <ul>
    * <li>Should be unique or not unique. Other types cannot be used to get all documents with required links.</li>
    * <li>Should not be composite hash index. As soon as hash index does not support partial match search.</li>
    * <li>Composite index that ignores null values should not be used.</li>
    * </ul>
-   * 
-   * @param index
-   *          to check
+   *
+   * @param index to check
+   *
    * @return true if index usage is allowed as base index.
    */
   public static boolean isAppropriateAsBase(OIndex<?> index) {
@@ -384,11 +382,10 @@ public class OChainedIndexProxy<T> implements OIndex<T> {
 
   /**
    * Make type conversion of keys for specific index.
-   * 
-   * @param index
-   *          - index for which keys prepared for.
-   * @param keys
-   *          - which should be prepared.
+   *
+   * @param index - index for which keys prepared for.
+   * @param keys  - which should be prepared.
+   *
    * @return keys converted to necessary type.
    */
   private Set<Comparable> prepareKeys(OIndex<?> index, Object keys) {
@@ -406,29 +403,24 @@ public class OChainedIndexProxy<T> implements OIndex<T> {
 
   /**
    * Register statistic information about usage of index in {@link OProfilerStub}.
-   * 
-   * @param index
-   *          which usage is registering.
+   *
+   * @param index which usage is registering.
    */
   private void updateStatistic(OIndex<?> index) {
 
     final OProfiler profiler = Orient.instance().getProfiler();
     if (profiler.isRecording()) {
-      Orient.instance().getProfiler().updateCounter(profiler.getDatabaseMetric(index.getDatabaseName(), "query.indexUsed"),
-          "Used index in query", +1);
+      Orient.instance().getProfiler()
+          .updateCounter(profiler.getDatabaseMetric(index.getDatabaseName(), "query.indexUsed"), "Used index in query", +1);
 
       final int paramCount = index.getDefinition().getParamCount();
       if (paramCount > 1) {
         final String profiler_prefix = profiler.getDatabaseMetric(index.getDatabaseName(), "query.compositeIndexUsed");
         profiler.updateCounter(profiler_prefix, "Used composite index in query", +1);
-        profiler.updateCounter(profiler_prefix + "." + paramCount, "Used composite index in query with " + paramCount + " params",
-            +1);
+        profiler
+            .updateCounter(profiler_prefix + "." + paramCount, "Used composite index in query with " + paramCount + " params", +1);
       }
     }
-  }
-
-  public ODocument checkEntry(final OIdentifiable iRecord, final Object iKey) {
-    return firstIndex.checkEntry(iRecord, iKey);
   }
 
   //
@@ -465,6 +457,12 @@ public class OChainedIndexProxy<T> implements OIndex<T> {
     throw new UnsupportedOperationException("Not allowed operation");
   }
 
+  /**
+   * {@inheritDoc}
+   * @deprecated Manual indexes are deprecated and will be removed
+   */
+  @Deprecated
+  @Override
   public OIndex<T> clear() {
     throw new UnsupportedOperationException("Not allowed operation");
   }
@@ -568,6 +566,11 @@ public class OChainedIndexProxy<T> implements OIndex<T> {
     throw new UnsupportedOperationException("Not allowed operation");
   }
 
+  @Override
+  public int getVersion() {
+    throw new UnsupportedOperationException("Not allowed operation");
+  }
+
   public boolean supportsOrderedIterations() {
     return false;
   }
@@ -606,7 +609,7 @@ public class OChainedIndexProxy<T> implements OIndex<T> {
     private final OIndexCursor internalCursor;
 
     private final List<OIdentifiable> queryResult     = new ArrayList<OIdentifiable>();
-    private Iterator<OIdentifiable>   currentIterator = OEmptyIterator.IDENTIFIABLE_INSTANCE;
+    private       Iterator<ORID>      currentIterator = OEmptyIterator.IDENTIFIABLE_INSTANCE;
 
     private ExternalIndexCursor(OIndexCursor internalCursor) {
       this.internalCursor = internalCursor;
@@ -628,7 +631,20 @@ public class OChainedIndexProxy<T> implements OIndex<T> {
         queryResult.clear();
         queryResult.addAll(applyTailIndexes(entry.getValue()));
 
-        currentIterator = queryResult.iterator();
+        currentIterator = new Iterator<ORID>() {
+          final Iterator<OIdentifiable> identifiableIterator = queryResult.iterator();
+
+          @Override
+          public boolean hasNext() {
+            return identifiableIterator.hasNext();
+          }
+
+          @Override
+          public ORID next() {
+            final ORID rid = identifiableIterator.next().getIdentity();
+            return rid;
+          }
+        };
       }
 
       if (!currentIterator.hasNext()) {

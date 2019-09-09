@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 Orient Technologies.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,9 +26,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Graph related command operator executor factory. It's auto-discovered.
+ * Distributed related command operator executor factory. It's auto-discovered.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class ODistributedCommandExecutorSQLFactory implements OCommandExecutorSQLFactory {
 
@@ -39,8 +39,10 @@ public class ODistributedCommandExecutorSQLFactory implements OCommandExecutorSQ
     // COMMANDS
     final Map<String, Class<? extends OCommandExecutorSQLAbstract>> commands = new HashMap<String, Class<? extends OCommandExecutorSQLAbstract>>();
 
-    commands.put(OCommandExecutorSQLSyncDatabase.NAME, OCommandExecutorSQLSyncDatabase.class);
-    commands.put(OCommandExecutorSQLSyncCluster.NAME, OCommandExecutorSQLSyncCluster.class);
+    commands.put(OCommandExecutorSQLHASyncDatabase.NAME, OCommandExecutorSQLHASyncDatabase.class);
+    commands.put(OCommandExecutorSQLHASyncCluster.NAME, OCommandExecutorSQLHASyncCluster.class);
+    commands.put(OCommandExecutorSQLHARemoveServer.NAME, OCommandExecutorSQLHARemoveServer.class);
+    commands.put(OCommandExecutorSQLHAStatus.NAME, OCommandExecutorSQLHAStatus.class);
 
     COMMANDS = Collections.unmodifiableMap(commands);
   }

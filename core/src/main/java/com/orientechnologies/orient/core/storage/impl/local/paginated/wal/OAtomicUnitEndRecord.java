@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,18 +14,11 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.orientechnologies.orient.core.storage.impl.local.paginated.wal;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Set;
 
 import com.orientechnologies.common.serialization.types.OByteSerializer;
 import com.orientechnologies.common.serialization.types.OIntegerSerializer;
@@ -35,20 +28,26 @@ import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.ORecordOperationMetadata;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.atomicoperations.OAtomicOperationMetadata;
 
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+
 /**
- * @author Andrey Lomakin
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 24.05.13
  */
 public class OAtomicUnitEndRecord extends OOperationUnitBodyRecord {
-  private boolean                                  rollback;
+  private boolean rollback;
 
-  private Map<String, OAtomicOperationMetadata<?>> atomicOperationMetadataMap = new LinkedHashMap<String, OAtomicOperationMetadata<?>>();
+  private Map<String, OAtomicOperationMetadata<?>> atomicOperationMetadataMap = new LinkedHashMap<>();
 
   public OAtomicUnitEndRecord() {
   }
 
-  OAtomicUnitEndRecord(final OOperationUnitId operationUnitId, final boolean rollback,
-      final Map<String, OAtomicOperationMetadata<?>> atomicOperationMetadataMap) throws IOException {
+  public OAtomicUnitEndRecord(final OOperationUnitId operationUnitId, final boolean rollback,
+      final Map<String, OAtomicOperationMetadata<?>> atomicOperationMetadataMap) {
     super(operationUnitId);
 
     this.rollback = rollback;
@@ -65,73 +64,53 @@ public class OAtomicUnitEndRecord extends OOperationUnitBodyRecord {
   }
 
   @Override
-  public int toStream(final byte[] content, int offset) {
-    offset = super.toStream(content, offset);
-
-    content[offset] = rollback ? (byte) 1 : 0;
-    offset++;
+  protected void serializeToByteBuffer(ByteBuffer buffer) {
+    buffer.put(rollback ? (byte) 1 : 0);
 
     if (atomicOperationMetadataMap.size() > 0) {
-      for (Map.Entry<String, OAtomicOperationMetadata<?>> entry : atomicOperationMetadataMap.entrySet()) {
+      for (final Map.Entry<String, OAtomicOperationMetadata<?>> entry : atomicOperationMetadataMap.entrySet()) {
         if (entry.getKey().equals(ORecordOperationMetadata.RID_METADATA_KEY)) {
-          content[offset] = 1;
-          offset++;
+          buffer.put((byte) 1);
 
           final ORecordOperationMetadata recordOperationMetadata = (ORecordOperationMetadata) entry.getValue();
           final Set<ORID> rids = recordOperationMetadata.getValue();
-          OIntegerSerializer.INSTANCE.serializeNative(rids.size(), content, offset);
-          offset += OIntegerSerializer.INT_SIZE;
+          buffer.putInt(rids.size());
 
-          for (ORID rid : rids) {
-            OLongSerializer.INSTANCE.serializeNative(rid.getClusterPosition(), content, offset);
-            offset += OLongSerializer.LONG_SIZE;
-
-            OIntegerSerializer.INSTANCE.serializeNative(rid.getClusterId(), content, offset);
-            offset += OIntegerSerializer.INT_SIZE;
+          for (final ORID rid : rids) {
+            buffer.putLong(rid.getClusterPosition());
+            buffer.putInt(rid.getClusterId());
           }
         } else {
           throw new IllegalStateException("Invalid metadata key " + ORecordOperationMetadata.RID_METADATA_KEY);
         }
       }
     } else {
-      offset++;
+      buffer.put((byte) 0);
     }
-
-    return offset;
   }
 
   @Override
-  public int fromStream(final byte[] content, int offset) {
-    offset = super.fromStream(content, offset);
+  protected void deserializeFromByteBuffer(ByteBuffer buffer) {
+    rollback = buffer.get() > 0;
+    atomicOperationMetadataMap = new LinkedHashMap<>();
 
-    rollback = content[offset] > 0;
-    offset++;
-
-    atomicOperationMetadataMap = new LinkedHashMap<String, OAtomicOperationMetadata<?>>();
-
-    final int metadataId = content[offset];
-    offset++;
+    final int metadataId = buffer.get();
 
     if (metadataId == 1) {
-      final int collectionsSize = OIntegerSerializer.INSTANCE.deserializeNative(content, offset);
-      offset += OIntegerSerializer.INT_SIZE;
+      final int collectionsSize = buffer.getInt();
 
       final ORecordOperationMetadata recordOperationMetadata = new ORecordOperationMetadata();
       for (int i = 0; i < collectionsSize; i++) {
-        final long clusterPosition = OLongSerializer.INSTANCE.deserializeNative(content, offset);
-        offset += OLongSerializer.LONG_SIZE;
-
-        final int clusterId = OIntegerSerializer.INSTANCE.deserializeNative(content, offset);
-        offset += OIntegerSerializer.INT_SIZE;
+        final long clusterPosition = buffer.getLong();
+        final int clusterId = buffer.getInt();
 
         recordOperationMetadata.addRid(new ORecordId(clusterId, clusterPosition));
       }
 
       atomicOperationMetadataMap.put(recordOperationMetadata.getKey(), recordOperationMetadata);
-    } else if (metadataId > 0)
+    } else if (metadataId > 0) {
       throw new IllegalStateException("Invalid metadata entry id " + metadataId);
-
-    return offset;
+    }
   }
 
   public Map<String, OAtomicOperationMetadata<?>> getAtomicOperationMetadata() {
@@ -169,5 +148,10 @@ public class OAtomicUnitEndRecord extends OOperationUnitBodyRecord {
   @Override
   public String toString() {
     return toString("rollback=" + rollback);
+  }
+
+  @Override
+  public byte getId() {
+    return WALRecordTypes.ATOMIC_UNIT_END_RECORD;
   }
 }

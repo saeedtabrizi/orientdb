@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@ package com.orientechnologies.common.serialization.types;
 
 import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OWALChanges;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OWALChangesTree;
-import org.testng.Assert;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
-
+import org.junit.Before;
+import org.junit.Assert;import org.junit.Before;
+import org.junit.Test;
+import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -29,14 +29,14 @@ import java.nio.ByteOrder;
  * @author Ilya Bershadskiy (ibersh20-at-gmail.com)
  * @since 18.01.12
  */
-@Test
+
 public class ByteSerializerTest {
   private static final int FIELD_SIZE = 1;
   byte[] stream = new byte[FIELD_SIZE];
   private static final Byte OBJECT = 1;
   private OByteSerializer byteSerializer;
 
-  @BeforeClass
+  @Before
   public void beforeClass() {
     byteSerializer = new OByteSerializer();
   }
@@ -45,6 +45,7 @@ public class ByteSerializerTest {
     Assert.assertEquals(byteSerializer.getObjectSize(null), FIELD_SIZE);
   }
 
+  @Test
   public void testSerialize() {
     byteSerializer.serialize(OBJECT, stream, 0);
     Assert.assertEquals(byteSerializer.deserialize(stream, 0), OBJECT);

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,29 +14,36 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
 
+import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.orient.core.command.OCommandDistributedReplicateRequest;
 import com.orientechnologies.orient.core.command.OCommandRequest;
 import com.orientechnologies.orient.core.command.OCommandRequestText;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
+import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.exception.OCommandExecutionException;
 import com.orientechnologies.orient.core.metadata.schema.OClassImpl;
 import com.orientechnologies.orient.core.metadata.schema.OProperty;
 import com.orientechnologies.orient.core.metadata.schema.OProperty.ATTRIBUTES;
 import com.orientechnologies.orient.core.metadata.schema.OPropertyImpl;
+import com.orientechnologies.orient.core.metadata.schema.OType;
+import com.orientechnologies.orient.core.sql.parser.OAlterPropertyStatement;
+import com.orientechnologies.orient.core.sql.parser.OExpression;
+import com.orientechnologies.orient.core.util.ODateHelper;
 
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Locale;
 import java.util.Map;
 
 /**
  * SQL ALTER PROPERTY command: Changes an attribute of an existent property in the target class.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 @SuppressWarnings("unchecked")
 public class OCommandExecutorSQLAlterProperty extends OCommandExecutorSQLAbstract implements OCommandDistributedReplicateRequest {
@@ -77,8 +84,20 @@ public class OCommandExecutorSQLAlterProperty extends OCommandExecutorSQLAbstrac
         throw new OCommandSQLParsingException("Expected <class>.<property>. Use " + getSyntax(), parserText, oldPos);
 
       String[] parts = word.toString().split("\\.");
-      if (parts.length != 2)
-        throw new OCommandSQLParsingException("Expected <class>.<property>. Use " + getSyntax(), parserText, oldPos);
+      if (parts.length != 2) {
+        if (parts[1].startsWith("`") && parts[parts.length - 1].endsWith("`")) {
+          StringBuilder fullName = new StringBuilder();
+          for (int i = 1; i < parts.length; i++) {
+            if (i > 1) {
+              fullName.append(".");
+            }
+            fullName.append(parts[i]);
+          }
+          parts = new String[] { parts[0], fullName.toString() };
+        } else {
+          throw new OCommandSQLParsingException("Expected <class>.<property>. Use " + getSyntax(), parserText, oldPos);
+        }
+      }
 
       className = decodeClassName(parts[0]);
       if (className == null)
@@ -95,24 +114,45 @@ public class OCommandExecutorSQLAlterProperty extends OCommandExecutorSQLAbstrac
       try {
         attribute = OProperty.ATTRIBUTES.valueOf(attributeAsString.toUpperCase(Locale.ENGLISH));
       } catch (IllegalArgumentException e) {
-        throw new OCommandSQLParsingException("Unknown property attribute '" + attributeAsString + "'. Supported attributes are: "
-            + Arrays.toString(OProperty.ATTRIBUTES.values()), parserText, oldPos);
+        throw OException.wrapException(new OCommandSQLParsingException(
+            "Unknown property attribute '" + attributeAsString + "'. Supported attributes are: " + Arrays
+                .toString(OProperty.ATTRIBUTES.values()), parserText, oldPos), e);
       }
 
       value = parserText.substring(pos + 1).trim();
+      if (attribute.equals(ATTRIBUTES.NAME) || attribute.equals(ATTRIBUTES.LINKEDCLASS)) {
+        value = decodeClassName(value);
+      }
 
       if (value.length() == 0) {
-        throw new OCommandSQLParsingException("Missing property value to change for attribute '" + attribute + "'. Use "
-            + getSyntax(), parserText, oldPos);
+        throw new OCommandSQLParsingException(
+            "Missing property value to change for attribute '" + attribute + "'. Use " + getSyntax(), parserText, oldPos);
       }
 
-      if (value.equalsIgnoreCase("null")) {
-        value = null;
-      }
-      if (value != null && isQuoted(value)) {
-        value = removeQuotes(value);
-      }
+      if (preParsedStatement != null) {
+        OExpression settingExp = ((OAlterPropertyStatement) preParsedStatement).settingValue;
+        if (settingExp != null) {
+          Object expValue = settingExp.execute((OIdentifiable) null, context);
+          if (expValue == null) {
+            expValue = settingExp.toString();
+          }
+          if (expValue instanceof Date) {
+            value = ODateHelper.getDateTimeFormatInstance().format((Date) expValue);
+          } else
+            value = expValue.toString();
 
+          if (attribute.equals(ATTRIBUTES.NAME) || attribute.equals(ATTRIBUTES.LINKEDCLASS)) {
+            value = decodeClassName(value);
+          }
+        }
+      } else {
+        if (value.equalsIgnoreCase("null")) {
+          value = null;
+        }
+        if (value != null && isQuoted(value)) {
+          value = removeQuotes(value);
+        }
+      }
     } finally {
       textRequest.setText(originalQuery);
     }
@@ -121,9 +161,8 @@ public class OCommandExecutorSQLAlterProperty extends OCommandExecutorSQLAbstrac
 
   private String removeQuotes(String s) {
     s = s.trim();
-    return s.substring(1, s.length() - 1);
+    return s.substring(1, s.length() - 1).replaceAll("\\\\\"", "\"");
   }
-
 
   private boolean isQuoted(String s) {
     s = s.trim();
@@ -139,7 +178,7 @@ public class OCommandExecutorSQLAlterProperty extends OCommandExecutorSQLAbstrac
 
   @Override
   public long getDistributedTimeout() {
-    return OGlobalConfiguration.DISTRIBUTED_COMMAND_TASK_SYNCH_TIMEOUT.getValueAsLong();
+    return getDatabase().getConfiguration().getValueAsLong(OGlobalConfiguration.DISTRIBUTED_COMMAND_QUICK_TASK_SYNCH_TIMEOUT);
   }
 
   @Override
@@ -162,7 +201,10 @@ public class OCommandExecutorSQLAlterProperty extends OCommandExecutorSQLAbstrac
     if (prop == null)
       throw new OCommandExecutionException("Property '" + className + "." + fieldName + "' not exists");
 
-    prop.set(attribute, value);
+    if ("null".equalsIgnoreCase(value))
+      prop.set(attribute, null);
+    else
+      prop.set(attribute, value);
     return null;
   }
 

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.network.protocol.http.command;
@@ -24,8 +24,7 @@ import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.exception.ODatabaseException;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.exception.OSecurityAccessException;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.id.ORecordId;
@@ -42,19 +41,18 @@ import java.util.List;
 /**
  * Database based authenticated command. Authenticates against the database taken as second parameter of the URL. The URL must be in
  * this format:
- *
+ * <p>
  * <pre>
  * <command>/<database>[/...]
  * </pre>
  *
- * @author Luca Garulli
- *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public abstract class OServerCommandAuthenticatedDbAbstract extends OServerCommandAbstract {
 
-  public static final char       DBNAME_DIR_SEPARATOR   = '$';
-  public static final String     SESSIONID_UNAUTHORIZED = "-";
-  public static final String     SESSIONID_LOGOUT       = "!";
+  public static final char   DBNAME_DIR_SEPARATOR   = '$';
+  public static final String SESSIONID_UNAUTHORIZED = "-";
+  public static final String SESSIONID_LOGOUT       = "!";
   private volatile OTokenHandler tokenHandler;
 
   @Override
@@ -67,7 +65,7 @@ public abstract class OServerCommandAuthenticatedDbAbstract extends OServerComma
     if (urlParts.length < 2)
       throw new OHttpRequestException("Syntax error in URL. Expected is: <command>/<database>[/...]");
 
-    iRequest.databaseName = URLDecoder.decode(urlParts[1],"UTF-8");
+    iRequest.databaseName = URLDecoder.decode(urlParts[1], "UTF-8");
     if (iRequest.bearerTokenRaw != null) {
       // Bearer authentication
       try {
@@ -88,8 +86,8 @@ public abstract class OServerCommandAuthenticatedDbAbstract extends OServerComma
       if (iRequest.bearerToken.getIsValid() == false) {
 
         // SECURITY PROBLEM: CROSS DATABASE REQUEST!
-        OLogManager.instance().warn(this, "Token '%s' is not valid for database '%s'", iRequest.bearerTokenRaw,
-            iRequest.databaseName);
+        OLogManager.instance()
+            .warn(this, "Token '%s' is not valid for database '%s'", iRequest.bearerTokenRaw, iRequest.databaseName);
         sendAuthorizationRequest(iRequest, iResponse, iRequest.databaseName);
         return false;
 
@@ -98,12 +96,12 @@ public abstract class OServerCommandAuthenticatedDbAbstract extends OServerComma
       return iRequest.bearerToken.getIsValid();
     } else {
       // HTTP basic authentication
-      final List<String> authenticationParts = iRequest.authorization != null ? OStringSerializerHelper.split(
-          iRequest.authorization, ':') : null;
+      final List<String> authenticationParts =
+          iRequest.authorization != null ? OStringSerializerHelper.split(iRequest.authorization, ':') : null;
 
       OHttpSession currentSession;
       if (iRequest.sessionId != null && iRequest.sessionId.length() > 1) {
-        currentSession = OHttpSessionManager.getInstance().getSession(iRequest.sessionId);
+        currentSession = server.getHttpSessionManager().getSession(iRequest.sessionId);
         if (currentSession != null && authenticationParts != null) {
           if (!currentSession.getUserName().equals(authenticationParts.get(0))) {
             // CHANGED USER, INVALIDATE THE SESSION
@@ -130,7 +128,7 @@ public abstract class OServerCommandAuthenticatedDbAbstract extends OServerComma
           OLogManager.instance().warn(this,
               "Session %s is trying to access to the database '%s', but has been authenticated against the database '%s'",
               iRequest.sessionId, iRequest.databaseName, currentSession.getDatabaseName());
-          OHttpSessionManager.getInstance().removeSession(iRequest.sessionId);
+          server.getHttpSessionManager().removeSession(iRequest.sessionId);
           sendAuthorizationRequest(iRequest, iResponse, iRequest.databaseName);
           return false;
 
@@ -140,7 +138,7 @@ public abstract class OServerCommandAuthenticatedDbAbstract extends OServerComma
           OLogManager.instance().warn(this,
               "Session %s is trying to access to the database '%s' with user '%s', but has been authenticated with user '%s'",
               iRequest.sessionId, iRequest.databaseName, authenticationParts.get(0), currentSession.getUserName());
-          OHttpSessionManager.getInstance().removeSession(iRequest.sessionId);
+          server.getHttpSessionManager().removeSession(iRequest.sessionId);
           sendAuthorizationRequest(iRequest, iResponse, iRequest.databaseName);
           return false;
         }
@@ -152,15 +150,16 @@ public abstract class OServerCommandAuthenticatedDbAbstract extends OServerComma
 
   @Override
   public boolean afterExecute(final OHttpRequest iRequest, OHttpResponse iResponse) throws IOException {
-    ODatabaseRecordThreadLocal.INSTANCE.remove();
+    ODatabaseRecordThreadLocal.instance().remove();
+    iRequest.executor.getConnection().setDatabase(null);
     return true;
   }
 
   protected boolean authenticate(final OHttpRequest iRequest, final OHttpResponse iResponse,
       final List<String> iAuthenticationParts, final String iDatabaseName) throws IOException {
-    ODatabaseDocumentTx db = null;
+    ODatabaseDocument db = null;
     try {
-      db = (ODatabaseDocumentTx) server.openDatabase(iDatabaseName, iAuthenticationParts.get(0), iAuthenticationParts.get(1));
+      db = (ODatabaseDocument) server.openDatabase(iDatabaseName, iAuthenticationParts.get(0), iAuthenticationParts.get(1));
       // if (db.getUser() == null)
       // // MAYBE A PREVIOUS ROOT REALM? UN AUTHORIZE
       // return false;
@@ -169,15 +168,15 @@ public abstract class OServerCommandAuthenticatedDbAbstract extends OServerComma
       iRequest.data.currentUserId = db.getUser() == null ? "<server user>" : db.getUser().getIdentity().toString();
 
       // AUTHENTICATED: CREATE THE SESSION
-      iRequest.sessionId = OHttpSessionManager.getInstance().createSession(iDatabaseName, iAuthenticationParts.get(0),
-          iAuthenticationParts.get(1));
+      iRequest.sessionId = server.getHttpSessionManager()
+          .createSession(iDatabaseName, iAuthenticationParts.get(0), iAuthenticationParts.get(1));
       iResponse.sessionId = iRequest.sessionId;
       return true;
 
     } catch (OSecurityAccessException e) {
       // WRONG USER/PASSWD
     } catch (OLockException e) {
-      OLogManager.instance().error(this, "Cannot access to the database '" + iDatabaseName + "'", ODatabaseException.class, e);
+      OLogManager.instance().error(this, "Cannot access to the database '" + iDatabaseName + "'", e);
     } finally {
       if (db == null) {
         // WRONG USER/PASSWD
@@ -194,19 +193,24 @@ public abstract class OServerCommandAuthenticatedDbAbstract extends OServerComma
     // UNAUTHORIZED
     iRequest.sessionId = SESSIONID_UNAUTHORIZED;
 
-    // Defaults to "WWW-Authenticate: Basic".
-    String header = server.getSecurity().getAuthenticationHeader(iDatabaseName);
+    String header = null;
+    String xRequestedWithHeader = iRequest.getHeader("X-Requested-With");
+    if (xRequestedWithHeader == null || !xRequestedWithHeader.equals("XMLHttpRequest")) {
+      // Defaults to "WWW-Authenticate: Basic" if not an AJAX Request.
+      header = server.getSecurity().getAuthenticationHeader(iDatabaseName);
+    }
 
     if (isJsonResponse(iResponse)) {
       sendJsonError(iResponse, OHttpUtils.STATUS_AUTH_CODE, OHttpUtils.STATUS_AUTH_DESCRIPTION, OHttpUtils.CONTENT_TEXT_PLAIN,
           "401 Unauthorized.", header);
     } else {
-      iResponse.send(OHttpUtils.STATUS_AUTH_CODE, OHttpUtils.STATUS_AUTH_DESCRIPTION, OHttpUtils.CONTENT_TEXT_PLAIN,
-          "401 Unauthorized.", header);
+      iResponse
+          .send(OHttpUtils.STATUS_AUTH_CODE, OHttpUtils.STATUS_AUTH_DESCRIPTION, OHttpUtils.CONTENT_TEXT_PLAIN, "401 Unauthorized.",
+              header);
     }
   }
 
-  protected ODatabaseDocumentTx getProfiledDatabaseInstance(final OHttpRequest iRequest) throws InterruptedException {
+  protected ODatabaseDocumentInternal getProfiledDatabaseInstance(final OHttpRequest iRequest) throws InterruptedException {
     if (iRequest.bearerToken != null) {
       return getProfiledDatabaseInstanceToken(iRequest);
     } else {
@@ -214,11 +218,11 @@ public abstract class OServerCommandAuthenticatedDbAbstract extends OServerComma
     }
   }
 
-  protected ODatabaseDocumentTx getProfiledDatabaseInstanceToken(final OHttpRequest iRequest) throws InterruptedException {
+  protected ODatabaseDocumentInternal getProfiledDatabaseInstanceToken(final OHttpRequest iRequest) throws InterruptedException {
     // after authentication, if current login user is different compare with current DB user, reset DB user to login user
-    ODatabaseDocumentInternal localDatabase = ODatabaseRecordThreadLocal.INSTANCE.getIfDefined();
+    ODatabaseDocumentInternal localDatabase = ODatabaseRecordThreadLocal.instance().getIfDefined();
     if (localDatabase == null) {
-      localDatabase = (ODatabaseDocumentTx) server.openDatabase(iRequest.databaseName, iRequest.bearerToken);
+      localDatabase = server.openDatabase(iRequest.databaseName, iRequest.bearerToken);
     } else {
       ORID currentUserId = iRequest.bearerToken.getUserId();
       if (currentUserId != null && localDatabase != null && localDatabase.getUser() != null) {
@@ -231,21 +235,20 @@ public abstract class OServerCommandAuthenticatedDbAbstract extends OServerComma
 
     iRequest.data.lastDatabase = localDatabase.getName();
     iRequest.data.lastUser = localDatabase.getUser() != null ? localDatabase.getUser().getName() : null;
-    return (ODatabaseDocumentTx) localDatabase.getDatabaseOwner();
+    return (ODatabaseDocumentInternal) localDatabase.getDatabaseOwner();
   }
 
-  protected ODatabaseDocumentTx getProfiledDatabaseInstanceBasic(final OHttpRequest iRequest) throws InterruptedException {
-    final OHttpSession session = OHttpSessionManager.getInstance().getSession(iRequest.sessionId);
+  protected ODatabaseDocumentInternal getProfiledDatabaseInstanceBasic(final OHttpRequest iRequest) throws InterruptedException {
+    final OHttpSession session = server.getHttpSessionManager().getSession(iRequest.sessionId);
 
     if (session == null)
       throw new OSecurityAccessException(iRequest.databaseName, "No session active");
 
     // after authentication, if current login user is different compare with current DB user, reset DB user to login user
-    ODatabaseDocumentInternal localDatabase = ODatabaseRecordThreadLocal.INSTANCE.getIfDefined();
+    ODatabaseDocumentInternal localDatabase = ODatabaseRecordThreadLocal.instance().getIfDefined();
 
     if (localDatabase == null) {
-      localDatabase = (ODatabaseDocumentTx) server.openDatabase(iRequest.databaseName, session.getUserName(),
-          session.getUserPassword());
+      localDatabase = server.openDatabase(iRequest.databaseName, session.getUserName(), session.getUserPassword());
     } else {
 
       String currentUserId = iRequest.data.currentUserId;
@@ -259,11 +262,12 @@ public abstract class OServerCommandAuthenticatedDbAbstract extends OServerComma
 
     iRequest.data.lastDatabase = localDatabase.getName();
     iRequest.data.lastUser = localDatabase.getUser() != null ? localDatabase.getUser().getName() : null;
-    return (ODatabaseDocumentTx) localDatabase.getDatabaseOwner();
+    iRequest.executor.getConnection().setDatabase(localDatabase);
+    return (ODatabaseDocumentInternal) localDatabase.getDatabaseOwner();
   }
 
   private void init() {
-    if (tokenHandler == null && OGlobalConfiguration.NETWORK_HTTP_USE_TOKEN.getValueAsBoolean()) {
+    if (tokenHandler == null && server.getContextConfiguration().getValueAsBoolean(OGlobalConfiguration.NETWORK_HTTP_USE_TOKEN)) {
       tokenHandler = server.getTokenHandler();
     }
   }

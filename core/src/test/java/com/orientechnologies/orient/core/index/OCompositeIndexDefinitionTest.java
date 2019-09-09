@@ -8,18 +8,17 @@ import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.ORecordInternal;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import org.testng.Assert;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.*;
 
-@Test
 @SuppressWarnings("unchecked")
 public class OCompositeIndexDefinitionTest {
   private OCompositeIndexDefinition compositeIndex;
 
-  @BeforeMethod
+  @Before
   public void beforeMethod() {
     compositeIndex = new OCompositeIndexDefinition("testClass");
 
@@ -48,8 +47,7 @@ public class OCompositeIndexDefinitionTest {
     final OCompositeIndexDefinition compositeIndexDefinition = new OCompositeIndexDefinition("testCollectionClass");
 
     compositeIndexDefinition.addIndex(new OPropertyIndexDefinition("testCollectionClass", "fOne", OType.INTEGER));
-    compositeIndexDefinition.addIndex(
-        new OPropertyMapIndexDefinition("testCollectionClass", "fTwo", OType.STRING, OPropertyMapIndexDefinition.INDEX_BY.KEY));
+    compositeIndexDefinition.addIndex(new OPropertyMapIndexDefinition("testCollectionClass", "fTwo", OType.STRING, OPropertyMapIndexDefinition.INDEX_BY.KEY));
 
     final Map<String, String> stringMap = new HashMap<String, String>();
     stringMap.put("key1", "val1");
@@ -235,7 +233,7 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertEquals(result, expectedResult);
   }
 
-  @Test(expectedExceptions = OIndexException.class)
+  @Test(expected = OIndexException.class)
   public void testCreateCollectionValueTwoCollections() {
     final OCompositeIndexDefinition compositeIndexDefinition = new OCompositeIndexDefinition("testCollectionClass");
 
@@ -245,7 +243,7 @@ public class OCompositeIndexDefinitionTest {
     compositeIndexDefinition.createValue(Arrays.asList(1, 2), Arrays.asList(12));
   }
 
-  @Test(expectedExceptions = NumberFormatException.class)
+  @Test(expected = NumberFormatException.class)
   public void testCreateValueWrongParam() {
     compositeIndex.createValue(Arrays.asList("1t2", "test"));
   }
@@ -257,7 +255,7 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertEquals(result, new OCompositeKey(Arrays.asList(12, "test")));
   }
 
-  @Test(expectedExceptions = NumberFormatException.class)
+  @Test(expected = NumberFormatException.class)
   public void testCreateValueWrongParamArrayParams() {
     compositeIndex.createValue("1t2", "test");
   }
@@ -308,8 +306,7 @@ public class OCompositeIndexDefinitionTest {
     final OCompositeIndexDefinition compositeIndexDefinition = new OCompositeIndexDefinition("testCollectionClass");
 
     compositeIndexDefinition.addIndex(new OPropertyIndexDefinition("testCollectionClass", "fOne", OType.INTEGER));
-    compositeIndexDefinition.addIndex(
-        new OPropertyMapIndexDefinition("testCollectionClass", "fTwo", OType.STRING, OPropertyMapIndexDefinition.INDEX_BY.KEY));
+    compositeIndexDefinition.addIndex(new OPropertyMapIndexDefinition("testCollectionClass", "fTwo", OType.STRING, OPropertyMapIndexDefinition.INDEX_BY.KEY));
 
     final Object result = compositeIndexDefinition.getDocumentValueToIndex(document);
     final Collection<OCompositeKey> collectionResult = (Collection<OCompositeKey>) result;
@@ -369,7 +366,6 @@ public class OCompositeIndexDefinitionTest {
     compositeIndexDefinition.addIndex(new OPropertyListIndexDefinition("testCollectionClass", "fOne", OType.INTEGER));
     compositeIndexDefinition.addIndex(new OPropertyIndexDefinition("testCollectionClass", "fTwo", OType.INTEGER));
 
-
     final Object result = compositeIndexDefinition.getDocumentValueToIndex(document);
     Assert.assertNull(result);
   }
@@ -403,7 +399,6 @@ public class OCompositeIndexDefinitionTest {
     compositeIndexDefinition.addIndex(new OPropertyListIndexDefinition("testCollectionClass", "fOne", OType.INTEGER));
     compositeIndexDefinition.addIndex(new OPropertyIndexDefinition("testCollectionClass", "fTwo", OType.INTEGER));
     compositeIndexDefinition.setNullValuesIgnored(false);
-
 
     final Object result = compositeIndexDefinition.getDocumentValueToIndex(document);
     Assert.assertEquals(result, Arrays.asList(new OCompositeKey(null, 12)));
@@ -544,7 +539,7 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertEquals(result, expectedResult);
   }
 
-  @Test(expectedExceptions = OException.class)
+  @Test(expected = OException.class)
   public void testDocumentToIndexCollectionValueTwoCollections() {
     final ODocument document = new ODocument();
 
@@ -558,7 +553,7 @@ public class OCompositeIndexDefinitionTest {
     compositeIndexDefinition.getDocumentValueToIndex(document);
   }
 
-  @Test(expectedExceptions = NumberFormatException.class)
+  @Test(expected = NumberFormatException.class)
   public void testDocumentToIndexWrongField() {
     final ODocument document = new ODocument();
 
@@ -595,7 +590,7 @@ public class OCompositeIndexDefinitionTest {
     emptyCompositeIndex.addIndex(new OPropertyIndexDefinition("testClass", "fTwo", OType.STRING));
 
     final ODocument docToStore = emptyCompositeIndex.toStream();
-    database.save(docToStore);
+    database.save(docToStore, database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docToLoad = database.load(docToStore.getIdentity());
 
@@ -621,9 +616,8 @@ public class OCompositeIndexDefinitionTest {
     final ODatabaseDocumentTx database = new ODatabaseDocumentTx("memory:compositetesttwo");
     database.create();
 
-    final OCompositeIndexDefinition emptyCompositeIndex = new OCompositeIndexDefinition("testClass", Arrays
-        .asList(new OPropertyIndexDefinition("testClass", "fOne", OType.INTEGER),
-            new OPropertyIndexDefinition("testClass", "fTwo", OType.STRING)), -1);
+    final OCompositeIndexDefinition emptyCompositeIndex = new OCompositeIndexDefinition("testClass",
+        Arrays.asList(new OPropertyIndexDefinition("testClass", "fOne", OType.INTEGER), new OPropertyIndexDefinition("testClass", "fTwo", OType.STRING)), -1);
 
     final OCompositeIndexDefinition emptyCompositeIndexTwo = new OCompositeIndexDefinition("testClass");
 
@@ -633,7 +627,7 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertEquals(emptyCompositeIndex, emptyCompositeIndexTwo);
 
     final ODocument docToStore = emptyCompositeIndex.toStream();
-    database.save(docToStore);
+    database.save(docToStore, database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docToLoad = database.load(docToStore.getIdentity());
 
@@ -644,6 +638,7 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertEquals(result, emptyCompositeIndexTwo);
   }
 
+  @Test
   public void testProcessChangeListEventsOne() {
     final OCompositeIndexDefinition compositeIndexDefinition = new OCompositeIndexDefinition();
 
@@ -656,14 +651,7 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertFalse(doc.isDirty());
 
     final OTrackedList<String> trackedList = new OTrackedList<String>(doc);
-    final List<OMultiValueChangeEvent<Integer, String>> firedEvents = new ArrayList<OMultiValueChangeEvent<Integer, String>>();
-
-    trackedList.addChangeListener(new OMultiValueChangeListener<Integer, String>() {
-      public void onAfterRecordChanged(final OMultiValueChangeEvent<Integer, String> event) {
-        firedEvents.add(event);
-      }
-    });
-
+    trackedList.enableTracking(doc);
     trackedList.add("l1");
     trackedList.add("l2");
     trackedList.add("l3");
@@ -672,8 +660,9 @@ public class OCompositeIndexDefinitionTest {
     Map<OCompositeKey, Integer> keysToAdd = new HashMap<OCompositeKey, Integer>();
     Map<OCompositeKey, Integer> keysToRemove = new HashMap<OCompositeKey, Integer>();
 
-    for (OMultiValueChangeEvent<Integer, String> multiValueChangeEvent : firedEvents)
+    for (OMultiValueChangeEvent<Object, Object> multiValueChangeEvent : trackedList.getTimeLine().getMultiValueChangeEvents()) {
       compositeIndexDefinition.processChangeEvent(multiValueChangeEvent, keysToAdd, keysToRemove, 2, 3);
+    }
 
     Assert.assertEquals(keysToRemove.size(), 0);
     Assert.assertEquals(keysToAdd.size(), 2);
@@ -682,6 +671,7 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertTrue(keysToAdd.containsKey(new OCompositeKey(2, "l3", 3)));
   }
 
+  @Test
   public void testProcessChangeRidBagEventsOne() {
     final OCompositeIndexDefinition compositeIndexDefinition = new OCompositeIndexDefinition();
 
@@ -690,14 +680,7 @@ public class OCompositeIndexDefinitionTest {
     compositeIndexDefinition.addIndex(new OPropertyIndexDefinition("testCollectionClass", "fThree", OType.INTEGER));
 
     final ORidBag ridBag = new ORidBag();
-    final List<OMultiValueChangeEvent<OIdentifiable, OIdentifiable>> firedEvents = new ArrayList<OMultiValueChangeEvent<OIdentifiable, OIdentifiable>>();
-
-    ridBag.addChangeListener(new OMultiValueChangeListener<OIdentifiable, OIdentifiable>() {
-      public void onAfterRecordChanged(final OMultiValueChangeEvent<OIdentifiable, OIdentifiable> event) {
-        firedEvents.add(event);
-      }
-    });
-
+    ridBag.enableTracking(null);
     ridBag.add(new ORecordId("#10:0"));
     ridBag.add(new ORecordId("#10:1"));
     ridBag.add(new ORecordId("#10:0"));
@@ -708,8 +691,9 @@ public class OCompositeIndexDefinitionTest {
     Map<OCompositeKey, Integer> keysToAdd = new HashMap<OCompositeKey, Integer>();
     Map<OCompositeKey, Integer> keysToRemove = new HashMap<OCompositeKey, Integer>();
 
-    for (OMultiValueChangeEvent<OIdentifiable, OIdentifiable> multiValueChangeEvent : firedEvents)
+    for (OMultiValueChangeEvent<Object, Object> multiValueChangeEvent : ridBag.getTimeLine().getMultiValueChangeEvents()) {
       compositeIndexDefinition.processChangeEvent(multiValueChangeEvent, keysToAdd, keysToRemove, 2, 3);
+    }
 
     Assert.assertEquals(keysToRemove.size(), 0);
     Assert.assertEquals(keysToAdd.size(), 2);
@@ -718,6 +702,7 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertTrue(keysToAdd.containsKey(new OCompositeKey(2, new ORecordId("#10:2"), 3)));
   }
 
+  @Test
   public void testProcessChangeListEventsTwo() {
     final OCompositeIndexDefinition compositeIndexDefinition = new OCompositeIndexDefinition();
 
@@ -730,27 +715,22 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertFalse(doc.isDirty());
 
     final OTrackedList<String> trackedList = new OTrackedList<String>(doc);
-    final List<OMultiValueChangeEvent<Integer, String>> firedEvents = new ArrayList<OMultiValueChangeEvent<Integer, String>>();
 
     trackedList.add("l1");
     trackedList.add("l2");
     trackedList.add("l3");
     trackedList.remove("l2");
 
-    trackedList.addChangeListener(new OMultiValueChangeListener<Integer, String>() {
-      public void onAfterRecordChanged(final OMultiValueChangeEvent<Integer, String> event) {
-        firedEvents.add(event);
-      }
-    });
-
+    trackedList.enableTracking(doc);
     trackedList.add("l4");
     trackedList.remove("l1");
 
     Map<OCompositeKey, Integer> keysToAdd = new HashMap<OCompositeKey, Integer>();
     Map<OCompositeKey, Integer> keysToRemove = new HashMap<OCompositeKey, Integer>();
 
-    for (OMultiValueChangeEvent<Integer, String> multiValueChangeEvent : firedEvents)
+    for (OMultiValueChangeEvent<Object, Object> multiValueChangeEvent : trackedList.getTimeLine().getMultiValueChangeEvents()) {
       compositeIndexDefinition.processChangeEvent(multiValueChangeEvent, keysToAdd, keysToRemove, 2, 3);
+    }
 
     Assert.assertEquals(keysToRemove.size(), 1);
     Assert.assertEquals(keysToAdd.size(), 1);
@@ -759,6 +739,7 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertTrue(keysToRemove.containsKey(new OCompositeKey(2, "l1", 3)));
   }
 
+  @Test
   public void testProcessChangeRidBagEventsTwo() {
     final OCompositeIndexDefinition compositeIndexDefinition = new OCompositeIndexDefinition();
 
@@ -767,18 +748,13 @@ public class OCompositeIndexDefinitionTest {
     compositeIndexDefinition.addIndex(new OPropertyIndexDefinition("testCollectionClass", "fThree", OType.INTEGER));
 
     final ORidBag ridBag = new ORidBag();
-    final List<OMultiValueChangeEvent<OIdentifiable, OIdentifiable>> firedEvents = new ArrayList<OMultiValueChangeEvent<OIdentifiable, OIdentifiable>>();
 
     ridBag.add(new ORecordId("#10:1"));
     ridBag.add(new ORecordId("#10:2"));
     ridBag.add(new ORecordId("#10:3"));
     ridBag.remove(new ORecordId("#10:2"));
-
-    ridBag.addChangeListener(new OMultiValueChangeListener<OIdentifiable, OIdentifiable>() {
-      public void onAfterRecordChanged(final OMultiValueChangeEvent<OIdentifiable, OIdentifiable> event) {
-        firedEvents.add(event);
-      }
-    });
+    ridBag.disableTracking(null);
+    ridBag.enableTracking(null);
 
     ridBag.add(new ORecordId("#10:4"));
     ridBag.remove(new ORecordId("#10:1"));
@@ -786,8 +762,9 @@ public class OCompositeIndexDefinitionTest {
     Map<OCompositeKey, Integer> keysToAdd = new HashMap<OCompositeKey, Integer>();
     Map<OCompositeKey, Integer> keysToRemove = new HashMap<OCompositeKey, Integer>();
 
-    for (OMultiValueChangeEvent<OIdentifiable, OIdentifiable> multiValueChangeEvent : firedEvents)
+    for (OMultiValueChangeEvent<Object, Object> multiValueChangeEvent : ridBag.getTimeLine().getMultiValueChangeEvents()) {
       compositeIndexDefinition.processChangeEvent(multiValueChangeEvent, keysToAdd, keysToRemove, 2, 3);
+    }
 
     Assert.assertEquals(keysToRemove.size(), 1);
     Assert.assertEquals(keysToAdd.size(), 1);
@@ -796,6 +773,7 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertTrue(keysToRemove.containsKey(new OCompositeKey(2, new ORecordId("#10:1"), 3)));
   }
 
+  @Test
   public void testProcessChangeSetEventsOne() {
     final OCompositeIndexDefinition compositeIndexDefinition = new OCompositeIndexDefinition();
 
@@ -808,14 +786,8 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertFalse(doc.isDirty());
 
     final OTrackedSet<String> trackedSet = new OTrackedSet<String>(doc);
-    final List<OMultiValueChangeEvent<String, String>> firedEvents = new ArrayList<OMultiValueChangeEvent<String, String>>();
 
-    trackedSet.addChangeListener(new OMultiValueChangeListener<String, String>() {
-      public void onAfterRecordChanged(final OMultiValueChangeEvent<String, String> event) {
-        firedEvents.add(event);
-      }
-    });
-
+    trackedSet.enableTracking(doc);
     trackedSet.add("l1");
     trackedSet.add("l2");
     trackedSet.add("l3");
@@ -824,8 +796,9 @@ public class OCompositeIndexDefinitionTest {
     Map<OCompositeKey, Integer> keysToAdd = new HashMap<OCompositeKey, Integer>();
     Map<OCompositeKey, Integer> keysToRemove = new HashMap<OCompositeKey, Integer>();
 
-    for (OMultiValueChangeEvent<String, String> multiValueChangeEvent : firedEvents)
+    for (OMultiValueChangeEvent<Object, Object> multiValueChangeEvent : trackedSet.getTimeLine().getMultiValueChangeEvents()) {
       compositeIndexDefinition.processChangeEvent(multiValueChangeEvent, keysToAdd, keysToRemove, 2, 3);
+    }
 
     Assert.assertEquals(keysToRemove.size(), 0);
     Assert.assertEquals(keysToAdd.size(), 2);
@@ -834,6 +807,7 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertTrue(keysToAdd.containsKey(new OCompositeKey(2, "l3", 3)));
   }
 
+  @Test
   public void testProcessChangeSetEventsTwo() {
     final OCompositeIndexDefinition compositeIndexDefinition = new OCompositeIndexDefinition();
 
@@ -846,27 +820,22 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertFalse(doc.isDirty());
 
     final OTrackedSet<String> trackedMap = new OTrackedSet<String>(doc);
-    final List<OMultiValueChangeEvent<String, String>> firedEvents = new ArrayList<OMultiValueChangeEvent<String, String>>();
 
     trackedMap.add("l1");
     trackedMap.add("l2");
     trackedMap.add("l3");
     trackedMap.remove("l2");
 
-    trackedMap.addChangeListener(new OMultiValueChangeListener<String, String>() {
-      public void onAfterRecordChanged(final OMultiValueChangeEvent<String, String> event) {
-        firedEvents.add(event);
-      }
-    });
-
+    trackedMap.enableTracking(doc);
     trackedMap.add("l4");
     trackedMap.remove("l1");
 
     Map<OCompositeKey, Integer> keysToAdd = new HashMap<OCompositeKey, Integer>();
     Map<OCompositeKey, Integer> keysToRemove = new HashMap<OCompositeKey, Integer>();
 
-    for (OMultiValueChangeEvent<String, String> multiValueChangeEvent : firedEvents)
+    for (OMultiValueChangeEvent<Object, Object> multiValueChangeEvent : trackedMap.getTimeLine().getMultiValueChangeEvents()) {
       compositeIndexDefinition.processChangeEvent(multiValueChangeEvent, keysToAdd, keysToRemove, 2, 3);
+    }
 
     Assert.assertEquals(keysToRemove.size(), 1);
     Assert.assertEquals(keysToAdd.size(), 1);
@@ -875,12 +844,12 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertTrue(keysToRemove.containsKey(new OCompositeKey(2, "l1", 3)));
   }
 
+  @Test
   public void testProcessChangeKeyMapEventsOne() {
     final OCompositeIndexDefinition compositeIndexDefinition = new OCompositeIndexDefinition();
 
     compositeIndexDefinition.addIndex(new OPropertyIndexDefinition("testCollectionClass", "fOne", OType.INTEGER));
-    compositeIndexDefinition.addIndex(
-        new OPropertyMapIndexDefinition("testCollectionClass", "fTwo", OType.STRING, OPropertyMapIndexDefinition.INDEX_BY.KEY));
+    compositeIndexDefinition.addIndex(new OPropertyMapIndexDefinition("testCollectionClass", "fTwo", OType.STRING, OPropertyMapIndexDefinition.INDEX_BY.KEY));
     compositeIndexDefinition.addIndex(new OPropertyIndexDefinition("testCollectionClass", "fThree", OType.INTEGER));
 
     final ODocument doc = new ODocument();
@@ -888,14 +857,7 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertFalse(doc.isDirty());
 
     final OTrackedMap<String> trackedMap = new OTrackedMap<String>(doc);
-    final List<OMultiValueChangeEvent<Object, String>> firedEvents = new ArrayList<OMultiValueChangeEvent<Object, String>>();
-
-    trackedMap.addChangeListener(new OMultiValueChangeListener<Object, String>() {
-      public void onAfterRecordChanged(final OMultiValueChangeEvent<Object, String> event) {
-        firedEvents.add(event);
-      }
-    });
-
+    trackedMap.enableTracking(doc);
     trackedMap.put("k1", "v1");
     trackedMap.put("k2", "v2");
     trackedMap.put("k3", "v3");
@@ -904,8 +866,9 @@ public class OCompositeIndexDefinitionTest {
     Map<OCompositeKey, Integer> keysToAdd = new HashMap<OCompositeKey, Integer>();
     Map<OCompositeKey, Integer> keysToRemove = new HashMap<OCompositeKey, Integer>();
 
-    for (OMultiValueChangeEvent<Object, String> multiValueChangeEvent : firedEvents)
+    for (OMultiValueChangeEvent<Object, Object> multiValueChangeEvent : trackedMap.getTimeLine().getMultiValueChangeEvents()) {
       compositeIndexDefinition.processChangeEvent(multiValueChangeEvent, keysToAdd, keysToRemove, 2, 3);
+    }
 
     Assert.assertEquals(keysToRemove.size(), 0);
     Assert.assertEquals(keysToAdd.size(), 2);
@@ -914,12 +877,12 @@ public class OCompositeIndexDefinitionTest {
     Assert.assertTrue(keysToAdd.containsKey(new OCompositeKey(2, "k3", 3)));
   }
 
+  @Test
   public void testProcessChangeKeyMapEventsTwo() {
     final OCompositeIndexDefinition compositeIndexDefinition = new OCompositeIndexDefinition();
 
     compositeIndexDefinition.addIndex(new OPropertyIndexDefinition("testCollectionClass", "fOne", OType.INTEGER));
-    compositeIndexDefinition.addIndex(
-        new OPropertyMapIndexDefinition("testCollectionClass", "fTwo", OType.STRING, OPropertyMapIndexDefinition.INDEX_BY.KEY));
+    compositeIndexDefinition.addIndex(new OPropertyMapIndexDefinition("testCollectionClass", "fTwo", OType.STRING, OPropertyMapIndexDefinition.INDEX_BY.KEY));
     compositeIndexDefinition.addIndex(new OPropertyIndexDefinition("testCollectionClass", "fThree", OType.INTEGER));
 
     final ODocument doc = new ODocument();
@@ -932,14 +895,7 @@ public class OCompositeIndexDefinitionTest {
     trackedMap.put("k2", "v2");
     trackedMap.put("k3", "v3");
     trackedMap.remove("k2");
-
-    final List<OMultiValueChangeEvent<Object, String>> firedEvents = new ArrayList<OMultiValueChangeEvent<Object, String>>();
-
-    trackedMap.addChangeListener(new OMultiValueChangeListener<Object, String>() {
-      public void onAfterRecordChanged(final OMultiValueChangeEvent<Object, String> event) {
-        firedEvents.add(event);
-      }
-    });
+    trackedMap.enableTracking(doc);
 
     trackedMap.put("k4", "v4");
     trackedMap.remove("k1");
@@ -947,8 +903,9 @@ public class OCompositeIndexDefinitionTest {
     Map<OCompositeKey, Integer> keysToAdd = new HashMap<OCompositeKey, Integer>();
     Map<OCompositeKey, Integer> keysToRemove = new HashMap<OCompositeKey, Integer>();
 
-    for (OMultiValueChangeEvent<Object, String> multiValueChangeEvent : firedEvents)
+    for (OMultiValueChangeEvent<Object, Object> multiValueChangeEvent : trackedMap.getTimeLine().getMultiValueChangeEvents()) {
       compositeIndexDefinition.processChangeEvent(multiValueChangeEvent, keysToAdd, keysToRemove, 2, 3);
+    }
 
     Assert.assertEquals(keysToRemove.size(), 1);
     Assert.assertEquals(keysToAdd.size(), 1);

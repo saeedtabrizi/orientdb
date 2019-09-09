@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
@@ -22,9 +22,6 @@ package com.orientechnologies.orient.core.sql;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
-import com.orientechnologies.orient.core.db.object.OLazyObjectListInterface;
-import com.orientechnologies.orient.core.db.object.OLazyObjectMapInterface;
-import com.orientechnologies.orient.core.db.object.OLazyObjectSetInterface;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.db.record.ORecordLazyMap;
 import com.orientechnologies.orient.core.db.record.ORecordLazyMultiValue;
@@ -36,27 +33,20 @@ import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.serialization.serializer.OStringSerializerHelper;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 
 /**
  * Helper class to find reference in records.
  * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * @author Luca Molino
  * 
  */
 public class OFindReferenceHelper {
 
   public static List<ODocument> findReferences(final Set<ORID> iRecordIds, final String classList) {
-    final ODatabaseDocument db = ODatabaseRecordThreadLocal.INSTANCE.get();
+    final ODatabaseDocument db = ODatabaseRecordThreadLocal.instance().get();
 
     final Map<ORID, Set<ORID>> map = new HashMap<ORID, Set<ORID>>();
     for (ORID rid : iRecordIds) {
@@ -132,13 +122,7 @@ public class OFindReferenceHelper {
   private static void checkCollection(final Set<ORID> iSourceRIDs, final Map<ORID, Set<ORID>> map, final Collection<?> values,
       final ORecord iRootObject) {
     final Iterator<?> it;
-    if (values instanceof OLazyObjectListInterface<?>) {
-      ((OLazyObjectListInterface<?>) values).setConvertToRecord(false);
-      it = ((OLazyObjectListInterface<?>) values).listIterator();
-    } else if (values instanceof OLazyObjectSetInterface) {
-      ((OLazyObjectSetInterface<?>) values).setConvertToRecord(false);
-      it = ((OLazyObjectSetInterface<?>) values).iterator();
-    } else if (values instanceof ORecordLazyMultiValue) {
+    if (values instanceof ORecordLazyMultiValue) {
       it = ((ORecordLazyMultiValue) values).rawIterator();
     } else {
       it = values.iterator();
@@ -151,10 +135,7 @@ public class OFindReferenceHelper {
   private static void checkMap(final Set<ORID> iSourceRIDs, final Map<ORID, Set<ORID>> map, final Map<?, ?> values,
       final ORecord iRootObject) {
     final Iterator<?> it;
-    if (values instanceof OLazyObjectMapInterface<?>) {
-      ((OLazyObjectMapInterface<?>) values).setConvertToRecord(false);
-      it = ((OLazyObjectMapInterface<?>) values).values().iterator();
-    } else if (values instanceof ORecordLazyMap) {
+    if (values instanceof ORecordLazyMap) {
       it = ((ORecordLazyMap) values).rawIterator();
     } else {
       it = values.values().iterator();
@@ -168,7 +149,7 @@ public class OFindReferenceHelper {
       final ORecord iRootObject) {
     if (iSourceRIDs.contains(value.getIdentity())) {
       map.get(value.getIdentity()).add(iRootObject.getIdentity());
-    }else if(!value.getIdentity().isValid() && value.getRecord() instanceof ODocument){
+    } else if (!value.getIdentity().isValid() && value.getRecord() instanceof ODocument) {
       //embedded document
       ODocument doc = value.getRecord();
       for (String fieldName : doc.fieldNames()) {

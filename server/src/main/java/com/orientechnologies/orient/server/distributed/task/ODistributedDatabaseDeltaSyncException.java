@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.distributed.task;
@@ -25,7 +25,7 @@ import com.orientechnologies.orient.server.distributed.ODistributedException;
 /**
  * Exception thrown when a delta backup is not possible.
  * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public class ODistributedDatabaseDeltaSyncException extends ODistributedException {
@@ -35,6 +35,10 @@ public class ODistributedDatabaseDeltaSyncException extends ODistributedExceptio
 
   public ODistributedDatabaseDeltaSyncException(final OLogSequenceNumber requested) {
     super("Requested database delta sync with LSN=" + requested + " but not found in database");
+  }
+
+  public ODistributedDatabaseDeltaSyncException(final OLogSequenceNumber requested, final String reason) {
+    super("Requested delta sync with LSN=" + requested + " but found the following error: " + reason);
   }
 
   public ODistributedDatabaseDeltaSyncException(final String iMessage) {

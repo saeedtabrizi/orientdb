@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Orient Technologies.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,9 @@
 
 package com.orientechnologies.lucene.index;
 
-import com.orientechnologies.lucene.OLuceneIndex;
 import com.orientechnologies.lucene.engine.OLuceneIndexEngine;
-import com.orientechnologies.orient.core.index.OIndexEngine;
+import com.orientechnologies.orient.core.exception.OInvalidIndexEngineIdException;
+import com.orientechnologies.orient.core.index.engine.OBaseIndexEngine;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.parser.ParseException;
 import com.orientechnologies.orient.core.storage.impl.local.OAbstractPaginatedStorage;
@@ -27,54 +27,80 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.search.Query;
 
-public class OLuceneFullTextIndex extends OLuceneIndexNotUnique implements OLuceneIndex {
+public class OLuceneFullTextIndex extends OLuceneIndexNotUnique {
 
-  public OLuceneFullTextIndex(String name, String typeId, String algorithm, int version, OAbstractPaginatedStorage storage,
-      String valueContainerAlgorithm, ODocument metadata) {
-    super(name, typeId, algorithm, version, storage, valueContainerAlgorithm, metadata);
+  public OLuceneFullTextIndex(String name,
+      String typeId,
+      String algorithm,
+      int version, OAbstractPaginatedStorage storage, String valueContainerAlgorithm, ODocument metadata,
+      final int binaryFormatVersion) {
+    super(name, typeId, algorithm, version, storage, valueContainerAlgorithm, metadata, binaryFormatVersion);
   }
 
   public Document buildDocument(final Object key) {
 
-    return storage.callIndexEngine(false, false, indexId, new OIndexEngineCallback<Document>() {
-      @Override
-      public Document callEngine(OIndexEngine engine) {
-        OLuceneIndexEngine indexEngine = (OLuceneIndexEngine) engine;
-        return indexEngine.buildDocument(key, null);
+    while (true)
+      try {
+        return storage.callIndexEngine(false, false, indexId, engine -> {
+          OLuceneIndexEngine indexEngine = (OLuceneIndexEngine) engine;
+          return indexEngine.buildDocument(key, null);
+        });
+      } catch (OInvalidIndexEngineIdException e) {
+        doReloadIndexEngine();
       }
-    });
   }
 
   public Query buildQuery(final Object query) throws ParseException {
-
-    return storage.callIndexEngine(false, false, indexId, new OIndexEngineCallback<Query>() {
-      @Override
-      public Query callEngine(OIndexEngine engine) {
-        OLuceneIndexEngine indexEngine = (OLuceneIndexEngine) engine;
-        return indexEngine.buildQuery(query);
+    while (true)
+      try {
+        return storage.callIndexEngine(false, false, indexId, engine -> {
+          OLuceneIndexEngine indexEngine = (OLuceneIndexEngine) engine;
+          return indexEngine.buildQuery(query);
+        });
+      } catch (OInvalidIndexEngineIdException e) {
+        doReloadIndexEngine();
       }
-    });
+
   }
 
   public Analyzer queryAnalyzer() {
-
-    return storage.callIndexEngine(false, false, indexId, new OIndexEngineCallback<Analyzer>() {
-      @Override
-      public Analyzer callEngine(OIndexEngine engine) {
-        OLuceneIndexEngine indexEngine = (OLuceneIndexEngine) engine;
-        return indexEngine.queryAnalyzer();
+    while (true)
+      try {
+        return storage.callIndexEngine(false, false, indexId, engine -> {
+          OLuceneIndexEngine indexEngine = (OLuceneIndexEngine) engine;
+          return indexEngine.queryAnalyzer();
+        });
+      } catch (OInvalidIndexEngineIdException e) {
+        doReloadIndexEngine();
       }
-    });
+  }
+
+  public boolean isCollectionIndex() {
+    while (true) {
+      try {
+        return storage.callIndexEngine(false, false, indexId, new OIndexEngineCallback<Boolean>() {
+          @Override
+          public Boolean callEngine(OBaseIndexEngine engine) {
+            OLuceneIndexEngine indexEngine = (OLuceneIndexEngine) engine;
+            return indexEngine.isCollectionIndex();
+          }
+        });
+      } catch (OInvalidIndexEngineIdException e) {
+        doReloadIndexEngine();
+      }
+    }
   }
 
   public Analyzer indexAnalyzer() {
-
-    return storage.callIndexEngine(false, false, indexId, new OIndexEngineCallback<Analyzer>() {
-      @Override
-      public Analyzer callEngine(OIndexEngine engine) {
-        OLuceneIndexEngine indexEngine = (OLuceneIndexEngine) engine;
-        return indexEngine.indexAnalyzer();
+    while (true) {
+      try {
+        return storage.callIndexEngine(false, false, indexId, engine -> {
+          OLuceneIndexEngine indexEngine = (OLuceneIndexEngine) engine;
+          return indexEngine.indexAnalyzer();
+        });
+      } catch (OInvalidIndexEngineIdException e) {
+        doReloadIndexEngine();
       }
-    });
+    }
   }
 }

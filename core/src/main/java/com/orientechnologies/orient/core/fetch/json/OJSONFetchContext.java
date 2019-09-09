@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2012 Luca Molino (molino.luca--AT--gmail.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ import java.util.Set;
 import java.util.Stack;
 
 /**
- * @author luca.molino
+ * @author Luca Molino (molino.luca--at--gmail.com)
  * 
  */
 public class OJSONFetchContext implements OFetchContext {
@@ -68,11 +68,11 @@ public class OJSONFetchContext implements OFetchContext {
       }
   }
 
-  public void onBeforeStandardField(final Object iFieldValue, final String iFieldName, final Object iUserObject) {
-    manageTypes(iFieldName, iFieldValue);
+  public void onBeforeStandardField(final Object iFieldValue, final String iFieldName, final Object iUserObject, OType fieldType) {
+    manageTypes(iFieldName, iFieldValue, fieldType);
   }
 
-  public void onAfterStandardField(Object iFieldValue, String iFieldName, Object iUserObject) {
+  public void onAfterStandardField(Object iFieldValue, String iFieldName, Object iUserObject, OType fieldType) {
   }
 
   public void onBeforeArray(final ODocument iRootRecord, final String iFieldName, final Object iUserObject,
@@ -87,7 +87,7 @@ public class OJSONFetchContext implements OFetchContext {
   public void onBeforeCollection(final ODocument iRootRecord, final String iFieldName, final Object iUserObject,
       final Iterable<?> iterable) {
     try {
-      manageTypes(iFieldName, iterable);
+      manageTypes(iFieldName, iterable, null);
       jsonWriter.beginCollection(++settings.indentLevel, true, iFieldName);
       collectionStack.add(iRootRecord);
     } catch (IOException e) {
@@ -215,7 +215,7 @@ public class OJSONFetchContext implements OFetchContext {
     return settings.alwaysFetchEmbeddedDocuments;
   }
 
-  protected void manageTypes(final String iFieldName, final Object iFieldValue) {
+  protected void manageTypes(final String iFieldName, final Object iFieldValue, OType fieldType) {
     if (settings.keepTypes) {
       if (iFieldValue instanceof Long)
         appendType(typesStack.peek(), iFieldName, 'l');
@@ -240,7 +240,9 @@ public class OJSONFetchContext implements OFetchContext {
       else if (iFieldValue instanceof ORidBag)
         appendType(typesStack.peek(), iFieldName, 'g');
       else {
-        final OType t = OType.getTypeByValue(iFieldValue);
+        OType t = fieldType;
+        if (t == null)
+          t = OType.getTypeByValue(iFieldValue);
         if (t == OType.LINKLIST)
           appendType(typesStack.peek(), iFieldName, 'z');
         else if (t == OType.LINKMAP)

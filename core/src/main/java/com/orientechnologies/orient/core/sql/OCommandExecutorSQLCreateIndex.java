@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,41 +14,37 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
 
-import com.orientechnologies.common.log.OLogManager;
+import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.common.util.OPatternConst;
 import com.orientechnologies.orient.core.collate.OCollate;
 import com.orientechnologies.orient.core.command.OCommandDistributedReplicateRequest;
 import com.orientechnologies.orient.core.command.OCommandRequest;
 import com.orientechnologies.orient.core.command.OCommandRequestText;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.exception.OCommandExecutionException;
+import com.orientechnologies.orient.core.exception.ODatabaseException;
 import com.orientechnologies.orient.core.index.*;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OClassImpl;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * SQL CREATE INDEX command: Create a new index against a property.
  * <p/>
  * <p>
- * Supports following grammar: <br>
- * "CREATE" "INDEX" &lt;indexName&gt; ["ON" &lt;className&gt; "(" &lt;propName&gt; ("," &lt;propName&gt;)* ")"] &lt;indexType&gt;
- * [&lt;keyType&gt; ("," &lt;keyType&gt;)*]
+ * Supports following grammar: <br> "CREATE" "INDEX" &lt;indexName&gt; ["ON" &lt;className&gt; "(" &lt;propName&gt; (","
+ * &lt;propName&gt;)* ")"] &lt;indexType&gt; [&lt;keyType&gt; ("," &lt;keyType&gt;)*]
  * </p>
  *
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 @SuppressWarnings("unchecked")
 public class OCommandExecutorSQLCreateIndex extends OCommandExecutorSQLAbstract implements OCommandDistributedReplicateRequest {
@@ -65,8 +61,8 @@ public class OCommandExecutorSQLCreateIndex extends OCommandExecutorSQLAbstract 
   private OType[]           keyTypes;
   private byte              serializerKeyId;
   private String            engine;
-  private ODocument metadataDoc = null;
-  private String[] collates;
+  private ODocument         metadataDoc = null;
+  private String[]          collates;
 
   public OCommandExecutorSQLCreateIndex parse(final OCommandRequest iRequest) {
     final OCommandRequestText textRequest = (OCommandRequestText) iRequest;
@@ -96,7 +92,7 @@ public class OCommandExecutorSQLCreateIndex extends OCommandExecutorSQLAbstract 
       if (pos == -1)
         throw new OCommandSQLParsingException("Expected index name. Use " + getSyntax(), parserText, oldPos);
 
-      indexName = word.toString();
+      indexName = decodeClassName(word.toString());
 
       oldPos = pos;
       pos = nextWord(parserText, parserTextUpperCase, oldPos, word, true);
@@ -130,13 +126,13 @@ public class OCommandExecutorSQLCreateIndex extends OCommandExecutorSQLAbstract 
         for (int i = 0; i < fields.length; i++) {
           final String fieldName = fields[i];
 
-          final int collatePos = fieldName.toUpperCase().indexOf(" COLLATE ");
+          final int collatePos = fieldName.toUpperCase(Locale.ENGLISH).indexOf(" COLLATE ");
 
           if (collatePos > 0) {
             if (collates == null)
               collates = new String[fields.length];
 
-            collates[i] = fieldName.substring(collatePos + " COLLATE ".length()).toLowerCase().trim();
+            collates[i] = fieldName.substring(collatePos + " COLLATE ".length()).toLowerCase(Locale.ENGLISH).trim();
             fields[i] = fieldName.substring(0, collatePos);
           } else {
             if (collates != null)
@@ -179,7 +175,7 @@ public class OCommandExecutorSQLCreateIndex extends OCommandExecutorSQLAbstract 
         oldPos = pos;
         pos = nextWord(parserText, parserTextUpperCase, oldPos, word, false);
         oldPos = pos;
-        engine = word.toString().toUpperCase();
+        engine = word.toString().toUpperCase(Locale.ENGLISH);
       } else
         parserGoBack();
 
@@ -213,8 +209,9 @@ public class OCommandExecutorSQLCreateIndex extends OCommandExecutorSQLAbstract 
           keyTypeList.toArray(keyTypes);
 
           if (fields != null && fields.length != 0 && fields.length != keyTypes.length) {
-            throw new OCommandSQLParsingException("Count of fields does not match with count of property types. " + "Fields: "
-                + Arrays.toString(fields) + "; Types: " + Arrays.toString(keyTypes), parserText, oldPos);
+            throw new OCommandSQLParsingException(
+                "Count of fields does not match with count of property types. " + "Fields: " + Arrays.toString(fields) + "; Types: "
+                    + Arrays.toString(keyTypes), parserText, oldPos);
           }
         }
       }
@@ -234,7 +231,7 @@ public class OCommandExecutorSQLCreateIndex extends OCommandExecutorSQLAbstract 
     if (indexName == null)
       throw new OCommandExecutionException("Cannot execute the command because it has not been parsed yet");
 
-    final ODatabaseDocument database = getDatabase();
+    final ODatabaseDocumentInternal database = getDatabase();
     final OIndex<?> idx;
     List<OCollate> collatesList = null;
 
@@ -254,23 +251,15 @@ public class OCommandExecutorSQLCreateIndex extends OCommandExecutorSQLAbstract 
       OIndexFactory factory = OIndexes.getFactory(indexType.toString(), null);
 
       if (keyTypes != null)
-        idx = database
-            .getMetadata()
-            .getIndexManager()
-            .createIndex(indexName, indexType.toString(),
-                new OSimpleKeyIndexDefinition(keyTypes, collatesList, factory.getLastVersion()), null, null, metadataDoc, engine);
+        idx = database.getMetadata().getIndexManagerInternal()
+            .createIndex(database, indexName, indexType.toString(), new OSimpleKeyIndexDefinition(keyTypes, collatesList), null,
+                null, metadataDoc, engine);
       else if (serializerKeyId != 0) {
-        idx = database
-            .getMetadata()
-            .getIndexManager()
-            .createIndex(indexName, indexType.toString(),
-                new ORuntimeKeyIndexDefinition(serializerKeyId, factory.getLastVersion()), null, null, metadataDoc, engine);
+        idx = database.getMetadata().getIndexManagerInternal()
+            .createIndex(database, indexName, indexType.toString(), new ORuntimeKeyIndexDefinition(serializerKeyId), null, null,
+                metadataDoc, engine);
       } else {
-        OLogManager.instance().warn(this,
-            "Key type is not provided for '%s' index. Untyped indexes are deprecated and considered unstable." +
-                " Please specify a key type.", indexName);
-        idx = database.getMetadata().getIndexManager()
-            .createIndex(indexName, indexType.toString(), null, null, null, metadataDoc, engine);
+        throw new ODatabaseException("Impossible to create an index without specify the key type or the associated property");
       }
     } else {
       if ((keyTypes == null || keyTypes.length == 0) && collates == null) {
@@ -280,17 +269,19 @@ public class OCommandExecutorSQLCreateIndex extends OCommandExecutorSQLAbstract 
         if (keyTypes == null) {
           for (final String fieldName : fields) {
             if (!fieldName.equals("@rid") && !oClass.existsProperty(fieldName))
-              throw new OIndexException("Index with name : '" + indexName + "' cannot be created on class : '" + oClass.getName() + "' because field: '" + fieldName + "' is absent in class definition.");
+              throw new OIndexException(
+                  "Index with name : '" + indexName + "' cannot be created on class : '" + oClass.getName() + "' because field: '"
+                      + fieldName + "' is absent in class definition.");
           }
           fieldTypeList = ((OClassImpl) oClass).extractFieldTypes(fields);
         } else
           fieldTypeList = Arrays.asList(keyTypes);
 
-        final OIndexDefinition idxDef = OIndexDefinitionFactory.createIndexDefinition(oClass, Arrays.asList(fields), fieldTypeList,
-            collatesList, indexType.toString(), null);
+        final OIndexDefinition idxDef = OIndexDefinitionFactory
+            .createIndexDefinition(oClass, Arrays.asList(fields), fieldTypeList, collatesList, indexType.toString(), null);
 
-        idx = database.getMetadata().getIndexManager()
-            .createIndex(indexName, indexType.name(), idxDef, oClass.getPolymorphicClusterIds(), null, metadataDoc, engine);
+        idx = database.getMetadata().getIndexManagerInternal()
+            .createIndex(database, indexName, indexType.name(), idxDef, oClass.getPolymorphicClusterIds(), null, metadataDoc, engine);
       }
     }
 
@@ -320,20 +311,25 @@ public class OCommandExecutorSQLCreateIndex extends OCommandExecutorSQLAbstract 
       return;
 
     if (fieldNameParts.length == 3) {
-      if ("by".equals(fieldNameParts[1].toLowerCase())) {
+      if ("by".equals(fieldNameParts[1].toLowerCase(Locale.ENGLISH))) {
         try {
-          OPropertyMapIndexDefinition.INDEX_BY.valueOf(fieldNameParts[2].toUpperCase());
+          OPropertyMapIndexDefinition.INDEX_BY.valueOf(fieldNameParts[2].toUpperCase(Locale.ENGLISH));
         } catch (IllegalArgumentException iae) {
-          throw new OCommandSQLParsingException("Illegal field name format, should be '<property> [by key|value]' but was '"
-              + fieldName + "'", text, pos);
+          throw OException.wrapException(new OCommandSQLParsingException(
+              "Illegal field name format, should be '<property> [by key|value]' but was '" + fieldName + "'", text, pos), iae);
         }
         return;
       }
-      throw new OCommandSQLParsingException("Illegal field name format, should be '<property> [by key|value]' but was '"
-          + fieldName + "'", text, pos);
+      throw new OCommandSQLParsingException(
+          "Illegal field name format, should be '<property> [by key|value]' but was '" + fieldName + "'", text, pos);
     }
 
-    throw new OCommandSQLParsingException("Illegal field name format, should be '<property> [by key|value]' but was '" + fieldName
-        + "'", text, pos);
+    throw new OCommandSQLParsingException(
+        "Illegal field name format, should be '<property> [by key|value]' but was '" + fieldName + "'", text, pos);
+  }
+
+  @Override
+  public String getUndoCommand() {
+    return "drop index " + indexName;
   }
 }

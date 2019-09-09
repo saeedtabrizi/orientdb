@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ * Copyright 2010-2014 OrientDB LTD (info(-at-)orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,12 @@
  */
 package com.orientechnologies.orient.core.sharding.auto;
 
+import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
 import com.orientechnologies.orient.core.exception.OConfigurationException;
+import com.orientechnologies.orient.core.exception.OInvalidIndexEngineIdException;
 import com.orientechnologies.orient.core.index.OIndex;
-import com.orientechnologies.orient.core.index.OIndexEngine;
+import com.orientechnologies.orient.core.index.engine.OIndexEngine;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.clusterselection.OClusterSelectionStrategy;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -30,8 +32,8 @@ import java.util.List;
 /**
  * Returns the cluster selecting through the hash function.
  *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * @since 3.0
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
  */
 public class OAutoShardingClusterSelectionStrategy implements OClusterSelectionStrategy {
   public static final String NAME = "auto-sharding";
@@ -51,15 +53,26 @@ public class OAutoShardingClusterSelectionStrategy implements OClusterSelectionS
       throw new OConfigurationException("Cannot use auto-sharding cluster strategy because class '" + clazz
           + "' has an auto-sharding index defined with multiple fields");
 
-    final OStorage stg = ODatabaseRecordThreadLocal.INSTANCE.get().getStorage().getUnderlying();
+    final OStorage stg = ODatabaseRecordThreadLocal.instance().get().getStorage().getUnderlying();
     if (!(stg instanceof OAbstractPaginatedStorage))
       throw new OConfigurationException("Cannot use auto-sharding cluster strategy because storage is not embedded");
 
-    indexEngine = ((OAbstractPaginatedStorage) stg).getIndexEngine(index.getIndexId());
+    try {
+      indexEngine = (OIndexEngine) ((OAbstractPaginatedStorage) stg).getIndexEngine(index.getIndexId());
+    } catch (OInvalidIndexEngineIdException e) {
+      throw OException.wrapException(
+          new OConfigurationException("Cannot use auto-sharding cluster strategy because the underlying index has not found"), e);
+    }
+
     if (indexEngine == null)
       throw new OConfigurationException("Cannot use auto-sharding cluster strategy because the underlying index has not found");
 
     clusters = clazz.getClusterIds();
+  }
+
+  public int getCluster(final OClass iClass, int[] clusters, final ODocument doc) {
+    // Ignore the subselection.
+    return getCluster(iClass, doc);
   }
 
   public int getCluster(final OClass clazz, final ODocument doc) {

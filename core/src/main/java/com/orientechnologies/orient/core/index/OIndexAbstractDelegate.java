@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.index;
@@ -30,9 +30,8 @@ import java.util.Set;
 
 /**
  * Generic abstract wrapper for indexes. It delegates all the operations to the wrapped OIndex instance.
- * 
- * @author Luca Garulli
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OIndexAbstractDelegate<T> implements OIndex<T> {
   protected OIndex<T> delegate;
@@ -73,6 +72,11 @@ public class OIndexAbstractDelegate<T> implements OIndex<T> {
     return delegate.getRebuildVersion();
   }
 
+  @Override
+  public int getVersion() {
+    return delegate.getVersion();
+  }
+
   public boolean remove(final Object key) {
     return delegate.remove(key);
   }
@@ -81,6 +85,10 @@ public class OIndexAbstractDelegate<T> implements OIndex<T> {
     return delegate.remove(iKey, iRID);
   }
 
+  /**
+   * {@inheritDoc}
+   */
+  @Deprecated
   public OIndex<T> clear() {
     return delegate.clear();
   }
@@ -93,7 +101,7 @@ public class OIndexAbstractDelegate<T> implements OIndex<T> {
       if (type == null)
         return;
 
-      OIndexManagerProxy indexManager = ODatabaseRecordThreadLocal.INSTANCE.get().getMetadata().getIndexManager();
+      OIndexManagerAbstract indexManager = ODatabaseRecordThreadLocal.instance().get().getMetadata().getIndexManagerInternal();
       getInternal().setType(type);
       indexManager.save();
     }
@@ -203,10 +211,6 @@ public class OIndexAbstractDelegate<T> implements OIndex<T> {
   @Override
   public OIndexCursor iterateEntries(Collection<?> keys, boolean ascSortOrder) {
     return delegate.iterateEntries(keys, ascSortOrder);
-  }
-
-  public ODocument checkEntry(final OIdentifiable iRecord, final Object iKey) {
-    return delegate.checkEntry(iRecord, iKey);
   }
 
   public Set<String> getClusters() {

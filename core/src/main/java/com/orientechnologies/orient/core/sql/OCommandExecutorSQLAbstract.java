@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
@@ -36,16 +36,13 @@ import com.orientechnologies.orient.core.metadata.security.ORule;
 import com.orientechnologies.orient.core.sql.parser.OStatement;
 import com.orientechnologies.orient.core.sql.parser.OStatementCache;
 
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * SQL abstract Command Executor implementation.
- * 
- * @author Luca Garulli
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
+ *
  */
 public abstract class OCommandExecutorSQLAbstract extends OCommandExecutorAbstract {
 
@@ -73,6 +70,8 @@ public abstract class OCommandExecutorSQLAbstract extends OCommandExecutorAbstra
   public static final String METADATA_PREFIX          = "METADATA:";
   public static final String METADATA_SCHEMA          = "SCHEMA";
   public static final String METADATA_INDEXMGR        = "INDEXMANAGER";
+  public static final String METADATA_STORAGE         = "STORAGE";
+  public static final String METADATA_DATABASE        = "DATABASE";
 
   public static final String DEFAULT_PARAM_USER       = "$user";
 
@@ -116,7 +115,7 @@ public abstract class OCommandExecutorSQLAbstract extends OCommandExecutorAbstra
 
     try {
       timeoutMs = Long.parseLong(word);
-    } catch (Exception e) {
+    } catch (NumberFormatException ignore) {
       throwParsingException("Invalid " + KEYWORD_TIMEOUT + " value set to '" + word + "' but it should be a valid long. Example: "
           + KEYWORD_TIMEOUT + " 3000");
     }
@@ -162,7 +161,7 @@ public abstract class OCommandExecutorSQLAbstract extends OCommandExecutorAbstra
         for (int clId : cls.getPolymorphicClusterIds()) {
           // FILTER THE CLUSTER WHERE THE USER HAS THE RIGHT ACCESS
           if (clId > -1 && checkClusterAccess(db, db.getClusterNameById(clId)))
-            clusters.add(db.getClusterNameById(clId).toLowerCase());
+            clusters.add(db.getClusterNameById(clId).toLowerCase(Locale.ENGLISH));
         }
     }
 
@@ -175,7 +174,7 @@ public abstract class OCommandExecutorSQLAbstract extends OCommandExecutorAbstra
     final Set<String> clusters = new HashSet<String>();
 
     for (String cluster : iClusterNames) {
-      final String c = cluster.toLowerCase();
+      final String c = cluster.toLowerCase(Locale.ENGLISH);
       // FILTER THE CLUSTER WHERE THE USER HAS THE RIGHT ACCESS
       if (checkClusterAccess(db, c))
         clusters.add(c);
@@ -190,7 +189,7 @@ public abstract class OCommandExecutorSQLAbstract extends OCommandExecutorAbstra
     final Set<String> clusters = new HashSet<String>();
 
     final OMetadataInternal metadata = (OMetadataInternal) db.getMetadata();
-    final OIndex<?> idx = metadata.getIndexManager().getIndex(iIndexName);
+    final OIndex<?> idx = metadata.getIndexManagerInternal().getIndex(db, iIndexName);
     if (idx != null && idx.getDefinition() != null) {
       final String clazz = idx.getDefinition().getClassName();
 
@@ -200,7 +199,7 @@ public abstract class OCommandExecutorSQLAbstract extends OCommandExecutorAbstra
           for (int clId : cls.getClusterIds()) {
             final String clName = db.getClusterNameById(clId);
             if (clName != null)
-              clusters.add(clName.toLowerCase());
+              clusters.add(clName.toLowerCase(Locale.ENGLISH));
           }
       }
     }
@@ -236,14 +235,11 @@ public abstract class OCommandExecutorSQLAbstract extends OCommandExecutorAbstra
           return builder.toString();
         }
         return result.toString();
-      }catch (OCommandSQLParsingException sqlx){
+      } catch (OCommandSQLParsingException sqlx) {
         throw sqlx;
       } catch (Exception e) {
         throwParsingException("Error parsing query: \n" + queryText + "\n" + e.getMessage(), e);
       }
-      OClass clazz = getDatabase().getMetadata().getSchema().getClass("Foo");
-      clazz.setCustom("schemaVersion", "1");
-      String version = clazz.getCustom("schemaVersion");
     }
     return queryText;
   }
@@ -251,6 +247,5 @@ public abstract class OCommandExecutorSQLAbstract extends OCommandExecutorAbstra
   protected String decodeClassName(String s) {
     return OClassImpl.decodeClassName(s);
   }
-
 
 }

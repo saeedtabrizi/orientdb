@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,19 +14,11 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.tinkerpop.blueprints.impls.orient;
-
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
 
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
@@ -39,12 +31,17 @@ import com.tinkerpop.blueprints.Index;
 import com.tinkerpop.blueprints.util.ExceptionFactory;
 import com.tinkerpop.blueprints.util.StringFactory;
 
+import java.io.IOException;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
+import java.util.*;
+
 /**
  * OrientDB Edge implementation of TinkerPop Blueprints standard. Edges can be classic or lightweight. Lightweight edges have no
  * properties and have no identity on database. Lightweight edges are created by default when an Edge is created without properties.
  * To disable this option execute this command against the database: <code>alter database custom useLightweightEdges=false</code>.
  *
- * @author Luca Garulli (http://www.orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com) (http://orientdb.com)
  */
 @SuppressWarnings("unchecked")
 public class OrientEdge extends OrientElement implements Edge {
@@ -76,10 +73,6 @@ public class OrientEdge extends OrientElement implements Edge {
     setPropertiesInternal(fields);
   }
 
-  protected OrientEdge(final OrientBaseGraph rawGraph, final OIdentifiable out, final OIdentifiable in) {
-    this(rawGraph, out, in, null);
-  }
-
   protected OrientEdge(final OrientBaseGraph rawGraph, final OIdentifiable out, final OIdentifiable in, final String iLabel) {
     super(rawGraph, null);
     vOut = out;
@@ -94,10 +87,8 @@ public class OrientEdge extends OrientElement implements Edge {
   /**
    * (Blueprints Extension) Returns true if the edge is labeled with any of the passed strings.
    *
-   * @param iEdgeLabel
-   *          Label of current edge
-   * @param iLabels
-   *          Labels as array of Strings
+   * @param iEdgeLabel Label of current edge
+   * @param iLabels    Labels as array of Strings
    * @return true if the edge is labeled with any of the passed strings
    */
   public static boolean isLabeled(final String iEdgeLabel, final String[] iLabels) {
@@ -119,8 +110,7 @@ public class OrientEdge extends OrientElement implements Edge {
   /**
    * (Blueprints Extension) Returns the record label if any, otherwise NULL.
    *
-   * @param iEdge
-   *          Edge instance
+   * @param iEdge Edge instance
    */
   public static String getRecordLabel(final OIdentifiable iEdge) {
     if (iEdge == null)
@@ -136,12 +126,9 @@ public class OrientEdge extends OrientElement implements Edge {
   /**
    * (Blueprints Extension) This method does not remove connection from opposite side.
    *
-   * @param iVertex
-   *          vertex that holds connection
-   * @param iFieldName
-   *          name of field that holds connection
-   * @param iVertexToRemove
-   *          target of connection
+   * @param iVertex         vertex that holds connection
+   * @param iFieldName      name of field that holds connection
+   * @param iVertexToRemove target of connection
    */
   private static void removeLightweightConnection(final ODocument iVertex, final String iFieldName,
       final OIdentifiable iVertexToRemove) {
@@ -166,17 +153,16 @@ public class OrientEdge extends OrientElement implements Edge {
   /**
    * Returns the connected incoming or outgoing vertex.
    *
-   * @param direction
-   *          Direction between IN or OUT
+   * @param direction Direction between IN or OUT
    */
   @Override
   public OrientVertex getVertex(final Direction direction) {
     final OrientBaseGraph graph = setCurrentGraphInThreadLocal();
 
     if (direction.equals(Direction.OUT))
-      return new OrientVertex(graph, getOutVertex());
+      return graph.getVertex(getOutVertex());
     else if (direction.equals(Direction.IN))
-      return new OrientVertex(graph, getInVertex());
+      return graph.getVertex(getInVertex());
     else
       throw ExceptionFactory.bothIsNotSupported();
   }
@@ -236,7 +222,7 @@ public class OrientEdge extends OrientElement implements Edge {
     else if (rawElement != null) {
       if (settings != null && settings.isUseClassForEdgeLabel()) {
         final String clsName = getRecord().getClassName();
-        if (!OrientEdgeType.CLASS_NAME.equals(clsName) && !"OGraphEdge".equals(clsName))
+        if (!OrientEdgeType.CLASS_NAME.equals(clsName))
           // RETURN THE CLASS NAME
           return OrientBaseGraph.decodeClassName(clsName);
       }
@@ -280,8 +266,7 @@ public class OrientEdge extends OrientElement implements Edge {
   /**
    * Returns a Property value.
    *
-   * @param key
-   *          Property name
+   * @param key Property name
    * @return Property value if any, otherwise NULL.
    */
   @Override
@@ -314,9 +299,29 @@ public class OrientEdge extends OrientElement implements Edge {
     final Set<String> result = new HashSet<String>();
 
     for (String field : getRecord().fieldNames())
-      if (!field.equals(OrientBaseGraph.CONNECTION_OUT) && !field.equals(OrientBaseGraph.CONNECTION_IN)
-          && (settings.isUseClassForEdgeLabel() || !field.equals(OrientElement.LABEL_FIELD_NAME)))
+      if (!field.equals(OrientBaseGraph.CONNECTION_OUT) && !field.equals(OrientBaseGraph.CONNECTION_IN) && (
+          settings.isUseClassForEdgeLabel() || !field.equals(OrientElement.LABEL_FIELD_NAME)))
         result.add(field);
+
+    return result;
+  }
+
+  @Override
+  public Map<String, Object> getProperties() {
+    if (this.rawElement == null)
+      return null;
+    final ODocument raw = this.rawElement.getRecord();
+    if (raw == null)
+      return null;
+
+    final OrientBaseGraph graph = setCurrentGraphInThreadLocal();
+
+    final Map<String, Object> result = new HashMap<String, Object>();
+
+    for (String field : raw.fieldNames())
+      if (!field.equals(OrientBaseGraph.CONNECTION_OUT) && !field.equals(OrientBaseGraph.CONNECTION_IN) && (
+          settings.isUseClassForEdgeLabel() || !field.equals(OrientElement.LABEL_FIELD_NAME)))
+        result.put(field, raw.field(field));
 
     return result;
   }
@@ -324,10 +329,8 @@ public class OrientEdge extends OrientElement implements Edge {
   /**
    * Set a Property value. If the edge is lightweight, it's transparently transformed into a regular edge.
    *
-   * @param key
-   *          Property name
-   * @param value
-   *          Property value
+   * @param key   Property name
+   * @param value Property value
    */
   @Override
   public void setProperty(final String key, final Object value) {
@@ -343,8 +346,7 @@ public class OrientEdge extends OrientElement implements Edge {
   /**
    * Removed a Property.
    *
-   * @param key
-   *          Property name
+   * @param key Property name
    * @return Old value if any
    */
   @Override
@@ -371,7 +373,7 @@ public class OrientEdge extends OrientElement implements Edge {
 
     for (final Index<? extends Element> index : graph.getIndices()) {
       if (Edge.class.isAssignableFrom(index.getIndexClass())) {
-        OrientIndex<OrientEdge> idx = (OrientIndex<OrientEdge>) index;
+        final OrientIndex<OrientEdge> idx = (OrientIndex<OrientEdge>) index;
         idx.removeElement(this);
       }
     }
@@ -402,13 +404,14 @@ public class OrientEdge extends OrientElement implements Edge {
    * Returns a string representation of the edge.
    */
   public String toString() {
-    setCurrentGraphInThreadLocal();
+    if (setCurrentGraphInThreadLocal() != null) {
+      if (getLabel() == null)
+        return StringFactory.E + StringFactory.L_BRACKET + getId() + StringFactory.R_BRACKET + StringFactory.L_BRACKET + getVertex(
+            Direction.OUT).getId() + StringFactory.ARROW + getVertex(Direction.IN).getId() + StringFactory.R_BRACKET;
 
-    if (getLabel() == null)
-      return StringFactory.E + StringFactory.L_BRACKET + getId() + StringFactory.R_BRACKET + StringFactory.L_BRACKET
-          + getVertex(Direction.OUT).getId() + StringFactory.ARROW + getVertex(Direction.IN).getId() + StringFactory.R_BRACKET;
-
-    return StringFactory.edgeString(this);
+      return StringFactory.edgeString(this);
+    } else
+      return StringFactory.E + StringFactory.L_BRACKET + getId();
   }
 
   /**
@@ -507,11 +510,10 @@ public class OrientEdge extends OrientElement implements Edge {
   /**
    * Returns true if the edge is labeled with any of the passed strings.
    *
-   * @param iLabels
-   *          Labels as array of Strings
+   * @param iLabels Labels as array of Strings
    * @return true if the edge is labeled with any of the passed strings
    */
-  protected boolean isLabeled(final String[] iLabels) {
+  public boolean isLabeled(final String[] iLabels) {
     return isLabeled(getLabel(), iLabels);
   }
 
@@ -531,8 +533,9 @@ public class OrientEdge extends OrientElement implements Edge {
       final Object iFieldValue) {
     if (iFieldValue == null) {
       // NO EDGE? WARN
-      OLogManager.instance().debug(this, "Edge not found in vertex's property %s.%s while removing the edge %s",
-          iVertex.getIdentity(), iFieldName, iEdge.getIdentity());
+      OLogManager.instance()
+          .debug(this, "Edge not found in vertex's property %s.%s while removing the edge %s", iVertex.getIdentity(), iFieldName,
+              iEdge.getIdentity());
       return false;
 
     } else if (iFieldValue instanceof OIdentifiable) {
@@ -542,8 +545,9 @@ public class OrientEdge extends OrientElement implements Edge {
         iVertex.removeField(iFieldName);
       else {
         // NO EDGE? WARN
-        OLogManager.instance().warn(this, "Edge not found in vertex's property %s.%s link while removing the edge %s",
-            iVertex.getIdentity(), iFieldName, iEdge.getIdentity());
+        OLogManager.instance()
+            .warn(this, "Edge not found in vertex's property %s.%s link while removing the edge %s", iVertex.getIdentity(),
+                iFieldName, iEdge.getIdentity());
         return false;
       }
 
@@ -556,8 +560,9 @@ public class OrientEdge extends OrientElement implements Edge {
       final Collection<Object> coll = (Collection<Object>) iFieldValue;
 
       if (!coll.remove(iEdge)) {
-        OLogManager.instance().warn(this, "Edge not found in vertex's property %s.%s set while removing the edge %s",
-            iVertex.getIdentity(), iFieldName, iEdge.getIdentity());
+        OLogManager.instance()
+            .warn(this, "Edge not found in vertex's property %s.%s set while removing the edge %s", iVertex.getIdentity(),
+                iFieldName, iEdge.getIdentity());
         return false;
       }
 

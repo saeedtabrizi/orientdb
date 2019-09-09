@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql.query;
@@ -28,12 +28,13 @@ import com.orientechnologies.orient.core.exception.OQueryParsingException;
 import com.orientechnologies.orient.core.exception.OSerializationException;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.OMetadataInternal;
+import com.orientechnologies.orient.core.metadata.schema.OImmutableSchema;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.query.OQueryAbstract;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.serialization.OMemoryStream;
-import com.orientechnologies.orient.core.serialization.OSerializableStream;
+import com.orientechnologies.orient.core.serialization.serializer.record.ORecordSerializer;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -46,11 +47,10 @@ import java.util.Set;
 
 /**
  * SQL query implementation.
- * 
- * @author Luca Garulli
- * 
- * @param <T>
- *          Record type to return.
+ *
+ * @param <T> Record type to return.
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 @SuppressWarnings("serial")
 public abstract class OSQLQuery<T> extends OQueryAbstract<T> implements OCommandRequestText {
@@ -68,14 +68,19 @@ public abstract class OSQLQuery<T> extends OQueryAbstract<T> implements OCommand
    */
   @SuppressWarnings("unchecked")
   public List<T> run(final Object... iArgs) {
-    final ODatabaseDocumentInternal database = ODatabaseRecordThreadLocal.INSTANCE.get();
+    final ODatabaseDocumentInternal database = ODatabaseRecordThreadLocal.instance().get();
     if (database == null)
       throw new OQueryParsingException("No database configured");
 
     ((OMetadataInternal) database.getMetadata()).makeThreadLocalSchemaSnapshot();
     try {
       setParameters(iArgs);
-      return (List<T>) database.getStorage().command(this);
+      Object o = database.getStorage().command(this);
+      if (o instanceof List) {
+        return (List<T>) o;
+      } else {
+        return (List<T>) Collections.singletonList(o);
+      }
 
     } finally {
       ((OMetadataInternal) database.getMetadata()).clearThreadLocalSchemaSnapshot();
@@ -105,10 +110,10 @@ public abstract class OSQLQuery<T> extends OQueryAbstract<T> implements OCommand
     return "sql." + text;
   }
 
-  public OSerializableStream fromStream(final byte[] iStream) throws OSerializationException {
+  public OCommandRequestText fromStream(final byte[] iStream, ORecordSerializer serializer) throws OSerializationException {
     final OMemoryStream buffer = new OMemoryStream(iStream);
 
-    queryFromStream(buffer);
+    queryFromStream(buffer, serializer);
 
     return this;
   }
@@ -129,22 +134,24 @@ public abstract class OSQLQuery<T> extends OQueryAbstract<T> implements OCommand
     return buffer;
   }
 
-  protected void queryFromStream(final OMemoryStream buffer) {
+  protected void queryFromStream(final OMemoryStream buffer, ORecordSerializer serializer) {
     text = buffer.getAsString();
     limit = buffer.getAsInteger();
 
     setFetchPlan(buffer.getAsString());
 
     final byte[] paramBuffer = buffer.getAsByteArray();
-    parameters = deserializeQueryParameters(paramBuffer);
+    parameters = deserializeQueryParameters(paramBuffer, serializer);
   }
 
-  protected Map<Object, Object> deserializeQueryParameters(final byte[] paramBuffer) {
+  protected Map<Object, Object> deserializeQueryParameters(final byte[] paramBuffer, ORecordSerializer serializer) {
     if (paramBuffer == null || paramBuffer.length == 0)
       return Collections.emptyMap();
 
     final ODocument param = new ODocument();
-    param.fromStream(paramBuffer);
+
+    OImmutableSchema schema = ODatabaseRecordThreadLocal.instance().get().getMetadata().getImmutableSchemaSnapshot();
+    serializer.fromStream(paramBuffer, param, null);
     param.setFieldType("params", OType.EMBEDDEDMAP);
     final Map<String, Object> params = param.rawField("params");
 
@@ -191,8 +198,8 @@ public abstract class OSQLQuery<T> extends OQueryAbstract<T> implements OCommand
         }
         newParams.put(entry.getKey(), newList);
 
-      } else if (value instanceof Map<?, ?> && !((Map<?, ?>) value).isEmpty()
-          && ((Map<?, ?>) value).values().iterator().next() instanceof ORecord) {
+      } else if (value instanceof Map<?, ?> && !((Map<?, ?>) value).isEmpty() && ((Map<?, ?>) value).values().iterator()
+          .next() instanceof ORecord) {
         // CONVERT RECORDS AS RIDS
         final Map<Object, ORID> newMap = new HashMap<Object, ORID>();
         for (Entry<?, ORecord> mapEntry : ((Map<?, ORecord>) value).entrySet()) {

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,13 +14,14 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.storage.impl.local.paginated;
 
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.storage.cluster.OPaginatedCluster;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.atomicoperations.OAtomicOperationMetadata;
 
 import java.util.HashSet;
@@ -35,7 +36,7 @@ import java.util.Set;
 public class ORecordOperationMetadata implements OAtomicOperationMetadata<Set<ORID>> {
   public static final String RID_METADATA_KEY = "cluster.record.rid";
 
-  private final Set<ORID> rids = new HashSet<ORID>();
+  private final Set<ORID> rids = new HashSet<>();
 
   public void addRid(ORID rid) {
     rids.add(rid);

@@ -7,12 +7,7 @@ import com.orientechnologies.common.serialization.types.OShortSerializer;
 import com.orientechnologies.common.types.OModifiableInteger;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Queue;
+import java.util.*;
 
 public class OWALChangesTree implements OWALChanges {
   private static final boolean BLACK = false;
@@ -29,13 +24,14 @@ public class OWALChangesTree implements OWALChanges {
     this.debug = debug;
   }
 
+  @Override
   public byte getByteValue(ByteBuffer buffer, int offset) {
     if (root == null && buffer != null) {
       return buffer.get(offset);
     }
 
     final int end = offset + OByteSerializer.BYTE_SIZE;
-    final List<Node> result = new ArrayList<Node>();
+    final List<Node> result = new ArrayList<>();
     findIntervals(root, offset, end, result);
 
     if (buffer != null && result.isEmpty())
@@ -47,6 +43,7 @@ public class OWALChangesTree implements OWALChanges {
     return value[0];
   }
 
+  @Override
   public byte[] getBinaryValue(ByteBuffer buffer, int offset, int len) {
     if (root == null && buffer != null) {
       final byte[] value = new byte[len];
@@ -56,7 +53,7 @@ public class OWALChangesTree implements OWALChanges {
 
     final int end = offset + len;
 
-    final List<Node> result = new ArrayList<Node>();
+    final List<Node> result = new ArrayList<>();
     findIntervals(root, offset, end, result);
 
     if (result.isEmpty() && buffer != null) {
@@ -79,13 +76,14 @@ public class OWALChangesTree implements OWALChanges {
     return value;
   }
 
+  @Override
   public short getShortValue(ByteBuffer buffer, int offset) {
     if (root == null && buffer != null) {
       return buffer.getShort(offset);
     }
     int end = offset + OShortSerializer.SHORT_SIZE;
 
-    final List<Node> result = new ArrayList<Node>();
+    final List<Node> result = new ArrayList<>();
     findIntervals(root, offset, end, result);
 
     if (result.isEmpty() && buffer != null)
@@ -104,13 +102,14 @@ public class OWALChangesTree implements OWALChanges {
     return OShortSerializer.INSTANCE.deserializeNative(value, 0);
   }
 
+  @Override
   public int getIntValue(ByteBuffer buffer, int offset) {
     if (root == null && buffer != null) {
       return buffer.getInt(offset);
     }
     int end = offset + OIntegerSerializer.INT_SIZE;
 
-    final List<Node> result = new ArrayList<Node>();
+    final List<Node> result = new ArrayList<>();
     findIntervals(root, offset, end, result);
 
     if (result.isEmpty() && buffer != null)
@@ -129,13 +128,14 @@ public class OWALChangesTree implements OWALChanges {
     return OIntegerSerializer.INSTANCE.deserializeNative(value, 0);
   }
 
+  @Override
   public long getLongValue(ByteBuffer buffer, int offset) {
     if (root == null && buffer != null) {
       return buffer.getLong(offset);
     }
     int end = offset + OLongSerializer.LONG_SIZE;
 
-    final List<Node> result = new ArrayList<Node>();
+    final List<Node> result = new ArrayList<>();
     findIntervals(root, offset, end, result);
 
     if (result.isEmpty() && buffer != null)
@@ -156,16 +156,20 @@ public class OWALChangesTree implements OWALChanges {
 
   @Override
   public void setIntValue(ByteBuffer buffer, int value, int offset) {
-    byte[] svalue = new byte[OIntegerSerializer.INT_SIZE];
-    OIntegerSerializer.INSTANCE.serializeNative(value, svalue, 0);
-    add(svalue, offset);
+    byte[] sValue = new byte[OIntegerSerializer.INT_SIZE];
+    OIntegerSerializer.INSTANCE.serializeNative(value, sValue, 0);
+    add(sValue, offset);
+  }
+
+  @Override
+  public void setShortValue(ByteBuffer buffer, short value, int offset) {
   }
 
   @Override
   public void setLongValue(ByteBuffer buffer, long value, int offset) {
-    byte[] svalue = new byte[OLongSerializer.LONG_SIZE];
-    OLongSerializer.INSTANCE.serializeNative(value, svalue, 0);
-    add(svalue, offset);
+    byte[] sValue = new byte[OLongSerializer.LONG_SIZE];
+    OLongSerializer.INSTANCE.serializeNative(value, sValue, 0);
+    add(sValue, offset);
   }
 
   @Override
@@ -184,6 +188,11 @@ public class OWALChangesTree implements OWALChanges {
     add(new byte[] { value }, offset);
   }
 
+  @Override
+  public void fromStream(ByteBuffer buffer) {
+    throw new UnsupportedOperationException();
+  }
+
   public void add(byte[] value, int start) {
     version++;
 
@@ -194,11 +203,11 @@ public class OWALChangesTree implements OWALChanges {
     if (value == null || value.length == 0)
       return;
 
-    final Node fnode = bsearch(start);
+    final Node fNode = binarySearch(start);
 
     final Node node = new Node(value, start, RED, version);
 
-    if (fnode == null) {
+    if (fNode == null) {
       root = node;
       root.color = BLACK;
 
@@ -211,18 +220,18 @@ public class OWALChangesTree implements OWALChanges {
       return;
     }
 
-    if (start < fnode.start) {
-      fnode.left = node;
-      node.parent = fnode;
+    if (start < fNode.start) {
+      fNode.left = node;
+      node.parent = fNode;
 
       if (updateSerializedSize)
         serializedSize += serializedSize(value.length);
 
       updateMaxEndAfterAppend(node);
       insertCaseOne(node);
-    } else if (start > fnode.start) {
-      fnode.right = node;
-      node.parent = fnode;
+    } else if (start > fNode.start) {
+      fNode.right = node;
+      node.parent = fNode;
 
       if (updateSerializedSize)
         serializedSize += serializedSize(value.length);
@@ -231,56 +240,56 @@ public class OWALChangesTree implements OWALChanges {
       insertCaseOne(node);
     } else {
       final int end = start + value.length;
-      if (end == fnode.end) {
-        if (fnode.version < version) {
+      if (end == fNode.end) {
+        if (fNode.version < version) {
           if (updateSerializedSize)
-            serializedSize -= fnode.value.length;
+            serializedSize -= fNode.value.length;
 
-          fnode.value = value;
-          fnode.version = version;
+          fNode.value = value;
+          fNode.version = version;
 
           if (updateSerializedSize)
-            serializedSize += fnode.value.length;
+            serializedSize += fNode.value.length;
         }
-      } else if (end < fnode.end) {
-        if (fnode.version < version) {
-          final byte[] cvalue = Arrays.copyOfRange(fnode.value, end - start, fnode.end - start);
-          final int cversion = fnode.version;
-          final int cstart = end;
+      } else if (end < fNode.end) {
+        if (fNode.version < version) {
+          final byte[] cValue = Arrays.copyOfRange(fNode.value, end - start, fNode.end - start);
+          final int cVersion = fNode.version;
+          final int cStart = end;
 
           if (updateSerializedSize)
-            serializedSize -= fnode.value.length;
+            serializedSize -= fNode.value.length;
 
-          fnode.end = end;
-          fnode.value = value;
-          fnode.version = version;
+          fNode.end = end;
+          fNode.value = value;
+          fNode.version = version;
 
           if (updateSerializedSize)
-            serializedSize += fnode.value.length;
+            serializedSize += fNode.value.length;
 
-          updateMaxEndAccordingToChildren(fnode);
+          updateMaxEndAccordingToChildren(fNode);
 
-          add(cvalue, cstart, cversion, updateSerializedSize);
+          add(cValue, cStart, cVersion, updateSerializedSize);
         }
       } else {
-        if (fnode.version > version) {
-          final byte[] cvalue = Arrays.copyOfRange(value, fnode.end - start, end - start);
-          final int cversion = version;
-          final int cstart = fnode.end;
+        if (fNode.version > version) {
+          final byte[] cValue = Arrays.copyOfRange(value, fNode.end - start, end - start);
+          final int cVersion = version;
+          final int cStart = fNode.end;
 
-          add(cvalue, cstart, cversion, updateSerializedSize);
+          add(cValue, cStart, cVersion, updateSerializedSize);
         } else {
           if (updateSerializedSize)
-            serializedSize -= fnode.value.length;
+            serializedSize -= fNode.value.length;
 
-          fnode.end = end;
-          fnode.value = value;
-          fnode.version = version;
+          fNode.end = end;
+          fNode.value = value;
+          fNode.version = version;
 
           if (updateSerializedSize)
-            serializedSize += fnode.value.length;
+            serializedSize += fNode.value.length;
 
-          updateMaxEndAccordingToChildren(fnode);
+          updateMaxEndAccordingToChildren(fNode);
         }
       }
     }
@@ -291,12 +300,13 @@ public class OWALChangesTree implements OWALChanges {
 
   public void applyChanges(byte[] values, int start) {
     final int end = start + values.length;
-    final List<Node> result = new ArrayList<Node>();
+    final List<Node> result = new ArrayList<>();
     findIntervals(root, start, end, result);
 
     applyChanges(values, start, end, result);
   }
 
+  @Override
   public int serializedSize() {
     return serializedSize;
   }
@@ -309,7 +319,7 @@ public class OWALChangesTree implements OWALChanges {
     if (result.isEmpty())
       return;
 
-    final Queue<Node> processedNodes = new ArrayDeque<Node>();
+    final Queue<Node> processedNodes = new ArrayDeque<>();
 
     for (Node activeNode : result) {
       int activeStart = activeNode.start;
@@ -356,11 +366,12 @@ public class OWALChangesTree implements OWALChanges {
     }
   }
 
+  @Override
   public void applyChanges(ByteBuffer buffer) {
     if (root == null)
       return;
 
-    final Queue<Node> processedNodes = new ArrayDeque<Node>();
+    final Queue<Node> processedNodes = new ArrayDeque<>();
     applyChanges(buffer, root, processedNodes);
   }
 
@@ -368,6 +379,7 @@ public class OWALChangesTree implements OWALChanges {
     return serializedSize;
   }
 
+  @Override
   public int fromStream(int offset, byte[] stream) {
     serializedSize = OIntegerSerializer.INSTANCE.deserializeNative(stream, offset);
     int readBytes = OIntegerSerializer.INT_SIZE;
@@ -393,6 +405,7 @@ public class OWALChangesTree implements OWALChanges {
     return offset + readBytes;
   }
 
+  @Override
   public int toStream(int offset, byte[] stream) {
     OIntegerSerializer.INSTANCE.serializeNative(serializedSize, stream, offset);
     offset += OIntegerSerializer.INT_SIZE;
@@ -402,11 +415,6 @@ public class OWALChangesTree implements OWALChanges {
     offset = toStream(root, offset, stream);
 
     return offset;
-  }
-
-  @Override
-  public OWALChanges inverse(ByteBuffer buffer) {
-    throw new UnsupportedOperationException("Inverse changes generation is not supported by OWALChangesTree.");
   }
 
   private int toStream(Node node, int offset, byte[] stream) {
@@ -468,7 +476,7 @@ public class OWALChangesTree implements OWALChanges {
   }
 
   private boolean allBlackPathsAreEqual() {
-    List<OModifiableInteger> paths = new ArrayList<OModifiableInteger>();
+    List<OModifiableInteger> paths = new ArrayList<>();
     OModifiableInteger currentPath = new OModifiableInteger();
     paths.add(currentPath);
 
@@ -586,6 +594,7 @@ public class OWALChangesTree implements OWALChanges {
     return true;
   }
 
+  @SuppressWarnings("BooleanMethodIsAlwaysInverted")
   private boolean valueIsMaxEndValueAmongChildren(Node node, int value) {
     if (node.end > value)
       return false;
@@ -619,7 +628,7 @@ public class OWALChangesTree implements OWALChanges {
       findIntervals(node.right, start, end, result);
   }
 
-  private Node bsearch(int start) {
+  private Node binarySearch(int start) {
     if (root == null)
       return null;
 
@@ -805,9 +814,9 @@ public class OWALChangesTree implements OWALChanges {
     private byte[]  value;
     private int     version;
 
-    private int start;
-    private int end;
-    private int maxEnd;
+    private final int start;
+    private       int end;
+    private       int maxEnd;
 
     private Node parent;
     private Node left;
@@ -828,4 +837,13 @@ public class OWALChangesTree implements OWALChanges {
     }
   }
 
+  @Override
+  public boolean hasChanges() {
+    return root != null;
+  }
+
+  @Override
+  public void toStream(ByteBuffer byteBuffer) {
+    throw new UnsupportedOperationException();
+  }
 }

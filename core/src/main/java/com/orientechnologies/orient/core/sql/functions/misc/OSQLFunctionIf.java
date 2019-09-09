@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,39 +14,40 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.core.sql.functions.misc;
 
+import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.sql.functions.OSQLFunctionAbstract;
 
 /**
  * Returns different values based on the condition. If it's true the first value is returned, otherwise the second one.
- * 
+ * <p>
  * <p>
  * Syntax: <blockquote>
- * 
+ * <p>
  * <pre>
  * if(&lt;field|value|expression&gt;, &lt;return_value_if_true&gt; [,&lt;return_value_if_false&gt;])
  * </pre>
- * 
+ * <p>
  * </blockquote>
- * 
+ * <p>
  * <p>
  * Examples: <blockquote>
- * 
+ * <p>
  * <pre>
  * SELECT <b>if(rich, 'rich', 'poor')</b> FROM ...
  * <br>
  * SELECT <b>if( eval( 'salary > 1000000' ), 'rich', 'poor')</b> FROM ...
  * </pre>
- * 
+ * <p>
  * </blockquote>
- * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 
 public class OSQLFunctionIf extends OSQLFunctionAbstract {
@@ -77,6 +78,8 @@ public class OSQLFunctionIf extends OSQLFunctionAbstract {
       return result ? iParams[1] : iParams[2];
 
     } catch (Exception e) {
+      OLogManager.instance().error(this, "Error during if execution", e);
+
       return null;
     }
   }

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,11 +14,12 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.db.tool;
 
+import com.orientechnologies.common.io.OFileUtils;
 import com.orientechnologies.common.io.OIOException;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.common.serialization.types.OBinarySerializer;
@@ -26,9 +27,10 @@ import com.orientechnologies.orient.core.OConstants;
 import com.orientechnologies.orient.core.command.OCommandOutputListener;
 import com.orientechnologies.orient.core.config.OStorageConfiguration;
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
+import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.index.OIndex;
 import com.orientechnologies.orient.core.index.OIndexDefinition;
-import com.orientechnologies.orient.core.index.OIndexManagerProxy;
+import com.orientechnologies.orient.core.index.OIndexManagerAbstract;
 import com.orientechnologies.orient.core.index.ORuntimeKeyIndexDefinition;
 import com.orientechnologies.orient.core.iterator.ORecordIteratorCluster;
 import com.orientechnologies.orient.core.metadata.OMetadataInternal;
@@ -41,33 +43,29 @@ import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.serialization.serializer.OJSONWriter;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 
-import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.nio.file.Paths;
+import java.util.*;
 import java.util.zip.Deflater;
 import java.util.zip.GZIPOutputStream;
 
 /**
  * Export data from a database to a file.
- * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class ODatabaseExport extends ODatabaseImpExpAbstract {
-  public static final int VERSION = 11;
+  public static final int VERSION = 12;
 
   protected OJSONWriter writer;
   protected long        recordExported;
   protected int         compressionLevel  = Deflater.BEST_SPEED;
   protected int         compressionBuffer = 16384;              // 16Kb
+
+  private final String tempFileName;
 
   public ODatabaseExport(final ODatabaseDocumentInternal iDatabase, final String iFileName, final OCommandOutputListener iListener)
       throws IOException {
@@ -79,13 +77,12 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
     if (!fileName.endsWith(".gz")) {
       fileName += ".gz";
     }
-    final File f = new File(fileName);
-    if (f.getParentFile() != null)
-      f.getParentFile().mkdirs();
-    if (f.exists())
-      f.delete();
+    OFileUtils.prepareForFileCreationOrReplacement(Paths.get(fileName), this, "exporting");
 
-    final GZIPOutputStream gzipOS = new GZIPOutputStream(new FileOutputStream(fileName), compressionBuffer) {
+    this.tempFileName = fileName + ".tmp";
+    OFileUtils.prepareForFileCreationOrReplacement(Paths.get(tempFileName), this, "exporting");
+
+    final GZIPOutputStream gzipOS = new GZIPOutputStream(new FileOutputStream(tempFileName), compressionBuffer) {
       {
         def.setLevel(compressionLevel);
       }
@@ -98,6 +95,7 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
   public ODatabaseExport(final ODatabaseDocumentInternal iDatabase, final OutputStream iOutputStream,
       final OCommandOutputListener iListener) throws IOException {
     super(iDatabase, "streaming", iListener);
+    this.tempFileName = null;
 
     writer = new OJSONWriter(new OutputStreamWriter(iOutputStream));
     writer.beginObject();
@@ -152,6 +150,29 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
     int level = 1;
     listener.onMessage("\nExporting records...");
 
+    if (excludeClasses != null && !excludeClasses.isEmpty()) {
+      final OSchema schema = database.getMetadata().getSchema();
+      for (String cls : excludeClasses) {
+        final OClass schemaClass = schema.getClass(cls);
+        if (schemaClass == null) {
+          listener.onMessage("\nWARN: Can not find class with name " + cls);
+        } else {
+          final int[] clusterIds = schemaClass.getClusterIds();
+          if (clusterIds != null) {
+            for (final int clusterId : clusterIds) {
+              final String clusterName = database.getClusterNameById(clusterId).toUpperCase(Locale.ENGLISH);
+              if (!excludeClusters.contains(clusterName)) {
+                listener.onMessage("\n- Cluster " + clusterName + " will be excluded during the export...");
+                excludeClusters.add(clusterName);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    final Set<ORID> brokenRids = new HashSet<>();
+
     writer.beginCollection(level, true, "records");
     int exportedClusters = 0;
     int maxClusterId = getMaxClusterId();
@@ -165,14 +186,14 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
       if (clusterName != null) {
         // CHECK IF THE CLUSTER IS INCLUDED
         if (includeClusters != null) {
-          if (!includeClusters.contains(clusterName.toUpperCase()))
+          if (!includeClusters.contains(clusterName.toUpperCase(Locale.ENGLISH)))
             continue;
         } else if (excludeClusters != null) {
-          if (excludeClusters.contains(clusterName.toUpperCase()))
+          if (excludeClusters.contains(clusterName.toUpperCase(Locale.ENGLISH)))
             continue;
         }
 
-        if (excludeClusters != null && excludeClusters.contains(clusterName.toUpperCase()))
+        if (excludeClusters != null && excludeClusters.contains(clusterName.toUpperCase(Locale.ENGLISH)))
           continue;
 
         clusterExportedRecordsTot = database.countClusterElements(clusterName);
@@ -185,13 +206,15 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
       if (clusterName != null) {
         ORecord rec = null;
         try {
-          for (ORecordIteratorCluster<ORecord> it = database.browseCluster(clusterName); it.hasNext();) {
+          ORecordIteratorCluster<ORecord> it = database.browseCluster(clusterName);
+
+          for (; it.hasNext(); ) {
 
             rec = it.next();
             if (rec instanceof ODocument) {
               // CHECK IF THE CLASS OF THE DOCUMENT IS INCLUDED
               ODocument doc = (ODocument) rec;
-              final String className = doc.getClassName() != null ? doc.getClassName().toUpperCase() : null;
+              final String className = doc.getClassName() != null ? doc.getClassName().toUpperCase(Locale.ENGLISH) : null;
               if (includeClasses != null) {
                 if (!includeClasses.contains(className))
                   continue;
@@ -202,19 +225,21 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
             } else if (includeClasses != null && !includeClasses.isEmpty())
               continue;
 
-            if (exportRecord(clusterExportedRecordsTot, clusterExportedRecordsCurrent, rec))
+            if (exportRecord(clusterExportedRecordsTot, clusterExportedRecordsCurrent, rec, brokenRids))
               clusterExportedRecordsCurrent++;
           }
+
+          brokenRids.addAll(it.getBrokenRIDs());
         } catch (IOException e) {
           OLogManager.instance().error(this, "\nError on exporting record %s because of I/O problems", e, rec.getIdentity());
           // RE-THROW THE EXCEPTION UP
           throw e;
         } catch (OIOException e) {
-          OLogManager.instance().error(this, "\nError on exporting record %s because of I/O problems", e,
-              rec == null ? null : rec.getIdentity());
+          OLogManager.instance()
+              .error(this, "\nError on exporting record %s because of I/O problems", e, rec == null ? null : rec.getIdentity());
           // RE-THROW THE EXCEPTION UP
           throw e;
-        } catch (Throwable t) {
+        } catch (Exception t) {
           if (rec != null) {
             final byte[] buffer = rec.toStream();
 
@@ -232,7 +257,24 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
     }
     writer.endCollection(level, true);
 
-    listener.onMessage("\n\nDone. Exported " + totalExportedRecords + " of total " + totalFoundRecords + " records\n");
+    listener.onMessage(
+        "\n\nDone. Exported " + totalExportedRecords + " of total " + totalFoundRecords + " records. " + brokenRids.size()
+            + " records were detected as broken\n");
+
+    writer.beginCollection(level, true, "brokenRids");
+
+    boolean firsBrokenRid = true;
+
+    for (ORID rid : brokenRids) {
+      if (firsBrokenRid)
+        firsBrokenRid = false;
+      else
+        writer.append(",");
+
+      writer.append(rid.toString());
+    }
+
+    writer.endCollection(level, true);
 
     return totalExportedRecords;
   }
@@ -248,7 +290,17 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
       writer.close();
       writer = null;
     } catch (IOException e) {
+      OLogManager.instance().error(this, "Error on exporting database '%s' to: %s", e, database.getName(), fileName);
+      throw new ODatabaseExportException("Error on exporting database '" + database.getName() + "' to: " + fileName, e);
     }
+
+    if (tempFileName != null) // may be null if writing to an output stream w/o file
+      try {
+        OFileUtils.atomicMoveWithFallback(Paths.get(tempFileName), Paths.get(fileName), this);
+      } catch (IOException e) {
+        OLogManager.instance().error(this, "Error on exporting database '%s' to: %s", e, database.getName(), fileName);
+        throw new ODatabaseExportException("Error on exporting database '" + database.getName() + "' to: " + fileName, e);
+      }
   }
 
   protected int getMaxClusterId() {
@@ -288,10 +340,10 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
 
       // CHECK IF THE CLUSTER IS INCLUDED
       if (includeClusters != null) {
-        if (!includeClusters.contains(clusterName.toUpperCase()))
+        if (!includeClusters.contains(clusterName.toUpperCase(Locale.ENGLISH)))
           continue;
       } else if (excludeClusters != null) {
-        if (excludeClusters.contains(clusterName.toUpperCase()))
+        if (excludeClusters.contains(clusterName.toUpperCase(Locale.ENGLISH)))
           continue;
       }
 
@@ -316,14 +368,14 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
     writer.writeAttribute(2, true, "name", database.getName().replace('\\', '/'));
     writer.writeAttribute(2, true, "default-cluster-id", database.getDefaultClusterId());
     writer.writeAttribute(2, true, "exporter-version", VERSION);
-    writer.writeAttribute(2, true, "engine-version", OConstants.ORIENT_VERSION);
+    writer.writeAttribute(2, true, "engine-version", OConstants.getVersion());
     final String engineBuild = OConstants.getBuildNumber();
     if (engineBuild != null)
       writer.writeAttribute(2, true, "engine-build", engineBuild);
     writer.writeAttribute(2, true, "storage-config-version", OStorageConfiguration.CURRENT_VERSION);
     writer.writeAttribute(2, true, "schema-version", OSchemaShared.CURRENT_VERSION_NUMBER);
-    writer.writeAttribute(2, true, "schemaRecordId", database.getStorage().getConfiguration().schemaRecordId);
-    writer.writeAttribute(2, true, "indexMgrRecordId", database.getStorage().getConfiguration().indexMgrRecordId);
+    writer.writeAttribute(2, true, "schemaRecordId", database.getStorage().getConfiguration().getSchemaRecordId());
+    writer.writeAttribute(2, true, "indexMgrRecordId", database.getStorage().getConfiguration().getIndexMgrRecordId());
     writer.endObject(1, true);
 
     listener.onMessage("OK");
@@ -333,16 +385,16 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
     listener.onMessage("\nExporting index info...");
     writer.beginCollection(1, true, "indexes");
 
-    final OIndexManagerProxy indexManager = database.getMetadata().getIndexManager();
+    final OIndexManagerAbstract indexManager = database.getMetadata().getIndexManagerInternal();
     indexManager.reload();
 
-    final Collection<? extends OIndex<?>> indexes = indexManager.getIndexes();
+    final Collection<? extends OIndex<?>> indexes = indexManager.getIndexes(database);
 
     for (OIndex<?> index : indexes) {
-      if (index.getName().equals(ODatabaseImport.EXPORT_IMPORT_MAP_NAME))
-        continue;
-
       final String clsName = index.getDefinition() != null ? index.getDefinition().getClassName() : null;
+      if (ODatabaseImport.EXPORT_IMPORT_CLASS_NAME.equals(clsName)) {
+        continue;
+      }
 
       // CHECK TO FILTER CLASS
       if (includeClasses != null) {
@@ -372,7 +424,7 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
         writer.endObject(4, true);
       }
 
-      ODocument metadata = index.getMetadata();
+      final ODocument metadata = index.getMetadata();
       if (metadata != null)
         writer.writeAttribute(4, true, "metadata", metadata);
 
@@ -392,20 +444,20 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
   private void exportManualIndexes() throws IOException {
     listener.onMessage("\nExporting manual indexes content...");
 
-    final OIndexManagerProxy indexManager = database.getMetadata().getIndexManager();
+    final OIndexManagerAbstract indexManager = database.getMetadata().getIndexManagerInternal();
     indexManager.reload();
 
-    final Collection<? extends OIndex<?>> indexes = indexManager.getIndexes();
+    final Collection<? extends OIndex<?>> indexes = indexManager.getIndexes(database);
 
     ODocument exportEntry = new ODocument();
 
     int manualIndexes = 0;
-    writer.beginCollection(1, true, "manualIndexes");
     for (OIndex<?> index : indexes) {
-      if (index.getName().equals(ODatabaseImport.EXPORT_IMPORT_MAP_NAME))
-        continue;
-
       if (!index.isAutomatic()) {
+        if (manualIndexes == 0) {
+          writer.beginCollection(1, true, "manualIndexes");
+        }
+
         listener.onMessage("\n- Exporting index " + index.getName() + " ...");
 
         writer.beginObject(2, true, null);
@@ -438,10 +490,10 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
             exportEntry.field("key", binaryContent);
           } else {
             exportEntry.field("binary", false);
-            exportEntry.field("key", indexEntry.field("key"));
+            exportEntry.field("key", indexEntry.<Object>field("key"));
           }
 
-          exportEntry.field("rid", indexEntry.field("rid"));
+          exportEntry.field("rid", indexEntry.<Object>field("rid"));
 
           i++;
 
@@ -458,7 +510,11 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
         manualIndexes++;
       }
     }
-    writer.endCollection(1, true);
+
+    if (manualIndexes > 0) {
+      writer.endCollection(1, true);
+    }
+
     listener.onMessage("\nOK (" + manualIndexes + " manual indexes)");
   }
 
@@ -478,10 +534,10 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
       for (OClass cls : classes) {
         // CHECK TO FILTER CLASS
         if (includeClasses != null) {
-          if (!includeClasses.contains(cls.getName().toUpperCase()))
+          if (!includeClasses.contains(cls.getName().toUpperCase(Locale.ENGLISH)))
             continue;
         } else if (excludeClasses != null) {
-          if (excludeClasses.contains(cls.getName().toUpperCase()))
+          if (excludeClasses.contains(cls.getName().toUpperCase(Locale.ENGLISH)))
             continue;
         }
 
@@ -529,7 +585,8 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
               writer.writeAttribute(0, false, "collate", p.getCollate().getName());
             if (p.getDefaultValue() != null)
               writer.writeAttribute(0, false, "default-value", p.getDefaultValue());
-
+            if (p.getRegexp() != null)
+              writer.writeAttribute(0, false, "regexp", p.getRegexp());
             final Set<String> customKeys = p.getCustomKeys();
             final Map<String, String> custom = new HashMap<String, String>();
             for (String key : customKeys)
@@ -560,7 +617,7 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
     listener.onMessage("OK (" + s.getClasses().size() + " classes)");
   }
 
-  private boolean exportRecord(long recordTot, long recordNum, ORecord rec) throws IOException {
+  private boolean exportRecord(long recordTot, long recordNum, ORecord rec, Set<ORID> brokenRids) throws IOException {
     if (rec != null)
       try {
         if (rec.getIdentity().isValid())
@@ -581,8 +638,14 @@ public class ODatabaseExport extends ODatabaseImpExpAbstract {
           listener.onMessage(".");
 
         return true;
-      } catch (Throwable t) {
+      } catch (Exception t) {
         if (rec != null) {
+          final ORID rid = rec.getIdentity().copy();
+
+          if (rid != null) {
+            brokenRids.add(rid);
+          }
+
           final byte[] buffer = rec.toStream();
 
           OLogManager.instance().error(this,

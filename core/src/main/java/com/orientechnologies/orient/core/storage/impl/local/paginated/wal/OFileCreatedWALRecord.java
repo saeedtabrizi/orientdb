@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -23,8 +23,10 @@ package com.orientechnologies.orient.core.storage.impl.local.paginated.wal;
 import com.orientechnologies.common.serialization.types.OLongSerializer;
 import com.orientechnologies.common.serialization.types.OStringSerializer;
 
+import java.nio.ByteBuffer;
+
 /**
- * @author Andrey Lomakin (a.lomakin-at-orientechnologies.com)
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 5/21/14
  */
 public class OFileCreatedWALRecord extends OOperationUnitBodyRecord {
@@ -49,29 +51,15 @@ public class OFileCreatedWALRecord extends OOperationUnitBodyRecord {
   }
 
   @Override
-  public int toStream(byte[] content, int offset) {
-    offset = super.toStream(content, offset);
-
-    OStringSerializer.INSTANCE.serializeNativeObject(fileName, content, offset);
-    offset += OStringSerializer.INSTANCE.getObjectSize(fileName);
-
-    OLongSerializer.INSTANCE.serializeNative(fileId, content, offset);
-    offset += OLongSerializer.LONG_SIZE;
-
-    return offset;
+  protected void serializeToByteBuffer(ByteBuffer buffer) {
+    OStringSerializer.INSTANCE.serializeInByteBufferObject(fileName, buffer);
+    buffer.putLong(fileId);
   }
 
   @Override
-  public int fromStream(byte[] content, int offset) {
-    offset = super.fromStream(content, offset);
-
-    fileName = OStringSerializer.INSTANCE.deserializeNativeObject(content, offset);
-    offset += OStringSerializer.INSTANCE.getObjectSize(fileName);
-
-    fileId = OLongSerializer.INSTANCE.deserializeNative(content, offset);
-    offset += OLongSerializer.LONG_SIZE;
-
-    return offset;
+  protected void deserializeFromByteBuffer(ByteBuffer buffer) {
+    fileName = OStringSerializer.INSTANCE.deserializeFromByteBufferObject(buffer);
+    fileId = buffer.getLong();
   }
 
   @Override
@@ -82,5 +70,10 @@ public class OFileCreatedWALRecord extends OOperationUnitBodyRecord {
   @Override
   public boolean isUpdateMasterRecord() {
     return false;
+  }
+
+  @Override
+  public byte getId() {
+    return WALRecordTypes.FILE_CREATED_WAL_RECORD;
   }
 }

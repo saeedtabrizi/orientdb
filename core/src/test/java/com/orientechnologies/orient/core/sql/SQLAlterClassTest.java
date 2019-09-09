@@ -3,8 +3,8 @@ package com.orientechnologies.orient.core.sql;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import org.junit.Assert;
+import org.junit.Test;
 
 import java.util.List;
 
@@ -12,7 +12,7 @@ public class SQLAlterClassTest {
 
   @Test
   public void alterClassRenameTest() {
-    ODatabaseDocument db = new ODatabaseDocumentTx("memory:" + SQLAlterClassTest.class.getName());
+    ODatabaseDocument db = new ODatabaseDocumentTx("memory:" + SQLAlterClassTest.class.getSimpleName());
     db.create();
     try {
       db.getMetadata().getSchema().createClass("TestClass");
@@ -32,7 +32,7 @@ public class SQLAlterClassTest {
 
   @Test
   public void testQuoted(){
-    ODatabaseDocument db = new ODatabaseDocumentTx("memory:" + SQLAlterClassTest.class.getName()+"_Quoted");
+    ODatabaseDocument db = new ODatabaseDocumentTx("memory:" + SQLAlterClassTest.class.getSimpleName()+"_Quoted");
     db.create();
     try {
       try {

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.common.concur.resource;
@@ -33,25 +33,25 @@ import com.orientechnologies.common.concur.lock.OInterruptedException;
 import com.orientechnologies.common.concur.lock.OLockException;
 import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.common.log.OLogManager;
+import com.orientechnologies.orient.core.exception.OAcquireTimeoutException;
 
 /**
  * Generic non reentrant implementation about pool of resources. It pre-allocates a semaphore of maxResources. Resources are lazily
  * created by invoking the listener.
  *
- * @param <K>
- *          Resource's Key
- * @param <V>
- *          Resource Object
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @param <K> Resource's Key
+ * @param <V> Resource Object
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OResourcePool<K, V> {
-  protected final Semaphore             sem;
-  protected final Queue<V>              resources    = new ConcurrentLinkedQueue<V>();
-  protected final Queue<V>              resourcesOut = new ConcurrentLinkedQueue<V>();
-  protected final Collection<V>         unmodifiableresources;
-  private final int                     maxResources;
-  protected OResourcePoolListener<K, V> listener;
-  protected final AtomicInteger         created      = new AtomicInteger();
+  protected final Semaphore sem;
+  protected final Queue<V> resources    = new ConcurrentLinkedQueue<V>();
+  protected final Queue<V> resourcesOut = new ConcurrentLinkedQueue<V>();
+  protected final Collection<V>               unmodifiableresources;
+  private final   int                         maxResources;
+  protected       OResourcePoolListener<K, V> listener;
+  protected final AtomicInteger created = new AtomicInteger();
 
   public OResourcePool(final int iMaxResources, final OResourcePoolListener<K, V> listener) {
     maxResources = iMaxResources;
@@ -63,15 +63,15 @@ public class OResourcePool<K, V> {
     unmodifiableresources = Collections.unmodifiableCollection(resources);
   }
 
-  public V getResource(K key, final long maxWaitMillis, Object... additionalArgs) throws OLockException {
+  public V getResource(K key, final long maxWaitMillis, Object... additionalArgs) throws OAcquireTimeoutException {
     // First, get permission to take or create a resource
     try {
       if (!sem.tryAcquire(maxWaitMillis, TimeUnit.MILLISECONDS))
-        throw new OLockException("No more resources available in pool (max=" + maxResources + "). Requested resource: " + key);
+        throw new OAcquireTimeoutException("No more resources available in pool (max=" + maxResources + "). Requested resource: " + key);
 
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
-      throw new OInterruptedException("Acquiring of resources was interrupted");
+      throw OException.wrapException(new OInterruptedException("Acquiring of resources was interrupted"), e);
     }
 
     V res;
@@ -96,13 +96,14 @@ public class OResourcePool<K, V> {
         res = listener.createNewResource(key, additionalArgs);
         created.incrementAndGet();
         if (OLogManager.instance().isDebugEnabled())
-          OLogManager.instance().debug(this, "pool:'%s' created new resource '%s', new resource count '%d'", this, res,
-              created.get());
+          OLogManager.instance()
+              .debug(this, "pool:'%s' created new resource '%s', new resource count '%d'", this, res, created.get());
       }
       resourcesOut.add(res);
       if (OLogManager.instance().isDebugEnabled())
-        OLogManager.instance().debug(this, "pool:'%s' acquired resource '%s' available %d out %d ", this, res,
-            sem.availablePermits(), resourcesOut.size());
+        OLogManager.instance()
+            .debug(this, "pool:'%s' acquired resource '%s' available %d out %d ", this, res, sem.availablePermits(),
+                resourcesOut.size());
       return res;
     } catch (RuntimeException e) {
       sem.release();
@@ -132,8 +133,9 @@ public class OResourcePool<K, V> {
       resources.add(res);
       sem.release();
       if (OLogManager.instance().isDebugEnabled())
-        OLogManager.instance().debug(this, "pool:'%s' returned resource '%s' available %d out %d", this, res,
-            sem.availablePermits(), resourcesOut.size());
+        OLogManager.instance()
+            .debug(this, "pool:'%s' returned resource '%s' available %d out %d", this, res, sem.availablePermits(),
+                resourcesOut.size());
     }
     return true;
   }
@@ -157,8 +159,8 @@ public class OResourcePool<K, V> {
       this.resources.remove(res);
       sem.release();
       if (OLogManager.instance().isDebugEnabled())
-        OLogManager.instance().debug(this, "pool:'%s' removed resource '%s' available %d out %d", this, res,
-            sem.availablePermits(), resourcesOut.size());
+        OLogManager.instance().debug(this, "pool:'%s' removed resource '%s' available %d out %d", this, res, sem.availablePermits(),
+            resourcesOut.size());
     }
   }
 

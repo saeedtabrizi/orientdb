@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Molino (molino.luca--at--gmail.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,41 +23,40 @@ import com.orientechnologies.orient.core.record.ORecord;
 /**
  * Lazy implementation of Iterator that load the records only when accessed. It keep also track of changes to the source record
  * avoiding to call setDirty() by hand.
- * 
+ *
  * @author Luca Molino (molino.luca--at--gmail.com)
- * 
  */
 @SuppressWarnings({ "unchecked" })
 public class OObjectEnumLazyIterator<TYPE extends Enum> implements Iterator<TYPE>, Serializable {
-	private static final long									serialVersionUID	= -4012483076050044405L;
+  private static final long serialVersionUID = -4012483076050044405L;
 
-	private final ORecord									sourceRecord;
-	private final Iterator<? extends Object>	underlying;
-	private final Class<Enum>									enumClass;
+  private final ORecord                    sourceRecord;
+  private final Iterator<? extends Object> underlying;
+  private final Class<Enum>                enumClass;
 
-	public OObjectEnumLazyIterator(final Class<Enum> iEnumClass, final ORecord iSourceRecord,
-			final Iterator<? extends Object> iIterator) {
-		this.sourceRecord = iSourceRecord;
-		this.underlying = iIterator;
-		this.enumClass = iEnumClass;
-	}
+  public OObjectEnumLazyIterator(final Class<Enum> iEnumClass, final ORecord iSourceRecord,
+      final Iterator<? extends Object> iIterator) {
+    this.sourceRecord = iSourceRecord;
+    this.underlying = iIterator;
+    this.enumClass = iEnumClass;
+  }
 
-	public TYPE next() {
-		final Object value = underlying.next();
-		if (value instanceof Number)
-			return (TYPE) enumClass.getEnumConstants()[((Number) value).intValue()];
-		else
-			return (TYPE) Enum.valueOf(enumClass, value.toString());
-	}
+  public TYPE next() {
+    final Object value = underlying.next();
+    if (value instanceof Number)
+      return (TYPE) enumClass.getEnumConstants()[((Number) value).intValue()];
+    else
+      return (TYPE) Enum.valueOf(enumClass, value.toString());
+  }
 
-	public boolean hasNext() {
-		return underlying.hasNext();
-	}
+  public boolean hasNext() {
+    return underlying.hasNext();
+  }
 
-	public void remove() {
-		underlying.remove();
-		if (sourceRecord != null)
-			sourceRecord.setDirty();
-	}
+  public void remove() {
+    underlying.remove();
+    if (sourceRecord != null)
+      sourceRecord.setDirty();
+  }
 
 }

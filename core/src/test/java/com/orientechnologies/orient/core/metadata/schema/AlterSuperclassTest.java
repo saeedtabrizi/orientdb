@@ -3,16 +3,16 @@ package com.orientechnologies.orient.core.metadata.schema;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.exception.OSchemaException;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static org.testng.AssertJUnit.assertEquals;
-import static org.testng.AssertJUnit.assertTrue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Created by tglman on 01/12/15.
@@ -21,13 +21,13 @@ public class AlterSuperclassTest {
 
   private ODatabaseDocumentTx db;
 
-  @BeforeMethod
+  @Before
   public void before() {
     db = new ODatabaseDocumentTx("memory:" + AlterSuperclassTest.class.getSimpleName());
     db.create();
   }
 
-  @AfterMethod
+  @After
   public void after() {
     db.drop();
   }
@@ -47,7 +47,7 @@ public class AlterSuperclassTest {
     assertEquals(classChild2.getSuperClasses(), Arrays.asList(classA));
   }
 
-  @Test(expectedExceptions = OSchemaException.class)
+  @Test(expected = OSchemaException.class)
   public void testPropertyNameConflict() {
     OSchema schema = db.getMetadata().getSchema();
     OClass classA = schema.createClass("ParentClass");
@@ -60,7 +60,7 @@ public class AlterSuperclassTest {
     classChild2.setSuperClasses(Arrays.asList(classChild));
   }
 
-  @Test(expectedExceptions = OSchemaException.class)
+  @Test(expected = OSchemaException.class)
   public void testHasAlreadySuperclass() {
     OSchema schema = db.getMetadata().getSchema();
     OClass classA = schema.createClass("ParentClass");
@@ -69,34 +69,7 @@ public class AlterSuperclassTest {
     classChild.addSuperClass(classA);
   }
 
-  /**
-   * This tests fixes a problem created in 2.1.9. Issue #5591.
-   */
-  @Test
-  public void testBrokenDbWithMultipleSameSuperClass() {
-    OSchema schema = db.getMetadata().getSchema();
-    OClass classA = schema.createClass("ParentClass");
-    OClass classChild = schema.createClass("ChildClass1", classA);
-    assertEquals(classChild.getSuperClasses(), Arrays.asList(classA));
-
-    OSchemaShared schemaShared = db.getStorage().getResource(OSchema.class.getSimpleName(), null);
-
-    final ODocument doc = schemaShared.toStream();
-    final Collection<ODocument> classes = doc.field("classes");
-
-    for (ODocument d : classes) {
-      if ("ChildClass1".equals(d.field("name"))) {
-        List<String> superClasses = d.field("superClasses");
-        assertTrue(superClasses.contains("ParentClass"));
-
-        superClasses.add("ParentClass");
-      }
-    }
-
-    schemaShared.fromStream(doc);
-  }
-
-  @Test(expectedExceptions = OSchemaException.class)
+  @Test(expected = OSchemaException.class)
   public void testSetDuplicateSuperclasses() {
     OSchema schema = db.getMetadata().getSchema();
     OClass classA = schema.createClass("ParentClass");

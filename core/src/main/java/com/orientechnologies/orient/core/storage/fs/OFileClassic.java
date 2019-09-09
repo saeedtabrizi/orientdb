@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,767 +14,470 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.storage.fs;
 
-import com.orientechnologies.common.concur.lock.OLockException;
+import com.kenai.jffi.MemoryIO;
+import com.kenai.jffi.Platform;
+import com.orientechnologies.common.concur.lock.ScalableRWLock;
 import com.orientechnologies.common.exception.OException;
-import com.orientechnologies.common.io.OFileUtils;
 import com.orientechnologies.common.io.OIOException;
+import com.orientechnologies.common.io.OIOUtils;
+import com.orientechnologies.common.jnr.LastErrorException;
+import com.orientechnologies.common.jnr.ONative;
 import com.orientechnologies.common.log.OLogManager;
+import com.orientechnologies.common.util.ORawPair;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
-import com.orientechnologies.orient.core.exception.OFileLockedByAnotherProcessException;
-import com.orientechnologies.orient.core.serialization.OBinaryProtocol;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.io.RandomAccessFile;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
+import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
-import java.nio.channels.OverlappingFileLockException;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
-public class OFileClassic implements OFile {
-  private static final boolean trackFileClose           = OGlobalConfiguration.TRACK_FILE_CLOSE.getValueAsBoolean();
+import static com.orientechnologies.common.io.OIOUtils.readByteBuffer;
+import static com.orientechnologies.common.io.OIOUtils.writeByteBuffer;
 
-  public final static String   NAME                     = "classic";
-  public static final int      HEADER_SIZE              = 1024;
-  private static final int     SOFTLY_CLOSED_OFFSET_V_0 = 8;
-  private static final int     SOFTLY_CLOSED_OFFSET     = 16;
-  private static final int     VERSION_OFFSET           = 48;
-  private static final int     CURRENT_VERSION          = 1;
-  private static final int     OPEN_RETRY_MAX           = 10;
-  private static final int     OPEN_DELAY_RETRY         = 100;
-  private static final long    LOCK_WAIT_TIME           = 300;
-  private static final int     LOCK_MAX_RETRIES         = 10;
-  private final ReadWriteLock  lock                     = new ReentrantReadWriteLock();
-  private ByteBuffer           internalWriteBuffer      = ByteBuffer.allocate(OBinaryProtocol.SIZE_LONG);
+public final class OFileClassic implements OFile {
+  private static final int ALLOCATION_THRESHOLD = 1024 * 1024;
 
-  private volatile File        osFile;
-  private final String         mode;
+  private final    ScalableRWLock lock = new ScalableRWLock();
+  private volatile Path           osFile;
 
-  private RandomAccessFile     accessFile;
-  private FileChannel          channel;
-  private volatile boolean     dirty                    = false;
-  private volatile boolean     headerDirty              = false;
-  private int                  version;
+  private FileChannel channel;
 
-  private boolean              failCheck                = true;
-  private volatile long        size;                                                                                // PART OF
-  // HEADER (4
-  // bytes)
-  private FileLock             fileLock;
-  private boolean              wasSoftlyClosed          = true;
+  private final AtomicLong dirtyCounter   = new AtomicLong();
+  private final Object     flushSemaphore = new Object();
 
-  public OFileClassic(String osFile, String mode) {
-    this.mode = mode;
-    this.osFile = new File(osFile);
+  private final AtomicLong size          = new AtomicLong();
+  private final AtomicLong committedSize = new AtomicLong();
+
+  private AllocationMode allocationMode;
+  private int            fd;
+
+  /**
+   * Map which calculates which files are opened and how many users they have
+   */
+  private static final ConcurrentHashMap<Path, FileUser> openedFilesMap = new ConcurrentHashMap<>();
+
+  /**
+   * Whether only single file user is allowed.
+   */
+  private final boolean exclusiveFileAccess = OGlobalConfiguration.STORAGE_EXCLUSIVE_FILE_ACCESS.getValueAsBoolean();
+
+  /**
+   * Whether it should be tracked which thread opened file in exclusive mode.
+   */
+  private final boolean trackFileOpen = OGlobalConfiguration.STORAGE_TRACK_FILE_ACCESS.getValueAsBoolean();
+
+  public OFileClassic(final Path osFile) {
+    this.osFile = osFile;
   }
 
   @Override
-  public long allocateSpace(long size) throws IOException {
+  public long allocateSpace(final int size) throws IOException {
+    acquireReadLock();
+    final long allocatedPosition;
+    try {
+      final long currentSize = this.size.addAndGet(size);
+      allocatedPosition = currentSize - size;
+
+      long currentCommittedSize = this.committedSize.get();
+
+      final long sizeDifference = currentSize - currentCommittedSize;
+      if (sizeDifference <= ALLOCATION_THRESHOLD) {
+        return allocatedPosition;
+      }
+
+      while (currentCommittedSize < currentSize) {
+        if (this.committedSize.compareAndSet(currentCommittedSize, currentSize)) {
+          break;
+        }
+
+        currentCommittedSize = committedSize.get();
+      }
+
+      final long sizeDiff = currentSize - currentCommittedSize;
+      if (sizeDiff > 0) {
+        final MemoryIO memoryIO = MemoryIO.getInstance();
+        assert allocationMode != null;
+        if (allocationMode == AllocationMode.WRITE) {
+          final long ptr = memoryIO.allocateMemory(sizeDiff, true);
+          try {
+            final ByteBuffer buffer = memoryIO.newDirectByteBuffer(ptr, (int) sizeDiff).order(ByteOrder.nativeOrder());
+            buffer.position(0);
+            OIOUtils.writeByteBuffer(buffer, channel, currentCommittedSize + HEADER_SIZE);
+          } finally {
+            memoryIO.freeMemory(ptr);
+          }
+        } else if (allocationMode == AllocationMode.DESCRIPTOR) {
+          assert fd > 0;
+
+          try {
+            ONative.instance().fallocate(fd, currentCommittedSize + HEADER_SIZE, sizeDiff);
+          } catch (final LastErrorException e) {
+            OLogManager.instance().debug(this,
+                "Can not allocate space (error %d) for file %s using native Linux API, more slower methods will be used",
+                e.getErrorCode(), osFile.toAbsolutePath().toString());
+
+            allocationMode = AllocationMode.WRITE;
+
+            try {
+              ONative.instance().close(fd);
+            } catch (final LastErrorException lee) {
+              OLogManager.instance()
+                  .warnNoDb(this, "Can not close Linux descriptor of file %s, error %d", osFile.toAbsolutePath().toString(),
+                      lee.getErrorCode());
+            }
+
+            final long ptr = memoryIO.allocateMemory(sizeDiff, true);
+            try {
+              final ByteBuffer buffer = memoryIO.newDirectByteBuffer(ptr, (int) sizeDiff).order(ByteOrder.nativeOrder());
+              buffer.position(0);
+              OIOUtils.writeByteBuffer(buffer, channel, currentCommittedSize + HEADER_SIZE);
+            } finally {
+              memoryIO.freeMemory(ptr);
+            }
+          }
+
+        } else {
+          throw new IllegalStateException("Unknown allocation mode");
+
+        }
+
+        assert channel.size() >= currentSize + HEADER_SIZE;
+      }
+    } finally {
+      releaseReadLock();
+    }
+
+    return allocatedPosition;
+  }
+
+  /**
+   * Shrink the file content (filledUpTo attribute only)
+   */
+  @Override
+  public void shrink(final long size) throws IOException {
     acquireWriteLock();
     try {
-      assert channel.size() - HEADER_SIZE == this.size;
+      //noinspection resource
+      channel.truncate(HEADER_SIZE + size);
+      this.size.set(size);
+      this.committedSize.set(size);
 
-      final long currentSize = this.size;
-      this.size += size;
+      assert this.committedSize.get() >= 0;
+      assert this.size.get() >= 0;
 
-      assert this.size >= size;
-
-      accessFile.setLength(this.size + HEADER_SIZE);
-      assert channel.size() - HEADER_SIZE == this.size;
-
-      return currentSize;
     } finally {
       releaseWriteLock();
-    }
-  }
-
-  @Override
-  public void shrink(long iSize) throws IOException {
-    int attempts = 0;
-
-    while (true) {
-      try {
-        acquireWriteLock();
-        try {
-          channel.truncate(HEADER_SIZE + iSize);
-          size = iSize;
-
-          assert size >= 0;
-          break;
-
-        } finally {
-          releaseWriteLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this, "Error during file shrink for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
     }
   }
 
   @Override
   public long getFileSize() {
-    return size;
+    return size.get();
   }
 
-  public void read(long iOffset, byte[] iData, int iLength, int iArrayOffset) throws IOException {
-    int attempts = 0;
+  @Override
+  public void read(long offset, final ByteBuffer buffer, final boolean throwOnEof) throws IOException {
+    acquireReadLock();
+    try {
+      buffer.rewind();
 
-    while (true) {
-      try {
-        acquireReadLock();
-        try {
-          iOffset = checkRegions(iOffset, iLength);
-
-          final ByteBuffer buffer = ByteBuffer.wrap(iData, iArrayOffset, iLength);
-          channel.read(buffer, iOffset);
-          break;
-
-        } finally {
-          releaseReadLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this, "Error during data read for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
+      offset = checkRegions(offset, buffer.limit());
+      readByteBuffer(buffer, channel, offset, throwOnEof);
+    } finally {
+      releaseReadLock();
     }
   }
 
   @Override
-  public void read(long offset, ByteBuffer buffer) throws IOException {
-    int attempts = 0;
+  public void write(long offset, final ByteBuffer buffer) throws IOException {
+    acquireReadLock();
+    try {
+      buffer.rewind();
 
-    while (true) {
-      try {
-        acquireReadLock();
-        try {
-          offset = checkRegions(offset, buffer.limit());
-          channel.read(buffer, offset);
-
-          break;
-
-        } finally {
-          releaseReadLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this, "Error during data read for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
+      offset = checkRegions(offset, buffer.limit());
+      writeByteBuffer(buffer, channel, offset);
+      dirtyCounter.incrementAndGet();
+    } finally {
+      releaseReadLock();
     }
   }
 
   @Override
-  public long read(long offset, ByteBuffer[] buffers) throws IOException {
-    int bytesRead = 0;
+  public IOResult write(List<ORawPair<Long, ByteBuffer>> buffers) throws IOException {
+    for (final ORawPair<Long, ByteBuffer> pair : buffers) {
+      final long position = pair.getFirst();
 
-    int attempts = 0;
-
-    while (true) {
-      try {
-        acquireWriteLock();
-        try {
-          offset += HEADER_SIZE;
-
-          channel.position(offset);
-          bytesRead = (int) channel.read(buffers);
-
-          break;
-
-        } finally {
-          releaseWriteLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this, "Error during data read for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
+      final ByteBuffer buffer = pair.getSecond();
+      write(position, buffer);
     }
 
-    return bytesRead;
-  }
-
-  @Override
-  public void write(long offset, ByteBuffer buffer) throws IOException {
-    int attempts = 0;
-
-    while (true) {
-      try {
-        acquireWriteLock();
-        try {
-          offset += HEADER_SIZE;
-          channel.write(buffer, offset);
-          setDirty();
-
-          break;
-        } finally {
-          releaseWriteLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this, "Error during data write for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
-    }
-  }
-
-  public void write(long iOffset, byte[] iData, int iSize, int iArrayOffset) throws IOException {
-    int attempts = 0;
-
-    while (true) {
-      try {
-        acquireWriteLock();
-        try {
-          writeInternal(iOffset, iData, iSize, iArrayOffset);
-          break;
-        } finally {
-          releaseWriteLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this, "Error during data write for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
-    }
-  }
-
-  private void writeInternal(long iOffset, byte[] iData, int iSize, int iArrayOffset) throws IOException {
-    if (iData != null) {
-      iOffset += HEADER_SIZE;
-      ByteBuffer byteBuffer = ByteBuffer.wrap(iData, iArrayOffset, iSize);
-      channel.write(byteBuffer, iOffset);
-      setDirty();
-    }
-  }
-
-  @Override
-  public void read(long iOffset, byte[] iDestBuffer, int iLenght) throws IOException {
-    read(iOffset, iDestBuffer, iLenght, 0);
-  }
-
-  @Override
-  public int readInt(long iOffset) throws IOException {
-    int attempts = 0;
-    while (true) {
-      try {
-        acquireReadLock();
-        try {
-          iOffset = checkRegions(iOffset, OBinaryProtocol.SIZE_INT);
-          return readData(iOffset, OBinaryProtocol.SIZE_INT).getInt();
-        } finally {
-          releaseReadLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this,
-            "Error during read of int data for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
-    }
-  }
-
-  @Override
-  public long readLong(long iOffset) throws IOException {
-    int attempts = 0;
-
-    while (true) {
-      try {
-        acquireReadLock();
-        try {
-          iOffset = checkRegions(iOffset, OBinaryProtocol.SIZE_LONG);
-          return readData(iOffset, OBinaryProtocol.SIZE_LONG).getLong();
-        } finally {
-          releaseReadLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this,
-            "Error during read of long data for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
-    }
-  }
-
-  @Override
-  public short readShort(long iOffset) throws IOException {
-    int attempts = 0;
-
-    while (true) {
-      try {
-        acquireReadLock();
-        try {
-          iOffset = checkRegions(iOffset, OBinaryProtocol.SIZE_SHORT);
-          return readData(iOffset, OBinaryProtocol.SIZE_SHORT).getShort();
-        } finally {
-          releaseReadLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this,
-            "Error during read of short data for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
-    }
-  }
-
-  @Override
-  public byte readByte(long iOffset) throws IOException {
-    int attempts = 0;
-
-    while (true) {
-      try {
-        acquireReadLock();
-        try {
-          iOffset = checkRegions(iOffset, OBinaryProtocol.SIZE_BYTE);
-          return readData(iOffset, OBinaryProtocol.SIZE_BYTE).get();
-        } finally {
-          releaseReadLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this,
-            "Error during read of byte data for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
-    }
-  }
-
-  @Override
-  public void writeInt(long iOffset, final int iValue) throws IOException {
-    int attempts = 0;
-
-    while (true) {
-      try {
-        acquireWriteLock();
-        try {
-          iOffset += HEADER_SIZE;
-
-          final ByteBuffer buffer = getWriteBuffer(OBinaryProtocol.SIZE_INT);
-          buffer.putInt(iValue);
-          writeBuffer(buffer, iOffset);
-          setDirty();
-
-          break;
-        } finally {
-          releaseWriteLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this,
-            "Error during write of int data for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
-    }
-  }
-
-  @Override
-  public void writeLong(long iOffset, final long iValue) throws IOException {
-    int attempts = 0;
-
-    while (true) {
-      try {
-        acquireWriteLock();
-        try {
-          iOffset += HEADER_SIZE;
-          final ByteBuffer buffer = getWriteBuffer(OBinaryProtocol.SIZE_LONG);
-          buffer.putLong(iValue);
-          writeBuffer(buffer, iOffset);
-          setDirty();
-          break;
-        } finally {
-          releaseWriteLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this,
-            "Error during write of long data for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
-    }
-  }
-
-  @Override
-  public void writeShort(long iOffset, final short iValue) throws IOException {
-    int attempts = 0;
-
-    while (true) {
-      try {
-        acquireWriteLock();
-        try {
-          iOffset += HEADER_SIZE;
-          final ByteBuffer buffer = getWriteBuffer(OBinaryProtocol.SIZE_SHORT);
-          buffer.putShort(iValue);
-          writeBuffer(buffer, iOffset);
-          setDirty();
-          break;
-        } finally {
-          releaseWriteLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this,
-            "Error during write of short data for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
-    }
-  }
-
-  @Override
-  public void writeByte(long iOffset, final byte iValue) throws IOException {
-    int attempts = 0;
-    while (true) {
-      try {
-        acquireWriteLock();
-        try {
-          iOffset += HEADER_SIZE;
-          final ByteBuffer buffer = getWriteBuffer(OBinaryProtocol.SIZE_BYTE);
-          buffer.put(iValue);
-          writeBuffer(buffer, iOffset);
-          setDirty();
-          break;
-        } finally {
-          releaseWriteLock();
-          attempts++;
-        }
-      } catch (IOException e) {
-        OLogManager.instance().error(this,
-            "Error during write of byte data for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
-    }
-
-  }
-
-  @Override
-  public long write(long iOffset, final byte[] iSourceBuffer) throws IOException {
-    int attempts = 0;
-    while (true) {
-      try {
-        long allocationDiff = 0;
-
-        acquireWriteLock();
-        try {
-          if (iSourceBuffer != null) {
-            final long start = accessFile.length();
-            writeInternal(iOffset, iSourceBuffer, iSourceBuffer.length, 0);
-            final long end = accessFile.length();
-            allocationDiff = end - start;
-          }
-        } finally {
-          releaseWriteLock();
-          attempts++;
-        }
-
-        return allocationDiff;
-      } catch (IOException e) {
-        OLogManager.instance()
-            .error(this, "Error during write of data for file '" + getName() + "' " + attempts + "-th attempt", e);
-        reopenFile(attempts, e);
-      }
-    }
+    return SyncIOResult.INSTANCE;
   }
 
   /**
    * Synchronizes the buffered changes to disk.
-   *
-   * @throws IOException
    */
   @Override
-  public boolean synch() throws IOException {
-    acquireWriteLock();
+  public void synch() {
+    acquireReadLock();
     try {
-      flushHeader();
-      return true;
-    } finally {
-      releaseWriteLock();
-    }
-  }
+      synchronized (flushSemaphore) {
+        long dirtyCounterValue = dirtyCounter.get();
+        if (dirtyCounterValue > 0) {
+          try {
+            channel.force(false);
+          } catch (final IOException e) {
+            OLogManager.instance()
+                .warn(this, "Error during flush of file %s. Data may be lost in case of power failure", e, getName());
+          }
 
-  protected void flushHeader() throws IOException {
-    acquireWriteLock();
-    try {
-      if (headerDirty || dirty) {
-        headerDirty = dirty = false;
-        try {
-          channel.force(false);
-        } catch (IOException e) {
-          OLogManager.instance().warn(this, "Error during flush of file %s. Data may be lost in case of power failure", getName(),
-              e);
+          dirtyCounter.addAndGet(-dirtyCounterValue);
         }
-
       }
     } finally {
-      releaseWriteLock();
+      releaseReadLock();
     }
   }
 
+  /**
+   * Creates the file.
+   */
   @Override
   public void create() throws IOException {
     acquireWriteLock();
     try {
-      openChannel();
-      init(HEADER_SIZE);
+      acquireExclusiveAccess();
 
-      setVersion(OFileClassic.CURRENT_VERSION);
-      version = OFileClassic.CURRENT_VERSION;
+      openChannel();
+      init();
+
+      initAllocationMode();
     } finally {
       releaseWriteLock();
+    }
+  }
+
+  private void initAllocationMode() {
+    if (allocationMode != null) {
+      return;
+    }
+
+    if (Platform.getPlatform().getOS() == Platform.OS.LINUX) {
+      allocationMode = AllocationMode.DESCRIPTOR;
+      int fd = 0;
+      try {
+        fd = ONative.instance().open(osFile.toAbsolutePath().toString(), ONative.O_CREAT | ONative.O_RDONLY | ONative.O_WRONLY);
+      } catch (final LastErrorException e) {
+        OLogManager.instance().warnNoDb(this, "File %s can not be opened using Linux native API,"
+                + " more slower methods of allocation will be used. Error code : %d.", osFile.toAbsolutePath().toString(),
+            e.getErrorCode());
+        allocationMode = AllocationMode.WRITE;
+      }
+      this.fd = fd;
+    } else {
+      allocationMode = AllocationMode.WRITE;
     }
   }
 
   /**
    * ALWAYS ADD THE HEADER SIZE BECAUSE ON THIS TYPE IS ALWAYS NEEDED
    */
-  private long checkRegions(final long iOffset, final long iLength) {
+  private long checkRegions(final long offset, final long iLength) {
     acquireReadLock();
     try {
-      if (iOffset < 0 || iOffset + iLength > size)
-        throw new OIOException("You cannot access outside the file size (" + size + " bytes). You have requested portion "
-            + iOffset + "-" + (iOffset + iLength) + " bytes. File: " + toString());
+      if (offset < 0 || offset + iLength > size.get()) {
+        throw new OIOException(
+            "You cannot access outside the file size (" + size.get() + " bytes). You have requested portion from " + offset + "-"
+                + (offset + iLength) + " bytes. File: " + this);
+      }
 
-      return iOffset + HEADER_SIZE;
+      return offset + HEADER_SIZE;
     } finally {
       releaseReadLock();
     }
 
   }
 
-  private ByteBuffer readData(final long iOffset, final int iSize) throws IOException {
-    ByteBuffer buffer = getBuffer(iSize);
-    channel.read(buffer, iOffset);
-    buffer.rewind();
-    return buffer;
-  }
-
-  private void writeBuffer(final ByteBuffer iBuffer, final long iOffset) throws IOException {
-    iBuffer.rewind();
-    channel.write(iBuffer, iOffset);
-  }
-
-  private ByteBuffer getBuffer(final int iLenght) {
-    return ByteBuffer.allocate(iLenght);
-  }
-
-  private ByteBuffer getWriteBuffer(final int iLenght) {
-    setDirty();
-    if (iLenght <= OBinaryProtocol.SIZE_LONG)
-      // RECYCLE WRITE BYTE BUFFER SINCE WRITES ARE SYNCHRONIZED
-      return (ByteBuffer) internalWriteBuffer.rewind();
-
-    return getBuffer(iLenght);
-  }
-
-  private void setVersion(int version) throws IOException {
-    acquireWriteLock();
-    try {
-      final ByteBuffer buffer = getWriteBuffer(OBinaryProtocol.SIZE_BYTE);
-      buffer.put((byte) version);
-      writeBuffer(buffer, VERSION_OFFSET);
-      setHeaderDirty();
-    } finally {
-      releaseWriteLock();
-    }
-  }
-
+  /**
+   * Opens the file.
+   */
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see com.orientechnologies.orient.core.storage.fs.OFileAAA#open()
    */
-  public boolean open() throws IOException {
+  @Override
+  public void open() {
     acquireWriteLock();
     try {
-      if (!osFile.exists())
-        throw new FileNotFoundException("File: " + osFile.getAbsolutePath());
-
-      openChannel();
-      init(-1);
-
-      OLogManager.instance().debug(this, "Checking file integrity of " + osFile.getName() + "...");
-
-      if (version < CURRENT_VERSION) {
-        setVersion(CURRENT_VERSION);
-        version = CURRENT_VERSION;
-      }
-
-      if (failCheck)
-        return wasSoftlyClosed;
-
-      return true;
+      doOpen();
+    } catch (final IOException e) {
+      throw OException.wrapException(new OIOException("Error during file open"), e);
     } finally {
       releaseWriteLock();
     }
   }
 
-  public boolean wasSoftlyClosed() {
-    acquireReadLock();
-    try {
-      return wasSoftlyClosed;
-    } finally {
-      releaseReadLock();
+  private void doOpen() throws IOException {
+    if (!Files.exists(osFile)) {
+      throw new FileNotFoundException("File: " + osFile);
+    }
+
+    acquireExclusiveAccess();
+
+    openChannel();
+    init();
+
+    OLogManager.instance().debug(this, "Checking file integrity of " + osFile.getFileName() + "...");
+
+    initAllocationMode();
+  }
+
+  private void acquireExclusiveAccess() {
+    if (exclusiveFileAccess) {
+      while (true) {
+        final FileUser fileUser = openedFilesMap.computeIfAbsent(osFile.toAbsolutePath(), p -> {
+          if (trackFileOpen) {
+            return new FileUser(0, Thread.currentThread().getStackTrace());
+          }
+
+          return new FileUser(0, null);
+        });
+
+        final int usersCount = fileUser.users;
+
+        if (usersCount > 0) {
+          if (!trackFileOpen) {
+            throw new IllegalStateException(
+                "File is allowed to be opened only once, to get more information start JVM with system property "
+                    + OGlobalConfiguration.STORAGE_TRACK_FILE_ACCESS.getKey() + " set to true.");
+          } else {
+            final StringWriter sw = new StringWriter();
+            try (final PrintWriter pw = new PrintWriter(sw)) {
+              pw.append("File is allowed to be opened only once.\n");
+              if (fileUser.openStackTrace != null) {
+                pw.append("File is already opened under: \n");
+                pw.append("----------------------------------------------------------------------------------------------------\n");
+                for (final StackTraceElement se : fileUser.openStackTrace) {
+                  pw.append("\t").append(se.toString()).append("\n");
+                }
+                pw.append("----------------------------------------------------------------------------------------------------\n");
+              }
+
+              pw.flush();
+              throw new IllegalStateException(sw.toString());
+            }
+          }
+        } else {
+          final FileUser newFileUser = new FileUser(1, Thread.currentThread().getStackTrace());
+          if (openedFilesMap.replace(osFile.toAbsolutePath(), fileUser, newFileUser)) {
+            break;
+          }
+        }
+      }
     }
   }
 
+  private void releaseExclusiveAccess() {
+    if (exclusiveFileAccess) {
+      while (true) {
+        final FileUser fileUser = openedFilesMap.get(osFile.toAbsolutePath());
+        final FileUser newFileUser;
+        if (trackFileOpen) {
+          newFileUser = new FileUser(fileUser.users - 1, Thread.currentThread().getStackTrace());
+        } else {
+          newFileUser = new FileUser(fileUser.users - 1, null);
+        }
+
+        if (openedFilesMap.replace(osFile.toAbsolutePath(), fileUser, newFileUser)) {
+          break;
+        }
+      }
+    }
+  }
+
+  /**
+   * Closes the file.
+   */
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see com.orientechnologies.orient.core.storage.fs.OFileAAA#close()
    */
-  public void close() throws IOException {
-    acquireWriteLock();
+  @Override
+  public void close() {
     try {
-      if (trackFileClose) {
-        final Exception exception = new Exception();
-        final StringWriter writer = new StringWriter();
-        writer.append("File ").append(getName()).append(" was closed at : \r\n");
-
-        final PrintWriter printWriter = new PrintWriter(writer);
-        exception.printStackTrace(printWriter);
-        printWriter.flush();
-
-        OLogManager.instance().warn(this, writer.toString());
+      acquireWriteLock();
+      try {
+        doClose();
+      } finally {
+        releaseWriteLock();
       }
-
-      if (accessFile != null && (accessFile.length() - HEADER_SIZE) < getFileSize())
-        accessFile.setLength(getFileSize() + HEADER_SIZE);
-
-      if (OGlobalConfiguration.FILE_LOCK.getValueAsBoolean())
-        unlock();
-
-      if (channel != null && channel.isOpen()) {
-        channel.close();
-        channel = null;
-      }
-
-      if (accessFile != null) {
-        accessFile.close();
-        accessFile = null;
-      }
-    } catch (Exception e) {
-      final String message = "Error on closing file " + osFile.getAbsolutePath();
-      OLogManager.instance().error(this, message, e);
-      throw OException.wrapException(new OIOException(message), e);
-    } finally {
-      releaseWriteLock();
+    } catch (final IOException ioe) {
+      throw OException.wrapException(new OIOException("Error during file close"), ioe);
     }
   }
 
+  private void doClose() throws IOException {
+    if (channel != null && channel.isOpen()) {
+      channel.close();
+      channel = null;
+    }
+
+    closeFD();
+
+    dirtyCounter.set(0);
+    releaseExclusiveAccess();
+  }
+
+  private void closeFD() {
+    if (allocationMode == AllocationMode.DESCRIPTOR && fd > 0) {
+      try {
+        ONative.instance().close(fd);
+      } catch (final LastErrorException e) {
+        OLogManager.instance()
+            .warnNoDb(this, "Can not close Linux descriptor of file %s, error %d", osFile.toAbsolutePath().toString(),
+                e.getErrorCode());
+      }
+
+      allocationMode = null;
+      fd = 0;
+    }
+  }
+
+  /**
+   * Deletes the file.
+   */
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see com.orientechnologies.orient.core.storage.fs.OFileAAA#delete()
    */
+  @Override
   public void delete() throws IOException {
     acquireWriteLock();
     try {
-      close();
+      doClose();
+
       if (osFile != null) {
-        boolean deleted = OFileUtils.delete(osFile);
-        int retryCount = 0;
-
-        while (!deleted) {
-          deleted = OFileUtils.delete(osFile);
-          retryCount++;
-
-          if (retryCount > 10)
-            throw new IOException("Cannot delete file " + osFile.getAbsolutePath() + ". Retry limit exceeded");
-        }
-      }
-    } finally {
-      releaseWriteLock();
-    }
-  }
-
-  /*
-   * Locks a portion of file.
-   */
-  public FileLock lock(final long iRangeFrom, final long iRangeSize, final boolean iShared) throws IOException {
-    acquireWriteLock();
-    try {
-      return channel.lock(iRangeFrom, iRangeSize, iShared);
-    } finally {
-      releaseWriteLock();
-    }
-  }
-
-  /*
-   * Unlocks a portion of file.
-   */
-  public OFile unlock(final FileLock iLock) throws IOException {
-    acquireWriteLock();
-    try {
-      if (iLock != null) {
-        try {
-          iLock.release();
-        } catch (ClosedChannelException e) {
-        }
-      }
-      return this;
-    } finally {
-      releaseWriteLock();
-    }
-  }
-
-  /*
-   * (non-Javadoc)
-   * 
-   * @see com.orientechnologies.orient.core.storage.fs.OFileAAA#lock()
-   */
-  public void lock() throws IOException {
-    if (channel == null)
-      return;
-
-    acquireWriteLock();
-    try {
-      for (int i = 0; i < LOCK_MAX_RETRIES; ++i) {
-        try {
-          fileLock = channel.tryLock();
-          if (fileLock != null)
-            break;
-        } catch (OverlappingFileLockException e) {
-          OLogManager.instance().debug(this,
-              "Cannot open file '" + osFile.getAbsolutePath() + "' because it is locked. Waiting %d ms and retrying %d/%d...",
-              LOCK_WAIT_TIME, i, LOCK_MAX_RETRIES);
-        }
-
-        if (fileLock == null)
-          throw new OFileLockedByAnotherProcessException(
-              "File '"
-                  + osFile.getPath()
-                  + "' is locked by another process, maybe the database is in use by another process. Use the remote mode with a OrientDB server to allow multiple access to the same database");
-      }
-    } finally {
-      releaseWriteLock();
-    }
-  }
-
-  /*
-   * (non-Javadoc)
-   * 
-   * @see com.orientechnologies.orient.core.storage.fs.OFileAAA#unlock()
-   */
-  public void unlock() throws IOException {
-    acquireWriteLock();
-    try {
-      if (fileLock != null) {
-        try {
-          fileLock.release();
-        } catch (ClosedChannelException e) {
-        }
-        fileLock = null;
+        Files.deleteIfExists(osFile);
       }
     } finally {
       releaseWriteLock();
@@ -782,60 +485,35 @@ public class OFileClassic implements OFile {
   }
 
   private void openChannel() throws IOException {
-    acquireWriteLock();
-    try {
-      OLogManager.instance().debug(this, "[OFile.openChannel] opening channel for file '%s' of size: %d", osFile, osFile.length());
+    channel = FileChannel.open(osFile, StandardOpenOption.READ, StandardOpenOption.WRITE, StandardOpenOption.CREATE);
 
-      for (int i = 0; i < OPEN_RETRY_MAX; ++i)
-        try {
-          accessFile = new RandomAccessFile(osFile, mode);
-          break;
-        } catch (FileNotFoundException e) {
-          if (i == OPEN_RETRY_MAX - 1)
-            throw e;
+    if (channel == null) {
+      throw new FileNotFoundException(osFile.toString());
+    }
 
-          // TRY TO RE-CREATE THE DIRECTORY (THIS HAPPENS ON WINDOWS AFTER A DELETE IS PENDING, USUALLY WHEN REOPEN THE DB VERY
-          // FREQUENTLY)
-          if (!osFile.getParentFile().mkdirs())
-            try {
-              Thread.sleep(OPEN_DELAY_RETRY);
-            } catch (InterruptedException e1) {
-              Thread.currentThread().interrupt();
-            }
-        }
-
-      if (accessFile == null)
-        throw new FileNotFoundException(osFile.getAbsolutePath());
-
-      channel = accessFile.getChannel();
-
-      if (OGlobalConfiguration.FILE_LOCK.getValueAsBoolean())
-        lock();
-    } finally {
-      releaseWriteLock();
+    if (channel.size() == 0) {
+      final ByteBuffer buffer = ByteBuffer.allocate(HEADER_SIZE);
+      OIOUtils.writeByteBuffer(buffer, channel, 0);
     }
   }
 
-  private void init(long newSize) throws IOException {
-    if (newSize > -1 && accessFile.length() != newSize)
-      accessFile.setLength(newSize);
+  private void init() throws IOException {
+    size.set(channel.size() - HEADER_SIZE);
+    assert size.get() >= 0;
 
-    size = accessFile.length() - HEADER_SIZE;
-    assert size >= 0;
-
-    accessFile.seek(VERSION_OFFSET);
-    version = accessFile.read();
+    this.committedSize.set(size.get());
   }
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see com.orientechnologies.orient.core.storage.fs.OFileAAA#isOpen()
    */
+  @Override
   public boolean isOpen() {
     acquireReadLock();
     try {
-      return accessFile != null;
+      return channel != null;
     } finally {
       releaseReadLock();
     }
@@ -844,80 +522,58 @@ public class OFileClassic implements OFile {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see com.orientechnologies.orient.core.storage.fs.OFileAAA#exists()
    */
+  @Override
   public boolean exists() {
     acquireReadLock();
     try {
-      return osFile != null && osFile.exists();
+      return osFile != null && Files.exists(osFile);
     } finally {
       releaseReadLock();
     }
   }
 
-  private void setDirty() {
-    acquireWriteLock();
-    try {
-      if (!dirty)
-        dirty = true;
-    } finally {
-      releaseWriteLock();
-    }
-  }
-
-  private void setHeaderDirty() {
-    acquireWriteLock();
-    try {
-      if (!headerDirty)
-        headerDirty = true;
-    } finally {
-      releaseWriteLock();
-    }
-  }
-
+  @Override
   public String getName() {
     acquireReadLock();
     try {
-      if (osFile == null)
-        return null;
-
-      return osFile.getName();
+      return osFile.getFileName().toString();
     } finally {
       releaseReadLock();
     }
   }
 
-  public String getPath() {
-    acquireReadLock();
-    try {
-      return osFile.getPath();
-    } finally {
-      releaseReadLock();
-    }
-  }
-
-  public String getAbsolutePath() {
-    acquireReadLock();
-    try {
-      return osFile.getAbsolutePath();
-    } finally {
-      releaseReadLock();
-    }
-  }
-
-  public boolean renameTo(final File newFile) throws IOException {
+  @Override
+  public void renameTo(final Path newFile) throws IOException {
     acquireWriteLock();
     try {
-      close();
+      doClose();
 
-      final boolean renamed = OFileUtils.renameFile(osFile, newFile);
-      if (renamed)
-        osFile = new File(newFile.getAbsolutePath());
+      //noinspection NonAtomicOperationOnVolatileField
+      osFile = Files.move(osFile, newFile);
 
-      open();
+      doOpen();
+    } finally {
+      releaseWriteLock();
+    }
+  }
 
-      return renamed;
+  /**
+   * Replaces the file content with the content of the provided file.
+   *
+   * @param newContentFile the new content file to replace the content with.
+   */
+  @Override
+  public void replaceContentWith(final Path newContentFile) throws IOException {
+    acquireWriteLock();
+    try {
+      doClose();
+
+      Files.copy(newContentFile, osFile, StandardCopyOption.REPLACE_EXISTING);
+
+      doOpen();
     } finally {
       releaseWriteLock();
     }
@@ -941,61 +597,75 @@ public class OFileClassic implements OFile {
 
   /*
    * (non-Javadoc)
-   * 
+   *
    * @see com.orientechnologies.orient.core.storage.fs.OFileAAA#toString()
    */
   @Override
   public String toString() {
-    StringBuilder builder = new StringBuilder(128);
+    final StringBuilder builder = new StringBuilder();
     builder.append("File: ");
-    builder.append(osFile.getName());
-    if (accessFile != null) {
+    builder.append(osFile.getFileName());
+    if (channel != null) {
       builder.append(" os-size=");
       try {
-        builder.append(accessFile.length());
-      } catch (IOException e) {
+        builder.append(channel.size());
+      } catch (final IOException ignore) {
         builder.append("?");
       }
     }
     builder.append(", stored=");
     builder.append(getFileSize());
-    builder.append("");
     return builder.toString();
   }
 
-  private void reopenFile(int attempt, IOException e) throws IOException {
-    if (attempt > 1)
-      throw e;
+  /**
+   * Container of information about files which are opened inside of storage in exclusive mode
+   *
+   * @see OGlobalConfiguration#STORAGE_EXCLUSIVE_FILE_ACCESS
+   * @see OGlobalConfiguration#STORAGE_TRACK_FILE_ACCESS
+   */
+  private static final class FileUser {
+    private final int                 users;
+    private final StackTraceElement[] openStackTrace;
 
-    acquireWriteLock();
-    try {
-      try {
-        unlock();
-      } catch (IOException ioe) {
-        OLogManager.instance().error(this, "Error during unlock of file '" + osFile.getName() + "', during IO exception handling",
-            ioe);
+    FileUser(final int users, final StackTraceElement[] openStackTrace) {
+      this.users = users;
+      this.openStackTrace = openStackTrace;
+    }
+
+    @Override
+    public boolean equals(final Object o) {
+      if (this == o) {
+        return true;
       }
-
-      try {
-        channel.close();
-      } catch (IOException ioe) {
-        OLogManager.instance().error(this,
-            "Error during channel close for file '" + osFile.getAbsolutePath() + "', during IO exception handling", ioe);
+      if (o == null || getClass() != o.getClass()) {
+        return false;
       }
+      final FileUser fileUser = (FileUser) o;
+      return users == fileUser.users && Arrays.equals(openStackTrace, fileUser.openStackTrace);
+    }
 
-      try {
-        accessFile.close();
-      } catch (IOException ioe) {
-        OLogManager.instance().error(this,
-            "Error during close of file '" + osFile.getAbsolutePath() + "', during IO exception handling", ioe);
-      }
+    @Override
+    public int hashCode() {
 
-      channel = null;
-      accessFile = null;
+      int result = Objects.hash(users);
+      result = 31 * result + Arrays.hashCode(openStackTrace);
+      return result;
+    }
 
-      openChannel();
-    } finally {
-      releaseWriteLock();
+  }
+
+  private enum AllocationMode {
+    DESCRIPTOR, WRITE
+  }
+
+  private static final class SyncIOResult implements IOResult {
+    static SyncIOResult INSTANCE = new SyncIOResult();
+
+    @Override
+    public void await() {
     }
   }
+
 }
+

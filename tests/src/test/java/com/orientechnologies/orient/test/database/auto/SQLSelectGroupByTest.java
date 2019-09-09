@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -92,8 +92,11 @@ public class SQLSelectGroupByTest extends DocumentDBBaseTest {
     Assert.assertTrue(result.size() > 1);
     last = null;
     for (ODocument d : result) {
-      if (last != null)
-        Assert.assertTrue(last.compareTo((String) d.field("location")) > 0);
+      Object current = d.field("location");
+      if(current!=null) {
+        if (last != null)
+          Assert.assertTrue(last.compareTo((String) current) > 0);
+      }
       last = d.field("location");
     }
   }

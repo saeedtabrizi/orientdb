@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,30 +15,33 @@
  */
 package com.orientechnologies.orient.server.distributed;
 
+import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.instance.HazelcastInstanceImpl;
+import com.hazelcast.instance.HazelcastInstanceProxy;
+import com.hazelcast.instance.Node;
+import com.hazelcast.internal.cluster.impl.ClusterServiceImpl;
 import com.orientechnologies.common.io.OFileUtils;
-import com.orientechnologies.common.util.OCallable;
-import com.orientechnologies.orient.core.Orient;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.storage.OStorage;
-import com.orientechnologies.orient.core.storage.impl.local.paginated.OLocalPaginatedStorage;
+import com.orientechnologies.orient.core.db.ODatabaseType;
+import com.orientechnologies.orient.core.db.OrientDBConfig;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.server.OServer;
+import com.orientechnologies.orient.server.OServerMain;
 import com.orientechnologies.orient.server.hazelcast.OHazelcastPlugin;
+import com.orientechnologies.orient.server.network.OServerNetworkListener;
 import com.orientechnologies.orient.server.network.protocol.binary.ONetworkProtocolBinary;
-import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
-import com.tinkerpop.blueprints.impls.orient.OrientGraphFactory;
 
 import java.io.File;
 import java.io.IOException;
 
 /**
  * Running server instance.
- * 
+ *
  * @author Luca Garulli (l.garulli--at--orientechnologies.com)
  */
 public class ServerRun {
-  protected final String serverId;
-  protected String       rootPath;
-  protected OServer      server;
+  protected final String  serverId;
+  protected       String  rootPath;
+  protected       OServer server;
 
   public ServerRun(final String iRootPath, final String serverId) {
     this.rootPath = iRootPath;
@@ -49,8 +52,9 @@ public class ServerRun {
     return "target/server" + iServerId;
   }
 
-  public static String getDatabasePath(final String iServerId, final String iDatabaseName) {
-    return getServerHome(iServerId) + "/databases/" + iDatabaseName;
+  @Override
+  public String toString() {
+    return server.getDistributedManager().getLocalNodeName() + "(" + serverId + ")";
   }
 
   public OServer getServerInstance() {
@@ -62,10 +66,14 @@ public class ServerRun {
   }
 
   public String getBinaryProtocolAddress() {
-    return server.getListenerByProtocol(ONetworkProtocolBinary.class).getListeningAddress(true);
+    final OServerNetworkListener prot = server.getListenerByProtocol(ONetworkProtocolBinary.class);
+    if (prot == null)
+      return null;
+    return prot.getListeningAddress(true);
   }
 
   public void deleteNode() {
+    System.out.println("Deleting directory " + getServerHome() + "...");
     OFileUtils.deleteRecursively(new File(getServerHome()));
   }
 
@@ -81,30 +89,64 @@ public class ServerRun {
     }
   }
 
-  protected OrientBaseGraph createDatabase(final String iName) {
-    return createDatabase(iName, null);
-  }
+  public void disconnectFrom(final ServerRun... serverIds) {
+    final Node currentNode = getHazelcastNode(((OHazelcastPlugin) server.getDistributedManager()).getHazelcastInstance());
+    for (ServerRun s : serverIds) {
+      ((OHazelcastPlugin) server.getDistributedManager()).closeRemoteServer(s.server.getDistributedManager().getLocalNodeName());
+      ((OHazelcastPlugin) s.server.getDistributedManager()).closeRemoteServer(server.getDistributedManager().getLocalNodeName());
 
-  protected OrientBaseGraph createDatabase(final String iName, final OCallable<Object, OrientGraphFactory> iCfgCallback) {
-    String dbPath = getDatabasePath(iName);
+      final Node otherNode = getHazelcastNode(((OHazelcastPlugin) s.server.getDistributedManager()).getHazelcastInstance());
 
-    new File(dbPath).mkdirs();
-
-    final OrientGraphFactory factory = new OrientGraphFactory("plocal:" + dbPath);
-    if (factory.exists()) {
-      System.out.println("Dropping previous database '" + iName + "' under: " + dbPath + "...");
-      new ODatabaseDocumentTx("plocal:" + dbPath).open("admin", "admin").drop();
-      OFileUtils.deleteRecursively(new File(dbPath));
+      currentNode.clusterService.suspectMember(currentNode.clusterService.getMember(otherNode.address), "test", true);
+//      otherNode.clusterService.suspectMember(currentNode.clusterService.getMember(currentNode.address), "test", true);
     }
-
-    if (iCfgCallback != null)
-      iCfgCallback.call(factory);
-
-    System.out.println("Creating database '" + iName + "' under: " + dbPath + "...");
-    return factory.getNoTx();
   }
 
-  protected void copyDatabase(final String iDatabaseName, final String iDestinationDirectory) throws IOException {
+  public void rejoin(final ServerRun... serverIds) {
+    final Node currentNode = getHazelcastNode(((OHazelcastPlugin) server.getDistributedManager()).getHazelcastInstance());
+    for (ServerRun s : serverIds) {
+      final Node otherNode = getHazelcastNode(((OHazelcastPlugin) s.server.getDistributedManager()).getHazelcastInstance());
+
+      final ClusterServiceImpl clusterService = currentNode.getClusterService();
+      clusterService.merge(otherNode.address);
+    }
+  }
+
+  public static Node getHazelcastNode(final HazelcastInstance hz) {
+    HazelcastInstanceImpl impl = getHazelcastInstanceImpl(hz);
+    return impl != null ? impl.node : null;
+  }
+
+  public static HazelcastInstanceImpl getHazelcastInstanceImpl(final HazelcastInstance hz) {
+    HazelcastInstanceImpl impl = null;
+    if (hz instanceof HazelcastInstanceProxy) {
+      impl = ((HazelcastInstanceProxy) hz).getOriginal();
+    } else if (hz instanceof HazelcastInstanceImpl) {
+      impl = (HazelcastInstanceImpl) hz;
+    }
+    return impl;
+  }
+
+  public ODatabaseDocument createDatabase(final String iName) {
+    server.createDatabase(iName, ODatabaseType.PLOCAL, OrientDBConfig.defaultConfig());
+    return server.openDatabase(iName, "admin", "admin");
+  }
+  
+/*
+  protected ODatabaseDocument getEmbeddedDatabase(final String dbName) {
+    String databasesPath = getServerHome() + "/databases";
+
+  	 orientDB = new OrientDB("embedded:" + databasesPath, OrientDBConfig.defaultConfig());
+  	 
+System.out.println("----- dbPath = " + databasesPath + ", dbName = " + dbName);
+System.out.println("----- dbPath exists() = " + new File(databasesPath + "/fred/" + dbName).exists());
+
+System.out.println("----- db exists = " + orientDB.exists(dbName));
+  	 
+  	 return orientDB.open(dbName, "admin", "admin");
+  }*/
+
+  public void copyDatabase(final String iDatabaseName, final String iDestinationDirectory) throws IOException {
     // COPY THE DATABASE TO OTHER DIRECTORIES
     System.out.println("Dropping any previous database '" + iDatabaseName + "' under: " + iDatabaseName + "...");
     OFileUtils.deleteRecursively(new File(iDestinationDirectory));
@@ -119,7 +161,7 @@ public class ServerRun {
     System.setProperty("ORIENTDB_HOME", getServerHome());
 
     if (server == null)
-      server = new OServer();
+      server = OServerMain.create(false);
 
     server.setServerRootDirectory(getServerHome());
     server.startup(getClass().getClassLoader().getResourceAsStream(iServerConfigFile));
@@ -133,45 +175,61 @@ public class ServerRun {
       try {
         ((OHazelcastPlugin) server.getDistributedManager()).getHazelcastInstance().shutdown();
       } catch (Exception e) {
+        // IGNORE IT
       }
-      server.shutdown();
+
+      try {
+        server.shutdown();
+      } catch (Exception e) {
+        e.printStackTrace();
+        // IGNORE IT
+      }
     }
 
-    closeStorages();
+//    closeStorages();
   }
 
   public void terminateServer() {
     if (server != null) {
       try {
-        if (((OHazelcastPlugin) server.getDistributedManager()).getHazelcastInstance().getLifecycleService().isRunning())
-          ((OHazelcastPlugin) server.getDistributedManager()).getHazelcastInstance().getLifecycleService().terminate();
+        final OHazelcastPlugin dm = (OHazelcastPlugin) server.getDistributedManager();
+        if (dm != null) {
+          HazelcastInstance hz = dm.getHazelcastInstance();
+          final Node node = getHazelcastNode(hz);
+          node.getConnectionManager().shutdown();
+          node.shutdown(true);
+          hz.getLifecycleService().terminate();
+        }
       } catch (Exception e) {
+        // IGNORE IT
       }
-      server.shutdown();
+
+      try {
+        server.shutdown();
+      } catch (Exception e) {
+        // IGNORE IT
+      }
     }
 
-    closeStorages();
+//    closeStorages();
   }
 
   public void closeStorages() {
-    for (OStorage s : Orient.instance().getStorages()) {
-      if (s instanceof OLocalPaginatedStorage && ((OLocalPaginatedStorage) s).getStoragePath().startsWith(getDatabasePath(""))) {
-        s.close(true, false);
-        Orient.instance().unregisterStorage(s);
-      }
-    }
+    server.getDatabases().close();
   }
 
-  public void deleteStorages() {
-    for (OStorage s : Orient.instance().getStorages()) {
-      if (s instanceof OLocalPaginatedStorage && ((OLocalPaginatedStorage) s).getStoragePath().startsWith(getDatabasePath(""))) {
-        s.close(true, true);
-        Orient.instance().unregisterStorage(s);
+  /*
+    public void deleteStorages() {
+      for (OStorage s : Orient.instance().getStorages()) {
+        if (s instanceof OLocalPaginatedStorage && new File(((OLocalPaginatedStorage) s).getStoragePath()).getAbsolutePath()
+            .startsWith(getDatabasePath(""))) {
+          s.close(true, true);
+          Orient.instance().unregisterStorage(s);
+        }
       }
     }
-  }
-
-  protected String getServerHome() {
+  */
+  public String getServerHome() {
     return getServerHome(serverId);
   }
 
@@ -179,4 +237,11 @@ public class ServerRun {
     return getDatabasePath(serverId, iDatabaseName);
   }
 
+  public static String getDatabasePath(final String iServerId, final String iDatabaseName) {
+    return new File(getServerHome(iServerId) + "/databases/" + iDatabaseName).getAbsolutePath();
+  }
+
+  public void forceClose(String databaseName) {
+    server.getDatabases().forceDatabaseClose(databaseName);
+  }
 }

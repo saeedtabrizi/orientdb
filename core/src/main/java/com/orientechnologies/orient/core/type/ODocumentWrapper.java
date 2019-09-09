@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,23 +14,22 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.core.type;
 
-import java.io.Serializable;
-
-import com.orientechnologies.orient.core.annotation.OAfterDeserialization;
 import com.orientechnologies.orient.core.annotation.ODocumentInstance;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+
+import java.io.Serializable;
 
 /**
  * Base abstract class to wrap a document.
  * 
  * @see ODocumentWrapperNoClass
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 @SuppressWarnings("unchecked")
@@ -53,7 +52,6 @@ public class ODocumentWrapper implements Serializable {
     document = iDocument;
   }
 
-  @OAfterDeserialization
   public void fromStream(final ODocument iDocument) {
     document = iDocument;
   }
@@ -62,23 +60,16 @@ public class ODocumentWrapper implements Serializable {
     return document;
   }
 
-  public <RET extends ODocumentWrapper> RET load() {
+  void load() {
     document = (ODocument) document.load();
-    return (RET) this;
   }
 
-  public <RET extends ODocumentWrapper> RET load(final String iFetchPlan) {
+  void load(final String iFetchPlan) {
     document = document.load(iFetchPlan);
-    return (RET) this;
   }
 
   public <RET extends ODocumentWrapper> RET load(final String iFetchPlan, final boolean iIgnoreCache) {
     document = document.load(iFetchPlan, iIgnoreCache);
-    return (RET) this;
-  }
-
-  public <RET extends ODocumentWrapper> RET load(final String iFetchPlan, final boolean iIgnoreCache, final boolean loadTombstone) {
-    document = document.load(iFetchPlan, iIgnoreCache, loadTombstone);
     return (RET) this;
   }
 
@@ -129,11 +120,9 @@ public class ODocumentWrapper implements Serializable {
       return false;
     final ODocumentWrapper other = (ODocumentWrapper) obj;
     if (document == null) {
-      if (other.document != null)
-        return false;
-    } else if (!document.equals(other.document))
-      return false;
-    return true;
+      return other.document == null;
+    } else
+      return document.equals(other.document);
   }
 
   @Override

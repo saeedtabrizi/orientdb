@@ -2,6 +2,8 @@ package com.orientechnologies.orient.core.storage.impl.local.paginated.wal;
 
 import com.orientechnologies.common.serialization.types.OLongSerializer;
 
+import java.nio.ByteBuffer;
+
 public class OFileDeletedWALRecord extends OOperationUnitBodyRecord {
   private long fileId;
 
@@ -17,24 +19,15 @@ public class OFileDeletedWALRecord extends OOperationUnitBodyRecord {
     return fileId;
   }
 
+
   @Override
-  public int toStream(byte[] content, int offset) {
-    offset = super.toStream(content, offset);
-
-    OLongSerializer.INSTANCE.serializeNative(fileId, content, offset);
-    offset += OLongSerializer.LONG_SIZE;
-
-    return offset;
+  protected void serializeToByteBuffer(ByteBuffer buffer) {
+    buffer.putLong(fileId);
   }
 
   @Override
-  public int fromStream(byte[] content, int offset) {
-    offset = super.fromStream(content, offset);
-
-    fileId = OLongSerializer.INSTANCE.deserializeNative(content, offset);
-    offset += OLongSerializer.LONG_SIZE;
-
-    return offset;
+  protected void deserializeFromByteBuffer(ByteBuffer buffer) {
+    fileId = buffer.getLong();
   }
 
   @Override
@@ -45,5 +38,10 @@ public class OFileDeletedWALRecord extends OOperationUnitBodyRecord {
   @Override
   public boolean isUpdateMasterRecord() {
     return false;
+  }
+
+  @Override
+  public byte getId() {
+    return WALRecordTypes.FILE_DELETED_WAL_RECORD;
   }
 }

@@ -2,6 +2,7 @@ package com.orientechnologies.orient.server.token;
 
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.metadata.security.OSecurityUser;
 import com.orientechnologies.orient.core.metadata.security.OToken;
 import com.orientechnologies.orient.server.OClientConnection;
@@ -22,7 +23,7 @@ import java.security.NoSuchAlgorithmException;
  */
 public class OrientTokenHandler extends OServerPluginAbstract implements OTokenHandler, OServerPlugin {
   public static final String SIGN_KEY_PAR             = "oAuth2Key";
-  public static final String SESSION_LENGHT_PAR       = "sessionLength";
+  public static final String SESSION_LENGTH_PAR       = "sessionLength";
   public static final String ENCRYPTION_ALGORITHM_PAR = "encryptionAlgorithm";
 
   public OrientTokenHandler() {
@@ -39,7 +40,7 @@ public class OrientTokenHandler extends OServerPluginAbstract implements OTokenH
           return;
       } else if (param.name.equalsIgnoreCase(SIGN_KEY_PAR)) {
         key = param.value;
-      } else if (param.name.equalsIgnoreCase(SESSION_LENGHT_PAR)) {
+      } else if (param.name.equalsIgnoreCase(SESSION_LENGTH_PAR)) {
         baseSession = Long.parseLong(param.value);
       } else if (param.name.equalsIgnoreCase(ENCRYPTION_ALGORITHM_PAR)) {
         algorithm = param.value;
@@ -55,7 +56,7 @@ public class OrientTokenHandler extends OServerPluginAbstract implements OTokenH
     if (baseSession != null)
       OGlobalConfiguration.NETWORK_TOKEN_EXPIRE_TIMEOUT.setValue(baseSession);
     if (algorithm != null)
-      OGlobalConfiguration.NETWORK_TOKEN_ENCRIPTION_ALGORITHM.setValue(algorithm);
+      OGlobalConfiguration.NETWORK_TOKEN_ENCRYPTION_ALGORITHM.setValue(algorithm);
 
   }
 
@@ -74,7 +75,7 @@ public class OrientTokenHandler extends OServerPluginAbstract implements OTokenH
     throw new UnsupportedOperationException();
   }
 
-  public byte[] getSignedWebToken(final ODatabaseDocumentInternal db, final OSecurityUser user) {
+  public byte[] getSignedWebToken(final ODatabaseDocument db, final OSecurityUser user) {
     throw new UnsupportedOperationException();
   }
 
@@ -87,7 +88,17 @@ public class OrientTokenHandler extends OServerPluginAbstract implements OTokenH
     throw new UnsupportedOperationException();
   }
 
+  @Override
+  public byte[] getDistributedToken(ONetworkProtocolData data) {
+    throw new UnsupportedOperationException();
+  }
+
   public OToken parseBinaryToken(final byte[] binaryToken) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public OToken parseNotVerifyBinaryToken(byte[] tokenBytes) {
     throw new UnsupportedOperationException();
   }
 

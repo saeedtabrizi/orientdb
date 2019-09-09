@@ -1,6 +1,6 @@
 /*
  *
- *  * Copyright 2014 Orient Technologies.
+ *  * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  * Licensed under the Apache License, Version 2.0 (the "License");
  *  * you may not use this file except in compliance with the License.
@@ -21,8 +21,9 @@ package com.orientechnologies.lucene.tx;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 
-import java.io.IOException;
+import java.util.Collections;
 import java.util.Set;
 
 /**
@@ -30,18 +31,25 @@ import java.util.Set;
  */
 public interface OLuceneTxChanges {
 
-  public void put(Object key, OIdentifiable value, Document doc) throws IOException;
+  void put(Object key, OIdentifiable value, Document doc);
 
-  public void remove(Object key, OIdentifiable value) throws IOException;
+  void remove(Object key, OIdentifiable value);
 
-  public IndexSearcher searcher() throws IOException;
+  IndexSearcher searcher();
 
-  public long numDocs();
+  default long numDocs() {
+    return 0;
+  }
 
-  public Set<Document> getDeletedDocs();
+  default Set<Document> getDeletedDocs() {
+    return Collections.emptySet();
+  }
 
-  public boolean isDeleted(Document document, Object key, OIdentifiable value);
+  boolean isDeleted(Document document, Object key, OIdentifiable value);
 
-  public boolean isUpdated(Document document, Object key, OIdentifiable value);
+  boolean isUpdated(Document document, Object key, OIdentifiable value);
 
+  default long deletedDocs(Query query) {
+    return 0;
+  }
 }

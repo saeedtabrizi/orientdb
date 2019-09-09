@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Orient Technologies.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  * Copyright 2013 Geomatys.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,15 +16,18 @@
  */
 package com.orientechnologies.orient.core.sql.functions.conversion;
 
+import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.sql.method.misc.OAbstractSQLMethod;
 
+import java.util.Locale;
+
 /**
  * Converts a value to another type in Java or OrientDB's supported types.
- * 
- * @author Luca Garulli
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OSQLMethodConvert extends OAbstractSQLMethod {
 
@@ -51,9 +54,10 @@ public class OSQLMethodConvert extends OAbstractSQLMethod {
       try {
         return OType.convert(iThis, Class.forName(destType));
       } catch (ClassNotFoundException e) {
+        OLogManager.instance().error(this, "Class for destination type was not found", e);
       }
     } else {
-      final OType orientType = OType.valueOf(destType.toUpperCase());
+      final OType orientType = OType.valueOf(destType.toUpperCase(Locale.ENGLISH));
       if (orientType != null) {
         return OType.convert(iThis, orientType.getDefaultJavaType());
       }

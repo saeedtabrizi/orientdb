@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.index;
@@ -30,33 +30,33 @@ import com.orientechnologies.orient.core.type.ODocumentWrapper;
 import java.util.Collection;
 import java.util.Set;
 
-public class OIndexManagerProxy extends OProxedResource<OIndexManager> implements OIndexManager {
+public class OIndexManagerProxy extends OProxedResource<OIndexManagerAbstract> implements OIndexManager {
 
-  public OIndexManagerProxy(final OIndexManager iDelegate, final ODatabaseDocumentInternal iDatabase) {
+  public OIndexManagerProxy(final OIndexManagerAbstract iDelegate, final ODatabaseDocumentInternal iDatabase) {
     super(iDelegate, iDatabase);
   }
 
-  public OIndexManager load() {
-    return this;
+  public void load() {
   }
 
   /**
    * Force reloading of indexes.
    */
-  public OIndexManager reload() {
-    return delegate.load();
+  public OIndexManagerProxy reload() {
+    delegate.load(database);
+    return this;
   }
 
   public void create() {
-    delegate.create();
+    delegate.create(database);
   }
 
   public Collection<? extends OIndex<?>> getIndexes() {
-    return delegate.getIndexes();
+    return delegate.getIndexes(database);
   }
 
   public OIndex<?> getIndex(final String iName) {
-    return delegate.getIndex(iName);
+    return delegate.getIndex(database, iName);
   }
 
   public boolean existsIndex(final String iName) {
@@ -64,18 +64,15 @@ public class OIndexManagerProxy extends OProxedResource<OIndexManager> implement
   }
 
   public OIndex<?> createIndex(final String iName, final String iType, final OIndexDefinition indexDefinition,
-      final int[] clusterIdsToIndex, final OProgressListener progressListener, ODocument metadata) {
-    return delegate.createIndex(iName, iType, indexDefinition, clusterIdsToIndex, progressListener, metadata);
+      final int[] clusterIdsToIndex, final OProgressListener progressListener, final ODocument metadata) {
+    return delegate.createIndex(database, iName, iType, indexDefinition, clusterIdsToIndex, progressListener, metadata);
   }
 
   @Override
-  public OIndex<?> createIndex(String iName, String iType, OIndexDefinition iIndexDefinition, int[] iClusterIdsToIndex,
-      OProgressListener progressListener, ODocument metadata, String algorithm) {
-    return delegate.createIndex(iName, iType, iIndexDefinition, iClusterIdsToIndex, progressListener, metadata, algorithm);
-  }
-
-  public OIndex<?> getIndexInternal(final String iName) {
-    return ((OIndexManagerShared) delegate).getIndexInternal(iName);
+  public OIndex<?> createIndex(final String iName, final String iType, final OIndexDefinition iIndexDefinition,
+      final int[] iClusterIdsToIndex, final OProgressListener progressListener, final ODocument metadata, final String algorithm) {
+    return delegate
+        .createIndex(database, iName, iType, iIndexDefinition, iClusterIdsToIndex, progressListener, metadata, algorithm);
   }
 
   public ODocument getConfiguration() {
@@ -83,7 +80,8 @@ public class OIndexManagerProxy extends OProxedResource<OIndexManager> implement
   }
 
   public OIndexManager dropIndex(final String iIndexName) {
-    return delegate.dropIndex(iIndexName);
+    delegate.dropIndex(database, iIndexName);
+    return this;
   }
 
   public String getDefaultClusterName() {
@@ -91,11 +89,11 @@ public class OIndexManagerProxy extends OProxedResource<OIndexManager> implement
   }
 
   public void setDefaultClusterName(final String defaultClusterName) {
-    delegate.setDefaultClusterName(defaultClusterName);
+    delegate.setDefaultClusterName(database, defaultClusterName);
   }
 
   public ODictionary<ORecord> getDictionary() {
-    return delegate.getDictionary();
+    return delegate.getDictionary(database);
   }
 
   public void flush() {
@@ -104,11 +102,11 @@ public class OIndexManagerProxy extends OProxedResource<OIndexManager> implement
   }
 
   public Set<OIndex<?>> getClassInvolvedIndexes(final String className, final Collection<String> fields) {
-    return delegate.getClassInvolvedIndexes(className, fields);
+    return delegate.getClassInvolvedIndexes(database, className, fields);
   }
 
   public Set<OIndex<?>> getClassInvolvedIndexes(final String className, final String... fields) {
-    return delegate.getClassInvolvedIndexes(className, fields);
+    return delegate.getClassInvolvedIndexes(database, className, fields);
   }
 
   public boolean areIndexed(final String className, final Collection<String> fields) {
@@ -120,16 +118,16 @@ public class OIndexManagerProxy extends OProxedResource<OIndexManager> implement
   }
 
   public Set<OIndex<?>> getClassIndexes(final String className) {
-    return delegate.getClassIndexes(className);
+    return delegate.getClassIndexes(database, className);
   }
 
   @Override
   public void getClassIndexes(final String className, final Collection<OIndex<?>> indexes) {
-    delegate.getClassIndexes(className, indexes);
+    delegate.getClassIndexes(database, className, indexes);
   }
 
   public OIndex<?> getClassIndex(final String className, final String indexName) {
-    return delegate.getClassIndex(className, indexName);
+    return delegate.getClassIndex(database, className, indexName);
   }
 
   @Override
@@ -138,12 +136,12 @@ public class OIndexManagerProxy extends OProxedResource<OIndexManager> implement
   }
 
   public OIndex<?> getClassAutoShardingIndex(final String className) {
-    return delegate.getClassAutoShardingIndex(className);
+    return delegate.getClassAutoShardingIndex(database, className);
   }
 
   @Override
   public void recreateIndexes() {
-    delegate.recreateIndexes();
+    delegate.recreateIndexes(database);
   }
 
   @Override
@@ -153,7 +151,7 @@ public class OIndexManagerProxy extends OProxedResource<OIndexManager> implement
 
   @Override
   public boolean autoRecreateIndexesAfterCrash() {
-    return delegate.autoRecreateIndexesAfterCrash();
+    return delegate.autoRecreateIndexesAfterCrash(database);
   }
 
   @Override
@@ -172,6 +170,19 @@ public class OIndexManagerProxy extends OProxedResource<OIndexManager> implement
   }
 
   public void removeClassPropertyIndex(final OIndex<?> idx) {
+    //noinspection deprecation
     delegate.removeClassPropertyIndex(idx);
+  }
+
+  public void getClassRawIndexes(String name, Collection<OIndex<?>> indexes) {
+    delegate.getClassRawIndexes(name, indexes);
+  }
+
+  OIndex<?> preProcessBeforeReturn(ODatabaseDocumentInternal database, OIndex<?> index) {
+    return delegate.preProcessBeforeReturn(database, index);
+  }
+
+  public OIndexManagerAbstract delegate() {
+    return delegate;
   }
 }

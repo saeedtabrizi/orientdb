@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,20 +14,10 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.serialization.serializer;
-
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
 
 import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.common.io.OIOUtils;
@@ -43,13 +33,15 @@ import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.serialization.OBase64Utils;
 import com.orientechnologies.orient.core.serialization.serializer.record.string.ORecordSerializerSchemaAware2CSV;
 import com.orientechnologies.orient.core.serialization.serializer.string.OStringSerializerAnyStreamable;
 import com.orientechnologies.orient.core.sql.OCommandSQLParsingException;
 
+import java.math.BigDecimal;
+import java.util.*;
+
 public abstract class OStringSerializerHelper {
-  public static final char   RECORD_SEPARATOR        = ',';
+  public static final char RECORD_SEPARATOR = ',';
 
   public static final String CLASS_SEPARATOR         = "@";
   public static final char   LINK                    = ORID.PREFIX;
@@ -155,6 +147,13 @@ public abstract class OStringSerializerHelper {
       // RECORD
       final String value = (String) iValue;
       return ORecordSerializerSchemaAware2CSV.INSTANCE.embeddedMapFromStream(iDocument, null, value, null);
+
+    case ANY:
+      if (iValue instanceof String) {
+        final String s = (String) iValue;
+        return decode(OIOUtils.getStringContent(s));
+      }
+      return iValue;
     }
 
     throw new IllegalArgumentException("Type " + iType + " does not support converting value: " + iValue);
@@ -348,8 +347,9 @@ public abstract class OStringSerializerHelper {
           } else if (c == LIST_END) {
             if (i < iMinPosSeparatorAreValid || insideParenthesis > 0 || insideList > 0 || !isCharPresent(c, iSeparator)) {
               if (insideList == 0)
-                throw new OSerializationException("Found invalid " + LIST_END + " character at position " + i + " of text "
-                    + new String(iSource) + ". Ensure it is opened and closed correctly.");
+                throw new OSerializationException(
+                    "Found invalid " + LIST_END + " character at position " + i + " of text " + new String(iSource)
+                        + ". Ensure it is opened and closed correctly.");
               insideList--;
             }
           } else if (c == EMBEDDED_BEGIN) {
@@ -357,8 +357,9 @@ public abstract class OStringSerializerHelper {
           } else if (c == EMBEDDED_END) {
             // if (!isCharPresent(c, iRecordSeparator)) {
             if (insideParenthesis == 0)
-              throw new OSerializationException("Found invalid " + EMBEDDED_END + " character at position " + i + " of text "
-                  + new String(iSource) + ". Ensure it is opened and closed correctly.");
+              throw new OSerializationException(
+                  "Found invalid " + EMBEDDED_END + " character at position " + i + " of text " + new String(iSource)
+                      + ". Ensure it is opened and closed correctly.");
             // }
             insideParenthesis--;
 
@@ -367,8 +368,9 @@ public abstract class OStringSerializerHelper {
           } else if (c == MAP_END) {
             if (i < iMinPosSeparatorAreValid || !isCharPresent(c, iSeparator)) {
               if (insideMap == 0)
-                throw new OSerializationException("Found invalid " + MAP_END + " character at position " + i + " of text "
-                    + new String(iSource) + ". Ensure it is opened and closed correctly.");
+                throw new OSerializationException(
+                    "Found invalid " + MAP_END + " character at position " + i + " of text " + new String(iSource)
+                        + ". Ensure it is opened and closed correctly.");
               insideMap--;
             }
           } else if (c == LINK)
@@ -384,8 +386,9 @@ public abstract class OStringSerializerHelper {
               else if (c == SET_END) {
                 if (i < iMinPosSeparatorAreValid || !isCharPresent(c, iSeparator)) {
                   if (insideSet == 0)
-                    throw new OSerializationException("Found invalid " + SET_END + " character at position " + i + " of text "
-                        + new String(iSource) + ". Ensure it is opened and closed correctly.");
+                    throw new OSerializationException(
+                        "Found invalid " + SET_END + " character at position " + i + " of text " + new String(iSource)
+                            + ". Ensure it is opened and closed correctly.");
                   insideSet--;
                 }
               }
@@ -395,8 +398,8 @@ public abstract class OStringSerializerHelper {
               else if (c == BAG_END)
                 if (!isCharPresent(c, iSeparator)) {
                   if (insideBag == 0)
-                    throw new OSerializationException("Found invalid " + BAG_BEGIN
-                        + " character. Ensure it is opened and closed correctly.");
+                    throw new OSerializationException(
+                        "Found invalid " + BAG_BEGIN + " character. Ensure it is opened and closed correctly.");
                   insideBag--;
                 }
             }
@@ -411,7 +414,8 @@ public abstract class OStringSerializerHelper {
           stringBeginChar = c;
         }
 
-        if (insideParenthesis == 0 && insideList == 0 && insideSet == 0 && insideMap == 0 && insideLinkPart == 0 && insideBag == 0) {
+        if (insideParenthesis == 0 && insideList == 0 && insideSet == 0 && insideMap == 0 && insideLinkPart == 0
+            && insideBag == 0) {
           // OUTSIDE A PARAMS/COLLECTION/MAP
           if (i >= iMinPosSeparatorAreValid && isCharPresent(c, iSeparator)) {
             // SEPARATOR (OUTSIDE A STRING): PUSH
@@ -591,7 +595,8 @@ public abstract class OStringSerializerHelper {
 
     boolean escape = false;
     char insideQuote = ' ';
-    int currentPos, deep;
+    int currentPos;
+    int deep;
     int maxPos = iText.length() - 1;
     for (currentPos = openPos + 1, deep = 1; deep > 0; currentPos++) {
       if (currentPos > maxPos)
@@ -736,10 +741,11 @@ public abstract class OStringSerializerHelper {
 
   /**
    * Transforms, only if needed, the source string escaping the characters \ and ".
-   * 
-   * @param iText
-   *          Input String
+   *
+   * @param iText Input String
+   *
    * @return Modified string if needed, otherwise the same input object
+   *
    * @see OStringSerializerHelper#decode(String)
    */
   public static String encode(final String iText) {
@@ -776,10 +782,11 @@ public abstract class OStringSerializerHelper {
 
   /**
    * Transforms, only if needed, the source string un-escaping the characters \ and ".
-   * 
-   * @param iText
-   *          Input String
+   *
+   * @param iText Input String
+   *
    * @return Modified string if needed, otherwise the same input object
+   *
    * @see OStringSerializerHelper#encode(String)
    */
   public static String decode(final String iText) {
@@ -804,9 +811,23 @@ public abstract class OStringSerializerHelper {
     for (int i = pos; i < textSize; ++i) {
       final char c = iText.charAt(i);
 
-      if (escaped)
+      if (escaped) {
         escaped = false;
-      else if (c == '\\') {
+        if (c == 'n') {
+          buffer.append('\n');
+        } else if (c == 't') {
+          buffer.append('\t');
+        } else if (c == 'r') {
+          buffer.append('\r');
+        } else if (c == '\\') {
+          buffer.append('\\');
+        } else if (c == '\f') {
+          buffer.append('\f');
+        } else {
+          buffer.append(c);
+        }
+        continue;
+      } else if (c == '\\') {
         escaped = true;
         continue;
       }
@@ -819,11 +840,11 @@ public abstract class OStringSerializerHelper {
 
   public static OClass getRecordClassName(final String iValue, OClass iLinkedClass) {
     // EXTRACT THE CLASS NAME
-    final int classSeparatorPos = OStringParser.indexOfOutsideStrings(iValue, OStringSerializerHelper.CLASS_SEPARATOR.charAt(0), 0,
-        -1);
+    final int classSeparatorPos = OStringParser
+        .indexOfOutsideStrings(iValue, OStringSerializerHelper.CLASS_SEPARATOR.charAt(0), 0, -1);
     if (classSeparatorPos > -1) {
       final String className = iValue.substring(0, classSeparatorPos);
-      final ODatabaseDocument database = ODatabaseRecordThreadLocal.INSTANCE.get();
+      final ODatabaseDocument database = ODatabaseRecordThreadLocal.instance().get();
       if (className != null && database != null)
         iLinkedClass = ((OMetadataInternal) database.getMetadata()).getImmutableSchemaSnapshot().getClass(className);
     }
@@ -832,8 +853,9 @@ public abstract class OStringSerializerHelper {
 
   /**
    * Use OIOUtils.getStringContent(iValue) instead.
-   * 
+   *
    * @param iValue
+   *
    * @return
    */
   @Deprecated
@@ -854,25 +876,25 @@ public abstract class OStringSerializerHelper {
       return (byte[]) iValue;
     else if (iValue instanceof String) {
       String s = (String) iValue;
-      if (s.length() > 1 && (s.charAt(0) == BINARY_BEGINEND && s.charAt(s.length() - 1) == BINARY_BEGINEND)
-          || (s.charAt(0) == '\'' && s.charAt(s.length() - 1) == '\''))
+      if (s.length() > 1 && (s.charAt(0) == BINARY_BEGINEND && s.charAt(s.length() - 1) == BINARY_BEGINEND) || (s.charAt(0) == '\''
+          && s.charAt(s.length() - 1) == '\''))
         // @COMPATIBILITY 1.0rc7-SNAPSHOT ' TO SUPPORT OLD DATABASES
         s = s.substring(1, s.length() - 1);
       // IN CASE OF JSON BINARY IMPORT THIS EXEPTION IS WRONG
       // else
       // throw new IllegalArgumentException("Not binary type: " + iValue);
 
-      return OBase64Utils.decode(s);
+      return Base64.getDecoder().decode(s);
     } else
-      throw new IllegalArgumentException("Cannot parse binary as the same type as the value (class=" + iValue.getClass().getName()
-          + "): " + iValue);
+      throw new IllegalArgumentException(
+          "Cannot parse binary as the same type as the value (class=" + iValue.getClass().getName() + "): " + iValue);
   }
 
   /**
    * Checks if a string contains alphanumeric only characters.
-   * 
-   * @param iContent
-   *          String to check
+   *
+   * @param iContent String to check
+   *
    * @return true is all the content is alphanumeric, otherwise false
    */
   public static boolean isAlphanumeric(final String iContent) {
@@ -885,10 +907,8 @@ public abstract class OStringSerializerHelper {
   }
 
   public static String removeQuotationMarks(final String iValue) {
-    if (iValue != null
-        && iValue.length() > 1
-        && (iValue.charAt(0) == '\'' && iValue.charAt(iValue.length() - 1) == '\'' || iValue.charAt(0) == '"'
-            && iValue.charAt(iValue.length() - 1) == '"'))
+    if (iValue != null && iValue.length() > 1 && (iValue.charAt(0) == '\'' && iValue.charAt(iValue.length() - 1) == '\''
+        || iValue.charAt(0) == '"' && iValue.charAt(iValue.length() - 1) == '"'))
       return iValue.substring(1, iValue.length() - 1);
 
     return iValue;

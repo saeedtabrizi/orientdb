@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.command.script;
@@ -27,14 +27,11 @@ import com.orientechnologies.common.io.OIOUtils;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.common.parser.OContextVariableResolver;
 import com.orientechnologies.orient.core.Orient;
-import com.orientechnologies.orient.core.command.OCommandContext;
-import com.orientechnologies.orient.core.command.OCommandDistributedReplicateRequest;
-import com.orientechnologies.orient.core.command.OCommandExecutorAbstract;
-import com.orientechnologies.orient.core.command.OCommandRequest;
+import com.orientechnologies.orient.core.command.*;
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.exception.OCommandExecutionException;
 import com.orientechnologies.orient.core.exception.ORecordNotFoundException;
 import com.orientechnologies.orient.core.exception.OTransactionException;
@@ -42,45 +39,34 @@ import com.orientechnologies.orient.core.serialization.serializer.OStringSeriali
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.OCommandSQLParsingException;
 import com.orientechnologies.orient.core.sql.OSQLEngine;
+import com.orientechnologies.orient.core.sql.OTemporaryRidGenerator;
 import com.orientechnologies.orient.core.sql.filter.OSQLFilter;
 import com.orientechnologies.orient.core.sql.filter.OSQLPredicate;
 import com.orientechnologies.orient.core.sql.parser.OIfStatement;
 import com.orientechnologies.orient.core.sql.parser.OStatement;
 import com.orientechnologies.orient.core.sql.parser.OrientSql;
 import com.orientechnologies.orient.core.sql.parser.ParseException;
+import com.orientechnologies.orient.core.sql.query.OLegacyResultSet;
 import com.orientechnologies.orient.core.storage.ORecordDuplicatedException;
 import com.orientechnologies.orient.core.tx.OTransaction;
 
-import javax.script.Bindings;
-import javax.script.Compilable;
-import javax.script.CompiledScript;
-import javax.script.ScriptContext;
-import javax.script.ScriptEngine;
-import javax.script.ScriptException;
-import javax.script.SimpleBindings;
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.StringReader;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
+import javax.script.*;
+import java.io.*;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Executes Script Commands.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * @see OCommandScript
  */
-public class OCommandExecutorScript extends OCommandExecutorAbstract implements OCommandDistributedReplicateRequest {
+public class OCommandExecutorScript extends OCommandExecutorAbstract
+    implements OCommandDistributedReplicateRequest, OTemporaryRidGenerator {
   private static final int MAX_DELAY = 100;
   protected OCommandScript request;
   protected DISTRIBUTED_EXECUTION_MODE executionMode = DISTRIBUTED_EXECUTION_MODE.LOCAL;
+  protected AtomicInteger              serialTempRID = new AtomicInteger(0);
 
   public OCommandExecutorScript() {
   }
@@ -97,6 +83,8 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
   }
 
   public Object execute(final Map<Object, Object> iArgs) {
+    if (context == null)
+      context = new OBasicCommandContext();
     return executeInContext(context, iArgs);
   }
 
@@ -111,7 +99,7 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
       try {
         parserText = preParse(parserText, iArgs);
       } catch (ParseException e) {
-        throw new OCommandExecutionException("Invalid script:" + e.getMessage());
+        throw OException.wrapException(new OCommandExecutionException("Invalid script:" + e.getMessage()), e);
       }
       return executeSQL();
     } else {
@@ -123,8 +111,38 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
     final boolean strict = getDatabase().getStorage().getConfiguration().isStrictSql();
     if (strict) {
       parserText = addSemicolons(parserText);
-      InputStream is = new ByteArrayInputStream(parserText.getBytes());
-      OrientSql osql = new OrientSql(is);
+
+      ODatabaseDocumentInternal db = getDatabase();
+
+      byte[] bytes;
+      try {
+        if (db == null) {
+          bytes = parserText.getBytes();
+        } else {
+          bytes = parserText.getBytes(getDatabase().getStorage().getConfiguration().getCharset());
+        }
+      } catch (UnsupportedEncodingException e) {
+        OLogManager.instance().warn(this,
+            "Invalid charset for database " + getDatabase() + " " + getDatabase().getStorage().getConfiguration().getCharset());
+
+        bytes = parserText.getBytes();
+      }
+
+      InputStream is = new ByteArrayInputStream(bytes);
+
+      OrientSql osql = null;
+      try {
+
+        if (db == null) {
+          osql = new OrientSql(is);
+        } else {
+          osql = new OrientSql(is, db.getStorage().getConfiguration().getCharset());
+        }
+      } catch (UnsupportedEncodingException e) {
+        OLogManager.instance().warn(this,
+            "Invalid charset for database " + getDatabase() + " " + getDatabase().getStorage().getConfiguration().getCharset());
+        osql = new OrientSql(is);
+      }
       List<OStatement> statements = osql.parseScript();
       StringBuilder result = new StringBuilder();
       for (OStatement stm : statements) {
@@ -135,7 +153,7 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
         result.append("\n");
       }
       return result.toString();
-    }else{
+    } else {
       return parserText;
     }
   }
@@ -143,10 +161,10 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
   private String addSemicolons(String parserText) {
     String[] rows = parserText.split("\n");
     StringBuilder builder = new StringBuilder();
-    for(String row:rows){
+    for (String row : rows) {
       row = row.trim();
       builder.append(row);
-      if(!(row.endsWith(";") || row.endsWith("{"))){
+      if (!(row.endsWith(";") || row.endsWith("{"))) {
         builder.append(";");
       }
       builder.append("\n");
@@ -159,7 +177,7 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
   }
 
   protected Object executeJsr223Script(final String language, final OCommandContext iContext, final Map<Object, Object> iArgs) {
-    ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.INSTANCE.get();
+    ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.instance().get();
 
     final OScriptManager scriptManager = Orient.instance().getScriptManager();
     CompiledScript compiledScript = request.getCompiledScript();
@@ -182,19 +200,20 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
         request.setCompiledScript(compiledScript);
       }
 
-      final Bindings binding = scriptManager.bind(compiledScript.getEngine().getBindings(ScriptContext.ENGINE_SCOPE),
-          (ODatabaseDocumentTx) db, iContext, iArgs);
+      final Bindings binding = scriptManager
+          .bind(scriptEngine, compiledScript.getEngine().getBindings(ScriptContext.ENGINE_SCOPE), db, iContext, iArgs);
 
       try {
         final Object ob = compiledScript.eval(binding);
 
         return OCommandExecutorUtility.transformResult(ob);
       } catch (ScriptException e) {
-        throw OException.wrapException(
-            new OCommandScriptException("Error on execution of the script", request.getText(), e.getColumnNumber()), e);
+        throw OException
+            .wrapException(new OCommandScriptException("Error on execution of the script", request.getText(), e.getColumnNumber()),
+                e);
 
       } finally {
-        scriptManager.unbind(binding, iContext, iArgs);
+        scriptManager.unbind(scriptEngine, binding, iContext, iArgs);
       }
     } finally {
       scriptManager.releaseDatabaseEngine(language, db.getName(), entry);
@@ -203,7 +222,7 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
 
   // TODO: CREATE A REGULAR JSR223 SCRIPT IMPL
   protected Object executeSQL() {
-    ODatabaseDocument db = ODatabaseRecordThreadLocal.INSTANCE.getIfDefined();
+    ODatabaseDocument db = ODatabaseRecordThreadLocal.instance().getIfDefined();
     try {
 
       return executeSQLScript(parserText, db);
@@ -223,6 +242,7 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
     int maxRetry = 1;
 
     context.setVariable("transactionRetries", 0);
+    context.setVariable("parentQuery", this);
 
     for (int retry = 1; retry <= maxRetry; retry++) {
       try {
@@ -305,7 +325,7 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
                   String next = lastCommand.substring("begin ".length()).trim();
                   if (OStringSerializerHelper.startsWithIgnoreCase(next, "isolation ")) {
                     next = next.substring("isolation ".length()).trim();
-                    db.getTransaction().setIsolationLevel(OTransaction.ISOLATION_LEVEL.valueOf(next.toUpperCase()));
+                    db.getTransaction().setIsolationLevel(OTransaction.ISOLATION_LEVEL.valueOf(next.toUpperCase(Locale.ENGLISH)));
                   }
                 }
 
@@ -454,7 +474,8 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
     try {
       result = condition.evaluate(null, null, getContext());
     } catch (Exception e) {
-      throw new OCommandExecutionException("Could not evaluate IF condition: " + cmd + " - " + e.getMessage());
+      throw OException
+          .wrapException(new OCommandExecutionException("Could not evaluate IF condition: " + cmd + " - " + e.getMessage()), e);
     }
 
     if (Boolean.TRUE.equals(result)) {
@@ -492,7 +513,10 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
   }
 
   private Object executeCommand(final String lastCommand, final ODatabaseDocument db) {
-    return db.command(new OCommandSQL(lastCommand).setContext(getContext())).execute(toMap(parameters));
+    final OCommandSQL command = new OCommandSQL(lastCommand);
+    Object result = db.command(command.setContext(getContext())).execute(toMap(parameters));
+    request.setFetchPlan(command.getFetchPlan());
+    return result;
   }
 
   private Object toMap(Object parameters) {
@@ -506,7 +530,7 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
 
   private Object getValue(final String iValue, final ODatabaseDocument db) {
     Object lastResult = null;
-
+    boolean recordResultSet = true;
     if (iValue.equalsIgnoreCase("NULL"))
       lastResult = null;
     else if (iValue.startsWith("[") && iValue.endsWith("]")) {
@@ -522,6 +546,7 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
         result.add(getValue(item, db));
       }
       lastResult = result;
+      checkIsRecordResultSet(lastResult);
     } else if (iValue.startsWith("{") && iValue.endsWith("}")) {
       // MAP
       final Map<String, String> map = OStringSerializerHelper.getMap(iValue);
@@ -560,15 +585,31 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
         result.put(key, value);
       }
       lastResult = result;
-    } else if (iValue.startsWith("\"") && iValue.endsWith("\"") || iValue.startsWith("'") && iValue.endsWith("'"))
+      checkIsRecordResultSet(lastResult);
+    } else if (iValue.startsWith("\"") && iValue.endsWith("\"") || iValue.startsWith("'") && iValue.endsWith("'")) {
       lastResult = new OContextVariableResolver(context).parse(OIOUtils.getStringContent(iValue));
-    else if (iValue.startsWith("(") && iValue.endsWith(")"))
+      checkIsRecordResultSet(lastResult);
+    } else if (iValue.startsWith("(") && iValue.endsWith(")"))
       lastResult = executeCommand(iValue, db);
-    else
+    else {
       lastResult = new OSQLPredicate(iValue).evaluate(context);
 
+    }
     // END OF THE SCRIPT
     return lastResult;
+  }
+
+  private void checkIsRecordResultSet(Object result) {
+    if (!(result instanceof OIdentifiable) && !(result instanceof OLegacyResultSet)) {
+      if (!OMultiValue.isMultiValue(result)) {
+        request.setRecordResultSet(false);
+      } else {
+        for (Object val : OMultiValue.getMultiValueIterable(result)) {
+          if (!(val instanceof OIdentifiable))
+            request.setRecordResultSet(false);
+        }
+      }
+    }
   }
 
   private void executeSleep(String lastCommand) {
@@ -576,7 +617,7 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
     try {
       Thread.sleep(Integer.parseInt(sleepTimeInMs));
     } catch (InterruptedException e) {
-      OLogManager.instance().debug(this, "Sleep was interrupted in SQL batch");
+      OLogManager.instance().debug(this, "Sleep was interrupted in SQL batch", e);
     }
   }
 
@@ -604,10 +645,9 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
 
     Object lastResult = null;
 
-    if (cmd.equalsIgnoreCase("NULL") || cmd.startsWith("$") || (cmd.startsWith("[") && cmd.endsWith("]"))
-        || (cmd.startsWith("{") && cmd.endsWith("}"))
-        || (cmd.startsWith("\"") && cmd.endsWith("\"") || cmd.startsWith("'") && cmd.endsWith("'"))
-        || (cmd.startsWith("(") && cmd.endsWith(")")))
+    if (cmd.equalsIgnoreCase("NULL") || cmd.startsWith("$") || (cmd.startsWith("[") && cmd.endsWith("]")) || (cmd.startsWith("{")
+        && cmd.endsWith("}")) || (cmd.startsWith("\"") && cmd.endsWith("\"") || cmd.startsWith("'") && cmd.endsWith("'")) || (
+        cmd.startsWith("(") && cmd.endsWith(")")) || cmd.startsWith("#"))
       lastResult = getValue(cmd, db);
     else
       lastResult = executeCommand(cmd, db);
@@ -620,5 +660,10 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
   @Override
   public QUORUM_TYPE getQuorumType() {
     return QUORUM_TYPE.WRITE;
+  }
+
+  @Override
+  public int getTemporaryRIDCounter(OCommandContext iContext) {
+    return serialTempRID.incrementAndGet();
   }
 }

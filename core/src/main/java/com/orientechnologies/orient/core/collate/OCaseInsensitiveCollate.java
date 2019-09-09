@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,23 +14,19 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.core.collate;
 
 import com.orientechnologies.common.comparator.ODefaultComparator;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Case insensitive collate.
- * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OCaseInsensitiveCollate extends ODefaultComparator implements OCollate {
   public static final String NAME = "ci";
@@ -41,19 +37,19 @@ public class OCaseInsensitiveCollate extends ODefaultComparator implements OColl
 
   public Object transform(final Object obj) {
     if (obj instanceof String)
-      return ((String) obj).toLowerCase();
+      return ((String) obj).toLowerCase(Locale.ENGLISH);
 
-    if(obj instanceof Set){
+    if (obj instanceof Set) {
       Set result = new HashSet();
-      for(Object o:(Set)obj){
+      for (Object o : (Set) obj) {
         result.add(transform(o));
       }
       return result;
     }
 
-    if(obj instanceof List){
+    if (obj instanceof List) {
       List result = new ArrayList();
-      for(Object o:(List)obj){
+      for (Object o : (List) obj) {
         result.add(transform(o));
       }
       return result;
@@ -68,12 +64,25 @@ public class OCaseInsensitiveCollate extends ODefaultComparator implements OColl
 
   @Override
   public boolean equals(Object obj) {
-    if (obj==null || obj.getClass() != this.getClass())
+    if (obj == null || obj.getClass() != this.getClass())
       return false;
 
     final OCaseInsensitiveCollate that = (OCaseInsensitiveCollate) obj;
 
     return getName().equals(that.getName());
+  }
+
+  @Override
+  public int compareForOrderBy(Object objectOne, Object objectTwo) {
+    Object newObj1 = transform(objectOne);
+    Object newObj2 = transform(objectTwo);
+    int result = super.compare(newObj1, newObj2);
+    if (result == 0) {
+      //case insensitive are the same, fall back to case sensitive to have a decent ordering of upper vs lower case
+      result = super.compare(objectOne, objectTwo);
+    }
+
+    return result;
   }
 
   @Override

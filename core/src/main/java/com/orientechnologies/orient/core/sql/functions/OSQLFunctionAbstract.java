@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.core.sql.functions;
@@ -30,7 +30,7 @@ import java.util.List;
  * <code>OSQLParser.getInstance().registerStatelessFunction()</code> or
  * <code>OSQLParser.getInstance().registerStatefullFunction()</code> to being used by the SQL engine.
  * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public abstract class OSQLFunctionAbstract implements OSQLFunction {
@@ -98,10 +98,10 @@ public abstract class OSQLFunctionAbstract implements OSQLFunction {
   }
 
   protected boolean returnDistributedResult() {
-    return OScenarioThreadLocal.INSTANCE.get() == OScenarioThreadLocal.RUN_MODE.RUNNING_DISTRIBUTED;
+    return OScenarioThreadLocal.INSTANCE.isRunModeDistributed();
   }
 
   protected String getDistributedStorageId() {
-    return ((OAutoshardedStorage) ODatabaseRecordThreadLocal.INSTANCE.get().getStorage()).getStorageId();
+    return ((OAutoshardedStorage) ODatabaseRecordThreadLocal.instance().get().getStorage()).getStorageId();
   }
 }

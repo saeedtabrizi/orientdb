@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,17 +14,15 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.tinkerpop.blueprints.impls.orient;
 
-import org.apache.commons.configuration.Configuration;
-
 import com.orientechnologies.common.util.OPair;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.OPartitionedDatabasePool;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.exception.ORecordNotFoundException;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -32,16 +30,17 @@ import com.orientechnologies.orient.core.record.impl.ODocumentInternal;
 import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.blueprints.Features;
 import com.tinkerpop.blueprints.util.ExceptionFactory;
+import org.apache.commons.configuration.Configuration;
 
 /**
- * A Blueprints implementation of the graph database OrientDB (http://www.orientechnologies.com)
+ * A Blueprints implementation of the graph database OrientDB (http://orientdb.com)
  * 
- * @author Luca Garulli (http://www.orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com) (http://orientdb.com)
  */
 public class OrientGraph extends OrientTransactionalGraph {
   private boolean          featuresInitialized = false;
 
-  protected final Features FEATURES            = new Features();
+  protected final Features features = new Features();
 
   /**
    * Creates a new Transactional Graph using an existent database instance. User and password are passed in case of re-open.
@@ -49,7 +48,7 @@ public class OrientGraph extends OrientTransactionalGraph {
    * @param iDatabase
    *          Underlying database object to attach
    */
-  public OrientGraph(final ODatabaseDocumentTx iDatabase, final String iUserName, final String iUserPasswd) {
+  public OrientGraph(final ODatabaseDocumentInternal iDatabase, final String iUserName, final String iUserPasswd) {
     super(iDatabase, true, iUserName, iUserPasswd);
   }
 
@@ -62,7 +61,7 @@ public class OrientGraph extends OrientTransactionalGraph {
    * @param iAutoStartTx
    *          True to auto start a transaction at the beginning and after each commit/rollback
    */
-  public OrientGraph(final ODatabaseDocumentTx iDatabase, final boolean iAutoStartTx) {
+  public OrientGraph(final ODatabaseDocumentInternal iDatabase, final boolean iAutoStartTx) {
     super(iDatabase, iAutoStartTx, null, null);
   }
 
@@ -211,7 +210,7 @@ public class OrientGraph extends OrientTransactionalGraph {
    * @param iDatabase
    *          Underlying database object to attach
    */
-  public OrientGraph(final ODatabaseDocumentTx iDatabase) {
+  public OrientGraph(final ODatabaseDocumentInternal iDatabase) {
     super(iDatabase);
   }
 
@@ -221,7 +220,7 @@ public class OrientGraph extends OrientTransactionalGraph {
    * @param iDatabase
    *          Underlying database object to attach
    */
-  public OrientGraph(final ODatabaseDocumentTx iDatabase, final String iUser, final String iPassword,
+  public OrientGraph(final ODatabaseDocumentInternal iDatabase, final String iUser, final String iPassword,
       final Settings iConfiguration) {
     super(iDatabase, iUser, iPassword, iConfiguration);
   }
@@ -235,46 +234,46 @@ public class OrientGraph extends OrientTransactionalGraph {
     makeActive();
 
     if (!featuresInitialized) {
-      FEATURES.supportsDuplicateEdges = true;
-      FEATURES.supportsSelfLoops = true;
-      FEATURES.isPersistent = true;
-      FEATURES.supportsVertexIteration = true;
-      FEATURES.supportsVertexIndex = true;
-      FEATURES.ignoresSuppliedIds = true;
-      FEATURES.supportsTransactions = true;
-      FEATURES.supportsVertexKeyIndex = true;
-      FEATURES.supportsKeyIndices = true;
-      FEATURES.isWrapper = false;
-      FEATURES.supportsIndices = true;
-      FEATURES.supportsVertexProperties = true;
-      FEATURES.supportsEdgeProperties = true;
+      features.supportsDuplicateEdges = true;
+      features.supportsSelfLoops = true;
+      features.isPersistent = true;
+      features.supportsVertexIteration = true;
+      features.supportsVertexIndex = true;
+      features.ignoresSuppliedIds = true;
+      features.supportsTransactions = true;
+      features.supportsVertexKeyIndex = true;
+      features.supportsKeyIndices = true;
+      features.isWrapper = false;
+      features.supportsIndices = true;
+      features.supportsVertexProperties = true;
+      features.supportsEdgeProperties = true;
 
       // For more information on supported types, please see:
       // http://code.google.com/p/orient/wiki/Types
-      FEATURES.supportsSerializableObjectProperty = true;
-      FEATURES.supportsBooleanProperty = true;
-      FEATURES.supportsDoubleProperty = true;
-      FEATURES.supportsFloatProperty = true;
-      FEATURES.supportsIntegerProperty = true;
-      FEATURES.supportsPrimitiveArrayProperty = true;
-      FEATURES.supportsUniformListProperty = true;
-      FEATURES.supportsMixedListProperty = true;
-      FEATURES.supportsLongProperty = true;
-      FEATURES.supportsMapProperty = true;
-      FEATURES.supportsStringProperty = true;
-      FEATURES.supportsThreadedTransactions = false;
-      FEATURES.supportsThreadIsolatedTransactions = false;
+      features.supportsSerializableObjectProperty = true;
+      features.supportsBooleanProperty = true;
+      features.supportsDoubleProperty = true;
+      features.supportsFloatProperty = true;
+      features.supportsIntegerProperty = true;
+      features.supportsPrimitiveArrayProperty = true;
+      features.supportsUniformListProperty = true;
+      features.supportsMixedListProperty = true;
+      features.supportsLongProperty = true;
+      features.supportsMapProperty = true;
+      features.supportsStringProperty = true;
+      features.supportsThreadedTransactions = false;
+      features.supportsThreadIsolatedTransactions = false;
 
-      // DYNAMIC FEATURES BASED ON CONFIGURATION
-      FEATURES.supportsEdgeIndex = !isUseLightweightEdges();
-      FEATURES.supportsEdgeKeyIndex = !isUseLightweightEdges();
-      FEATURES.supportsEdgeIteration = !isUseLightweightEdges();
-      FEATURES.supportsEdgeRetrieval = !isUseLightweightEdges();
+      // DYNAMIC features BASED ON CONFIGURATION
+      features.supportsEdgeIndex = !isUseLightweightEdges();
+      features.supportsEdgeKeyIndex = !isUseLightweightEdges();
+      features.supportsEdgeIteration = !isUseLightweightEdges();
+      features.supportsEdgeRetrieval = !isUseLightweightEdges();
 
       featuresInitialized = true;
     }
 
-    return FEATURES;
+    return features;
   }
 
   OrientEdge addEdgeInternal(final OrientVertex currentVertex, String label, final OrientVertex inVertex, final String iClassName,
@@ -338,14 +337,14 @@ public class OrientGraph extends OrientTransactionalGraph {
       to = inDocument;
       if (edge == null) {
         if (settings.isKeepInMemoryReferences())
-          edge = new OrientEdge(this, from.getIdentity(), to.getIdentity(), label);
+          edge = getEdgeInstance( from.getIdentity(), to.getIdentity(), label);
         else
-          edge = new OrientEdge(this, from, to, label);
+          edge = getEdgeInstance( from, to, label);
       }
     } else {
       if (edge == null) {
         // CREATE THE EDGE DOCUMENT TO STORE FIELDS TOO
-        edge = new OrientEdge(this, label, fields);
+        edge = getEdgeInstance(label, fields);
 
         if (settings.isKeepInMemoryReferences())
           edge.getRecord().fields(OrientBaseGraph.CONNECTION_OUT, currentVertex.rawElement.getIdentity(),

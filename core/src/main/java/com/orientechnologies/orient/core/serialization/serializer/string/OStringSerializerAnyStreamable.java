@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.serialization.serializer.string;
@@ -23,9 +23,9 @@ import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.exception.OSerializationException;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.serialization.OBase64Utils;
 import com.orientechnologies.orient.core.serialization.OSerializableStream;
-import com.orientechnologies.orient.core.serialization.serializer.stream.OStreamSerializerHelper;
+
+import java.util.Base64;
 
 public class OStringSerializerAnyStreamable implements OStringSerializer {
   public static final OStringSerializerAnyStreamable INSTANCE = new OStringSerializerAnyStreamable();
@@ -42,7 +42,7 @@ public class OStringSerializerAnyStreamable implements OStringSerializer {
     OSerializableStream instance = null;
 
     int propertyPos = iStream.indexOf(':');
-    int pos = iStream.indexOf(OStreamSerializerHelper.SEPARATOR);
+    int pos = iStream.indexOf(OStringSerializerEmbedded.SEPARATOR);
     if (pos < 0 || propertyPos > -1 && pos > propertyPos) {
       instance = new ODocument();
       pos = -1;
@@ -58,7 +58,7 @@ public class OStringSerializerAnyStreamable implements OStringSerializer {
       }
     }
 
-    instance.fromStream(OBase64Utils.decode(iStream.substring(pos + 1)));
+    instance.fromStream(Base64.getDecoder().decode(iStream.substring(pos + 1)));
     return instance;
   }
 
@@ -74,8 +74,8 @@ public class OStringSerializerAnyStreamable implements OStringSerializer {
 
       OSerializableStream stream = (OSerializableStream) iValue;
       iOutput.append(iValue.getClass().getName());
-      iOutput.append(OStreamSerializerHelper.SEPARATOR);
-      iOutput.append(OBase64Utils.encodeBytes(stream.toStream()));
+      iOutput.append(OStringSerializerEmbedded.SEPARATOR);
+      iOutput.append(Base64.getEncoder().encodeToString(stream.toStream()));
     }
     return iOutput;
   }

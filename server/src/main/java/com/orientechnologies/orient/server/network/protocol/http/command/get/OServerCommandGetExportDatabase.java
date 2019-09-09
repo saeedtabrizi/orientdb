@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.network.protocol.http.command.get;
@@ -39,8 +39,7 @@ public class OServerCommandGetExportDatabase extends OServerCommandAuthenticated
   public boolean execute(final OHttpRequest iRequest, final OHttpResponse iResponse) throws Exception {
     String[] urlParts = checkSyntax(iRequest.url, 2, "Syntax error: export/<database>/[<name>][?params*]");
 
-    if (urlParts.length > 2) {
-    } else {
+    if (urlParts.length <= 2) {
       exportStandard(iRequest, iResponse);
     }
     return false;

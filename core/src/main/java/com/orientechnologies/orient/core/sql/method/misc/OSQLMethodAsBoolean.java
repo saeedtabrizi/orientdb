@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Orient Technologies.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  * Copyright 2013 Geomatys.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,35 +20,26 @@ import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 
 /**
- *
  * @author Johann Sorel (Geomatys)
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OSQLMethodAsBoolean extends OAbstractSQLMethod {
 
-    public static final String NAME = "asboolean";
+  public static final String NAME = "asboolean";
 
-    public OSQLMethodAsBoolean() {
-        super(NAME);
-    }
+  public OSQLMethodAsBoolean() {
+    super(NAME);
+  }
 
-    @Override
-    public Object execute(Object iThis, OIdentifiable iCurrentRecord, OCommandContext iContext, Object ioResult, Object[] iParams) {
-        if (ioResult != null) {
-            if (ioResult instanceof String) {
-                ioResult = Boolean.valueOf(((String) ioResult).trim());
-            } else if (ioResult instanceof Number) {
-                final int bValue = ((Number) ioResult).intValue();
-                if (bValue == 0) {
-                    ioResult = Boolean.FALSE;
-                } else if (bValue == 1) {
-                    ioResult = Boolean.TRUE;
-                } else {
-                    // IGNORE OTHER VALUES
-                    ioResult = null;
-                }
-            }
-        }
-        return ioResult;
+  @Override
+  public Object execute(Object iThis, OIdentifiable iCurrentRecord, OCommandContext iContext, Object ioResult, Object[] iParams) {
+    if (ioResult != null) {
+      if (ioResult instanceof String) {
+        ioResult = Boolean.valueOf(((String) ioResult).trim());
+      } else if (ioResult instanceof Number) {
+        return ((Number) ioResult).intValue() != 0;
+      }
     }
+    return ioResult;
+  }
 }

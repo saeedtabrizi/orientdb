@@ -4,18 +4,17 @@ package com.orientechnologies.orient.core.sql.parser;
 
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
+import com.orientechnologies.orient.core.sql.executor.OResult;
+import com.orientechnologies.orient.core.sql.executor.OResultInternal;
 
 import java.util.Map;
+import java.util.Set;
 
 public class OArrayNumberSelector extends SimpleNode {
-  private static final Object UNSET           = new Object();
-  private Object              inputFinalValue = UNSET;
+  OInputParameter inputValue;
+  OMathExpression expressionValue;
 
-  OInputParameter             inputValue;
-
-  OMathExpression             expressionValue;
-
-  Integer                     integer;
+  Integer integer;
 
   public OArrayNumberSelector(int id) {
     super(id);
@@ -25,7 +24,9 @@ public class OArrayNumberSelector extends SimpleNode {
     super(p, id);
   }
 
-  /** Accept the visitor. **/
+  /**
+   * Accept the visitor.
+   **/
   public Object jjtAccept(OrientSqlVisitor visitor, Object data) {
     return visitor.visit(this, data);
   }
@@ -43,7 +44,7 @@ public class OArrayNumberSelector extends SimpleNode {
   public Integer getValue(OIdentifiable iCurrentRecord, Object iResult, OCommandContext ctx) {
     Object result = null;
     if (inputValue != null) {
-      result = inputValue.bindFromInputParams(ctx.getInputParameters());
+      result = inputValue.getValue(ctx.getInputParameters());
     } else if (expressionValue != null) {
       result = expressionValue.execute(iCurrentRecord, ctx);
     } else if (integer != null) {
@@ -59,5 +60,98 @@ public class OArrayNumberSelector extends SimpleNode {
     return null;
   }
 
+  public Integer getValue(OResult iCurrentRecord, Object iResult, OCommandContext ctx) {
+    Object result = null;
+    if (inputValue != null) {
+      result = inputValue.getValue(ctx.getInputParameters());
+    } else if (expressionValue != null) {
+      result = expressionValue.execute(iCurrentRecord, ctx);
+    } else if (integer != null) {
+      result = integer;
+    }
+
+    if (result == null) {
+      return null;
+    }
+    if (result instanceof Number) {
+      return ((Number) result).intValue();
+    }
+    return null;
+  }
+
+  public boolean needsAliases(Set<String> aliases) {
+    if (expressionValue != null) {
+      return expressionValue.needsAliases(aliases);
+    }
+    return false;
+  }
+
+  public OArrayNumberSelector copy() {
+    OArrayNumberSelector result = new OArrayNumberSelector(-1);
+    result.inputValue = inputValue == null ? null : inputValue.copy();
+    result.expressionValue = expressionValue == null ? null : expressionValue.copy();
+    result.integer = integer;
+    return result;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OArrayNumberSelector that = (OArrayNumberSelector) o;
+
+    if (inputValue != null ? !inputValue.equals(that.inputValue) : that.inputValue != null)
+      return false;
+    if (expressionValue != null ? !expressionValue.equals(that.expressionValue) : that.expressionValue != null)
+      return false;
+    return integer != null ? integer.equals(that.integer) : that.integer == null;
+  }
+
+  @Override
+  public int hashCode() {
+    int result = inputValue != null ? inputValue.hashCode() : 0;
+    result = 31 * result + (expressionValue != null ? expressionValue.hashCode() : 0);
+    result = 31 * result + (integer != null ? integer.hashCode() : 0);
+    return result;
+  }
+
+  public void extractSubQueries(SubQueryCollector collector) {
+    if (expressionValue != null) {
+      expressionValue.extractSubQueries(collector);
+    }
+  }
+
+  public boolean refersToParent() {
+    if (expressionValue != null && expressionValue.refersToParent()) {
+      return true;
+    }
+    return false;
+  }
+
+  public OResult serialize() {
+    OResultInternal result = new OResultInternal();
+    if (inputValue != null) {
+      result.setProperty("inputValue", inputValue.serialize());
+    }
+    if (expressionValue != null) {
+      result.setProperty("expressionValue", expressionValue.serialize());
+    }
+    result.setProperty("integer", integer);
+    return result;
+  }
+
+  public void deserialize(OResult fromResult) {
+    if (fromResult.getProperty("inputValue") != null) {
+      inputValue = OInputParameter.deserializeFromOResult(fromResult.getProperty("inputValue"));
+    }
+    if (fromResult.getProperty("toSelector") != null) {
+      expressionValue = new OMathExpression(-1);
+      expressionValue.deserialize(fromResult.getProperty("expressionValue"));
+    }
+    integer = fromResult.getProperty("integer");
+  }
 }
 /* JavaCC - OriginalChecksum=5b2e495391ede3ccdc6c25aa63c8e591 (do not edit this line) */

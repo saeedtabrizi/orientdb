@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,86 +14,86 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.index;
 
 import com.orientechnologies.common.collection.OMultiValue;
-import com.orientechnologies.common.concur.lock.OLockManager;
+import com.orientechnologies.common.concur.lock.OOneEntryPerKeyLockManager;
+import com.orientechnologies.common.concur.lock.OPartitionedLockManager;
 import com.orientechnologies.common.concur.lock.OReadersWriterSpinLock;
 import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.common.listener.OProgressListener;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.common.serialization.types.OBinarySerializer;
-import com.orientechnologies.orient.core.OOrientShutdownListener;
-import com.orientechnologies.orient.core.OOrientStartupListener;
-import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
-import com.orientechnologies.orient.core.db.ODatabase;
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
-import com.orientechnologies.orient.core.db.record.ridbag.sbtree.OIndexRIDContainer;
-import com.orientechnologies.orient.core.exception.OCommandExecutionException;
-import com.orientechnologies.orient.core.exception.OConfigurationException;
-import com.orientechnologies.orient.core.exception.OTransactionException;
+import com.orientechnologies.orient.core.exception.*;
+import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.index.engine.OBaseIndexEngine;
 import com.orientechnologies.orient.core.intent.OIntentMassiveInsert;
 import com.orientechnologies.orient.core.metadata.schema.OType;
+import com.orientechnologies.orient.core.metadata.security.OSecurityInternal;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.record.impl.ODocumentInternal;
-import com.orientechnologies.orient.core.serialization.serializer.OStringSerializerHelper;
-import com.orientechnologies.orient.core.serialization.serializer.record.string.ORecordSerializerSchemaAware2CSV;
-import com.orientechnologies.orient.core.serialization.serializer.stream.OStreamSerializerAnyStreamable;
+import com.orientechnologies.orient.core.storage.OStorage;
 import com.orientechnologies.orient.core.storage.cache.OReadCache;
 import com.orientechnologies.orient.core.storage.cache.OWriteCache;
 import com.orientechnologies.orient.core.storage.impl.local.OAbstractPaginatedStorage;
-import com.orientechnologies.orient.core.storage.impl.local.OIndexEngineCallback;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.atomicoperations.OAtomicOperation;
-import com.orientechnologies.orient.core.tx.OTransactionIndexChanges.OPERATION;
+import com.orientechnologies.orient.core.storage.impl.local.paginated.atomicoperations.OAtomicOperationsManager;
+import com.orientechnologies.orient.core.storage.ridbag.sbtree.OIndexRIDContainer;
+import com.orientechnologies.orient.core.tx.OTransactionIndexChanges;
+import com.orientechnologies.orient.core.tx.OTransactionIndexChangesPerKey;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
- * Handles indexing when records change.
+ * Handles indexing when records change. The underlying lock manager for keys can be the {@link OPartitionedLockManager}, the
+ * default one, or the {@link OOneEntryPerKeyLockManager} in case of distributed. This is to avoid deadlock situation between nodes
+ * where keys have the same hash code.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
-public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientStartupListener, OOrientShutdownListener {
+public abstract class OIndexAbstract<T> implements OIndexInternal<T> {
 
-  protected static final String                 CONFIG_MAP_RID  = "mapRid";
-  protected static final String                 CONFIG_CLUSTERS = "clusters";
-  protected final String                        type;
-  protected final OLockManager<Object>          keyLockManager  = new OLockManager<Object>(true, -1,
-      OGlobalConfiguration.COMPONENTS_LOCK_CACHE.getValueAsInteger());
-  protected volatile IndexConfiguration         configuration;
+  protected static final String CONFIG_MAP_RID = "mapRid";
+  private static final String CONFIG_CLUSTERS = "clusters";
+  final String type;
+  protected final ODocument metadata;
+  protected final OAbstractPaginatedStorage storage;
+  private final String databaseName;
+  private final String name;
+  private final OReadersWriterSpinLock rwLock = new OReadersWriterSpinLock();
+  private final AtomicLong rebuildVersion = new AtomicLong();
+  private final int version;
+  volatile IndexConfiguration configuration;
+  String valueContainerAlgorithm;
 
-  protected final ODocument                     metadata;
-  protected final OAbstractPaginatedStorage     storage;
-  private final String                          databaseName;
-  private final String                          name;
+  protected int indexId = -1;
+  protected int apiVersion = -1;
 
-  private final OReadersWriterSpinLock          rwLock          = new OReadersWriterSpinLock();
-  private final AtomicLong                      rebuildVersion  = new AtomicLong();
+  protected Set<String> clustersToIndex = new HashSet<>();
+  private String algorithm;
+  private volatile OIndexDefinition indexDefinition;
+  private volatile boolean rebuilding = false;
+  private Map<String, String> engineProperties = new HashMap<>();
+  final int binaryFormatVersion;
 
-  private final int                             version;
-  protected String                              valueContainerAlgorithm;
-  protected int                                 indexId         = -1;
-  private String                                algorithm;
-  private Set<String>                           clustersToIndex = new HashSet<String>();
-  private volatile OIndexDefinition             indexDefinition;
-  private volatile boolean                      rebuilding      = false;
-  private volatile ThreadLocal<IndexTxSnapshot> txSnapshot      = new IndexTxSnapshotThreadLocal();
-
-  public OIndexAbstract(String name, final String type, String algorithm, String valueContainerAlgorithm, ODocument metadata,
-      int version, OAbstractPaginatedStorage storage) {
+  public OIndexAbstract(String name, final String type, final String algorithm, final String valueContainerAlgorithm,
+                        final ODocument metadata, final int version, final OStorage storage, int binaryFormatVersion) {
+    this.binaryFormatVersion = binaryFormatVersion;
     acquireExclusiveLock();
     try {
-      databaseName = ODatabaseRecordThreadLocal.INSTANCE.get().getName();
+      databaseName = storage.getName();
 
       this.version = version;
       this.name = name;
@@ -101,18 +101,15 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
       this.algorithm = algorithm;
       this.metadata = metadata;
       this.valueContainerAlgorithm = valueContainerAlgorithm;
-      this.storage = storage;
-
-      Orient.instance().registerWeakOrientStartupListener(this);
-      Orient.instance().registerWeakOrientShutdownListener(this);
+      this.storage = (OAbstractPaginatedStorage) storage.getUnderlying();
     } finally {
       releaseExclusiveLock();
     }
   }
 
   public static OIndexMetadata loadMetadataInternal(final ODocument config, final String type, final String algorithm,
-      final String valueContainerAlgorithm) {
-    String indexName = config.field(OIndexInternal.CONFIG_NAME);
+                                                    final String valueContainerAlgorithm) {
+    final String indexName = config.field(OIndexInternal.CONFIG_NAME);
 
     final ODocument indexDefinitionDoc = config.field(OIndexInternal.INDEX_DEFINITION);
     OIndexDefinition loadedIndexDefinition = null;
@@ -123,15 +120,7 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
         loadedIndexDefinition = (OIndexDefinition) indexDefClass.getDeclaredConstructor().newInstance();
         loadedIndexDefinition.fromStream(indexDefinitionDoc);
 
-      } catch (final ClassNotFoundException e) {
-        throw OException.wrapException(new OIndexException("Error during deserialization of index definition"), e);
-      } catch (final NoSuchMethodException e) {
-        throw OException.wrapException(new OIndexException("Error during deserialization of index definition"), e);
-      } catch (final InvocationTargetException e) {
-        throw OException.wrapException(new OIndexException("Error during deserialization of index definition"), e);
-      } catch (final InstantiationException e) {
-        throw OException.wrapException(new OIndexException("Error during deserialization of index definition"), e);
-      } catch (final IllegalAccessException e) {
+      } catch (final ClassNotFoundException | IllegalAccessException | InstantiationException | InvocationTargetException | NoSuchMethodException e) {
         throw OException.wrapException(new OIndexException("Error during deserialization of index definition"), e);
       }
     } else {
@@ -142,7 +131,7 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
         final int pos = indexName.lastIndexOf('.');
         if (pos < 0)
           throw new OIndexException(
-              "Cannot convert from old index model to new one. " + "Invalid index name. Dot (.) separator should be present");
+                  "Cannot convert from old index model to new one. " + "Invalid index name. Dot (.) separator should be present");
         final String className = indexName.substring(0, pos);
         final String propertyName = indexName.substring(pos + 1);
 
@@ -159,26 +148,15 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
         final String keyTypeStr = config.field(OIndexInternal.CONFIG_KEYTYPE);
         final OType keyType = OType.valueOf(keyTypeStr.toUpperCase(Locale.ENGLISH));
 
-        loadedIndexDefinition = new OSimpleKeyIndexDefinition(factory.getLastVersion(), keyType);
+        loadedIndexDefinition = new OSimpleKeyIndexDefinition(keyType);
 
         config.removeField(OIndexInternal.CONFIG_KEYTYPE);
       }
     }
 
-    final Set<String> clusters = new HashSet<String>((Collection<String>) config.field(CONFIG_CLUSTERS, OType.EMBEDDEDSET));
+    final Set<String> clusters = new HashSet<>(config.field(CONFIG_CLUSTERS, OType.EMBEDDEDSET));
 
     return new OIndexMetadata(indexName, loadedIndexDefinition, clusters, type, algorithm, valueContainerAlgorithm);
-  }
-
-  @Override
-  public void onShutdown() {
-    txSnapshot = null;
-  }
-
-  @Override
-  public void onStartup() {
-    if (txSnapshot == null)
-      txSnapshot = new IndexTxSnapshotThreadLocal();
   }
 
   public void flush() {
@@ -186,27 +164,29 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
 
   @Override
   public boolean hasRangeQuerySupport() {
+
     acquireSharedLock();
     try {
-      return storage.hasIndexRangeQuerySupport(indexId);
+      while (true)
+        try {
+          return storage.hasIndexRangeQuerySupport(indexId);
+        } catch (OInvalidIndexEngineIdException ignore) {
+          doReloadIndexEngine();
+        }
     } finally {
       releaseSharedLock();
     }
+
   }
 
   /**
    * Creates the index.
    *
-   * @param clusterIndexName
-   *          Cluster name where to place the TreeMap
-   * @param clustersToIndex
-   * @param rebuild
-   * @param progressListener
-   * @param valueSerializer
+   * @param clusterIndexName Cluster name where to place the TreeMap
    */
   public OIndexInternal<?> create(final OIndexDefinition indexDefinition, final String clusterIndexName,
-      final Set<String> clustersToIndex, boolean rebuild, final OProgressListener progressListener,
-      final OBinarySerializer valueSerializer) {
+                                  final Set<String> clustersToIndex, boolean rebuild, final OProgressListener progressListener,
+                                  final OBinarySerializer valueSerializer) {
     acquireExclusiveLock();
     try {
       configuration = indexConfigurationInstance(new ODocument().setTrackingChanges(false));
@@ -214,39 +194,45 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
       this.indexDefinition = indexDefinition;
 
       if (clustersToIndex != null)
-        this.clustersToIndex = new HashSet<String>(clustersToIndex);
+        this.clustersToIndex = new HashSet<>(clustersToIndex);
       else
-        this.clustersToIndex = new HashSet<String>();
+        this.clustersToIndex = new HashSet<>();
 
       // do not remove this, it is needed to remove index garbage if such one exists
       try {
-        removeValuesContainer();
+        if (apiVersion == 0) {
+          removeValuesContainer();
+        }
       } catch (Exception e) {
-        OLogManager.instance().error(this, "Error during deletion of index '%s'", name);
+        OLogManager.instance().error(this, "Error during deletion of index '%s'", e, name);
       }
 
-      final Boolean durableInNonTxMode = isDurableInNonTxMode();
+      indexId = storage.addIndexEngine(name, algorithm, type, indexDefinition, valueSerializer, isAutomatic(), true, version, 1,
+              this instanceof OIndexMultiValues, getEngineProperties(), clustersToIndex, metadata);
+      apiVersion = OAbstractPaginatedStorage.extractEngineAPIVersion(indexId);
 
-      indexId = storage.addIndexEngine(name, algorithm, type, indexDefinition, valueSerializer, isAutomatic(), durableInNonTxMode,
-          version, getEngineProperties(), clustersToIndex, metadata);
       assert indexId >= 0;
+      assert apiVersion >= 0;
 
       onIndexEngineChange(indexId);
 
       if (rebuild)
-        fillIndex(progressListener);
+        fillIndex(progressListener, false);
 
       updateConfiguration();
     } catch (Exception e) {
       OLogManager.instance().error(this, "Exception during index '%s' creation", e, name);
 
-      try {
-        if (indexId >= 0)
-          storage.deleteIndexEngine(indexId);
-
-      } catch (Exception ex) {
-        OLogManager.instance().error(this, "Exception during index '%s' deletion", ex, name);
-      }
+      while (true)
+        try {
+          if (indexId >= 0)
+            storage.deleteIndexEngine(indexId);
+          break;
+        } catch (OInvalidIndexEngineIdException ignore) {
+          doReloadIndexEngine();
+        } catch (Exception ex) {
+          OLogManager.instance().error(this, "Exception during index '%s' deletion", ex, name);
+        }
 
       if (e instanceof OIndexException)
         throw (OIndexException) e;
@@ -260,6 +246,15 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
     return this;
   }
 
+  protected void doReloadIndexEngine() {
+    indexId = storage.loadIndexEngine(name);
+    apiVersion = OAbstractPaginatedStorage.extractEngineAPIVersion(indexId);
+
+    if (indexId < 0) {
+      throw new IllegalStateException("Index " + name + " can not be loaded");
+    }
+  }
+
   public long count(final Object iKey) {
     final Object result = get(iKey);
     if (result == null)
@@ -267,22 +262,6 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
     else if (OMultiValue.isMultiValue(result))
       return OMultiValue.getSize(result);
     return 1;
-  }
-
-  private Boolean isDurableInNonTxMode() {
-    Boolean durableInNonTxMode;
-
-    Object durable = null;
-
-    if (metadata != null) {
-      durable = metadata.field("durableInNonTxMode");
-    }
-
-    if (durable instanceof Boolean)
-      durableInNonTxMode = (Boolean) durable;
-    else
-      durableInNonTxMode = null;
-    return durableInNonTxMode;
   }
 
   public boolean loadFromConfiguration(final ODocument config) {
@@ -299,14 +278,18 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
 
       try {
         indexId = storage.loadIndexEngine(name);
+        apiVersion = OAbstractPaginatedStorage.extractEngineAPIVersion(indexId);
 
         if (indexId == -1) {
-          indexId = storage.loadExternalIndexEngine(name, algorithm, type, indexDefinition, determineValueSerializer(),
-              isAutomatic(), isDurableInNonTxMode(), version, getEngineProperties());
+          indexId = storage
+                  .loadExternalIndexEngine(name, algorithm, type, indexDefinition, determineValueSerializer(), isAutomatic(), true,
+                          version, 1, this instanceof OIndexMultiValues, getEngineProperties(), metadata);
+          apiVersion = OAbstractPaginatedStorage.extractEngineAPIVersion(indexId);
         }
 
-        if (indexId == -1)
+        if (indexId == -1) {
           return false;
+        }
 
         onIndexEngineChange(indexId);
 
@@ -318,9 +301,10 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
           OLogManager.instance().warn(this, "Cannot load index '%s' rebuilt it from scratch", getName());
           try {
             rebuild();
-          } catch (Throwable t) {
-            OLogManager.instance().error(this,
-                "Cannot rebuild index '%s' because '" + t + "'. The index will be removed in configuration", e, getName());
+          } catch (Exception t) {
+            OLogManager.instance()
+                    .error(this, "Cannot rebuild index '%s' because '" + t + "'. The index will be removed in configuration", e,
+                            getName());
             // REMOVE IT
             return false;
           }
@@ -333,8 +317,8 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
     }
   }
 
-  protected Map<String, String> getEngineProperties() {
-    return Collections.emptyMap();
+  private Map<String, String> getEngineProperties() {
+    return engineProperties;
   }
 
   @Override
@@ -345,23 +329,18 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
   public boolean contains(Object key) {
     key = getCollatingValue(key);
 
-    final ODatabase database = getDatabase();
-    final boolean txIsActive = database.getTransaction().isActive();
-
-    if (!txIsActive)
-      keyLockManager.acquireSharedLock(key);
+    acquireSharedLock();
     try {
+      assert indexId >= 0;
 
-      acquireSharedLock();
-      try {
-        assert indexId >= 0;
-        return storage.indexContainsKey(indexId, key);
-      } finally {
-        releaseSharedLock();
-      }
+      while (true)
+        try {
+          return storage.indexContainsKey(indexId, key);
+        } catch (OInvalidIndexEngineIdException ignore) {
+          doReloadIndexEngine();
+        }
     } finally {
-      if (!txIsActive)
-        keyLockManager.releaseSharedLock(key);
+      releaseSharedLock();
     }
   }
 
@@ -386,7 +365,12 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
   public Object getFirstKey() {
     acquireSharedLock();
     try {
-      return storage.getIndexFirstKey(indexId);
+      while (true)
+        try {
+          return storage.getIndexFirstKey(indexId);
+        } catch (OInvalidIndexEngineIdException ignore) {
+          doReloadIndexEngine();
+        }
     } finally {
       releaseSharedLock();
     }
@@ -396,7 +380,12 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
   public Object getLastKey() {
     acquireSharedLock();
     try {
-      return storage.getIndexLastKey(indexId);
+      while (true)
+        try {
+          return storage.getIndexLastKey(indexId);
+        } catch (OInvalidIndexEngineIdException ignore) {
+          doReloadIndexEngine();
+        }
     } finally {
       releaseSharedLock();
     }
@@ -414,7 +403,7 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
    * {@inheritDoc}
    */
   public long rebuild(final OProgressListener iProgressListener) {
-    long documentIndexed = 0;
+    long documentIndexed;
 
     final boolean intentInstalled = getDatabase().declareIntent(new OIntentMassiveInsert());
 
@@ -426,16 +415,19 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
       rebuildVersion.incrementAndGet();
 
       try {
-        if (indexId >= 0)
+        if (indexId >= 0) {
           storage.deleteIndexEngine(indexId);
+        }
       } catch (Exception e) {
-        OLogManager.instance().error(this, "Error during index '%s' delete", name);
+        OLogManager.instance().error(this, "Error during index '%s' delete", e, name);
       }
 
       removeValuesContainer();
 
-      indexId = storage.addIndexEngine(name, algorithm, type, indexDefinition, determineValueSerializer(), isAutomatic(),
-          isDurableInNonTxMode(), version, getEngineProperties(), clustersToIndex, metadata);
+      indexId = storage
+              .addIndexEngine(name, algorithm, type, indexDefinition, determineValueSerializer(), isAutomatic(), true, version, 1,
+                      this instanceof OIndexMultiValues, getEngineProperties(), clustersToIndex, metadata);
+      apiVersion = OAbstractPaginatedStorage.extractEngineAPIVersion(indexId);
 
       onIndexEngineChange(indexId);
     } catch (Exception e) {
@@ -455,8 +447,9 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
 
     acquireSharedLock();
     try {
-      documentIndexed = fillIndex(iProgressListener);
+      documentIndexed = fillIndex(iProgressListener, true);
     } catch (final Exception e) {
+      OLogManager.instance().error(this, "Error during index rebuild", e);
       try {
         if (indexId >= 0)
           storage.clearIndex(indexId);
@@ -478,17 +471,17 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
     return documentIndexed;
   }
 
-  private long fillIndex(OProgressListener iProgressListener) {
+  private long fillIndex(final OProgressListener iProgressListener, final boolean rebuild) {
     long documentIndexed = 0;
     try {
       long documentNum = 0;
       long documentTotal = 0;
 
       for (final String cluster : clustersToIndex)
-        documentTotal += getDatabase().countClusterElements(cluster);
+        documentTotal += storage.count(storage.getClusterIdByName(cluster));
 
       if (iProgressListener != null)
-        iProgressListener.onBegin(this, documentTotal, true);
+        iProgressListener.onBegin(this, documentTotal, rebuild);
 
       // INDEX ALL CLUSTERS
       for (final String clusterName : clustersToIndex) {
@@ -514,131 +507,101 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
   public boolean remove(Object key) {
     key = getCollatingValue(key);
 
-    final ODatabase database = getDatabase();
-    final boolean txIsActive = database.getTransaction().isActive();
-
-    if (!txIsActive)
-      keyLockManager.acquireExclusiveLock(key);
+    acquireSharedLock();
     try {
-      acquireSharedLock();
-      try {
-        return storage.removeKeyFromIndex(indexId, key);
-      } finally {
-        releaseSharedLock();
-      }
+      while (true)
+        try {
+          return storage.removeKeyFromIndex(indexId, key);
+        } catch (OInvalidIndexEngineIdException ignore) {
+          doReloadIndexEngine();
+        }
     } finally {
-      if (!txIsActive)
-        keyLockManager.releaseExclusiveLock(key);
+      releaseSharedLock();
     }
   }
 
+  /**
+   * {@inheritDoc}
+   *
+   * @deprecated Manual indexes are deprecated and will be removed
+   */
   @Override
-  public void lockKeysForUpdateNoTx(Object... key) {
-    final ODatabase database = getDatabase();
-    final boolean txIsActive = database.getTransaction().isActive();
-
-    if (!txIsActive)
-      keyLockManager.acquireExclusiveLocksInBatch(key);
-  }
-
-  @Override
-  public void lockKeysForUpdateNoTx(final Collection<Object> keys) {
-    if (keys == null || keys.isEmpty())
-      return;
-
-    final ODatabase database = getDatabase();
-    final boolean txIsActive = database.getTransaction().isActive();
-
-    if (!txIsActive) {
-      keyLockManager.acquireExclusiveLocksInBatch(keys);
-    }
-  }
-
-  @Override
-  public void releaseKeysForUpdateNoTx(Object... key) {
-    if (key == null)
-      return;
-
-    final ODatabase database = getDatabase();
-    final boolean txIsActive = database.getTransaction().isActive();
-
-    if (!txIsActive) {
-      for (Object k : key) {
-        keyLockManager.releaseExclusiveLock(k);
-      }
-    }
-  }
-
-  @Override
-  public void releaseKeysForUpdateNoTx(final Collection<Object> keys) {
-    if (keys == null || keys.isEmpty())
-      return;
-
-    final ODatabase database = getDatabase();
-    final boolean txIsActive = database.getTransaction().isActive();
-
-    if (!txIsActive) {
-      for (Object k : keys) {
-        keyLockManager.releaseExclusiveLock(k);
-      }
-    }
-  }
-
+  @Deprecated
   public OIndex<T> clear() {
-    final ODatabase database = getDatabase();
-    final boolean txIsActive = database.getTransaction().isActive();
-
-    if (!txIsActive)
-      keyLockManager.lockAllExclusive();
-
+    acquireSharedLock();
     try {
-      acquireSharedLock();
-      try {
-        storage.clearIndex(indexId);
-        return this;
-      } finally {
-        releaseSharedLock();
-      }
+      while (true)
+        try {
+          final boolean manualIndexesAreUsed =
+                  indexDefinition == null || indexDefinition.getClassName() == null || indexDefinition.getFields() == null
+                          || indexDefinition.getFields().isEmpty();
+          if (manualIndexesAreUsed) {
+            OIndexAbstract.manualIndexesWarning();
+          }
+
+          storage.clearIndex(indexId);
+          break;
+        } catch (OInvalidIndexEngineIdException ignore) {
+          doReloadIndexEngine();
+        }
+      return this;
     } finally {
-      if (!txIsActive)
-        keyLockManager.unlockAllExclusive();
+      releaseSharedLock();
     }
   }
 
   public OIndexInternal<T> delete() {
     acquireExclusiveLock();
-    try {
 
-      storage.deleteIndexEngine(indexId);
+    try {
+      while (true)
+        try {
+          final OIndexKeyCursor indexCursor = keyCursor();
+
+          Object key = indexCursor.next(-1);
+          while (key != null) {
+            Object entry = get(key);
+            if (entry instanceof Collection) {
+              //noinspection unchecked
+              for (final OIdentifiable entryItem : (Collection<OIdentifiable>) entry) {
+                remove(key, entryItem);
+              }
+            } else {
+              remove(key, (OIdentifiable) entry);
+            }
+
+            key = indexCursor.next(-1);
+          }
+
+          storage.deleteIndexEngine(indexId);
+          break;
+        } catch (OInvalidIndexEngineIdException ignore) {
+          doReloadIndexEngine();
+        }
 
       // REMOVE THE INDEX ALSO FROM CLASS MAP
       if (getDatabase().getMetadata() != null)
-        getDatabase().getMetadata().getIndexManager().removeClassPropertyIndex(this);
+        getDatabase().getMetadata().getIndexManagerInternal().removeClassPropertyIndex(this);
 
       removeValuesContainer();
       return this;
-
     } finally {
       releaseExclusiveLock();
     }
   }
 
   public String getName() {
-    acquireSharedLock();
-    try {
-      return name;
-    } finally {
-      releaseSharedLock();
-    }
+    return name;
   }
 
   public String getType() {
-    acquireSharedLock();
-    try {
-      return type;
-    } finally {
-      releaseSharedLock();
-    }
+    return type;
+  }
+
+  @Override
+  public void setType(OType type) {
+    indexDefinition = new OSimpleKeyIndexDefinition(type);
+    updateConfiguration();
   }
 
   @Override
@@ -704,59 +667,84 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
     }
   }
 
-  public ODocument checkEntry(final OIdentifiable iRecord, final Object iKey) {
-    return null;
+  @Override
+  public int getVersion() {
+    return version;
   }
 
   public ODocument updateConfiguration() {
     configuration.updateConfiguration(type, name, version, indexDefinition, clustersToIndex, algorithm, valueContainerAlgorithm);
+    if (metadata != null)
+      configuration.document.field(OIndexInternal.METADATA, metadata, OType.EMBEDDED);
     return configuration.getDocument();
   }
 
-  @SuppressWarnings("unchecked")
-  public void addTxOperation(final ODocument operationDocument) {
-    if (operationDocument == null)
-      return;
-
+  public void addTxOperation(IndexTxSnapshot snapshots, final OTransactionIndexChanges changes) {
     acquireSharedLock();
     try {
-      final IndexTxSnapshot indexTxSnapshot = txSnapshot.get();
-
-      final Boolean clearAll = operationDocument.field("clear");
-      if (clearAll != null && clearAll)
-        clearSnapshot(indexTxSnapshot);
-
-      final Collection<ODocument> entries = operationDocument.field("entries");
-      final Map<Object, Object> snapshot = indexTxSnapshot.indexSnapshot;
-      for (final ODocument entry : entries)
+      if (changes.cleared)
+        clearSnapshot(snapshots);
+      final Map<Object, Object> snapshot = snapshots.indexSnapshot;
+      for (final OTransactionIndexChangesPerKey entry : changes.changesPerKey.values()) {
         applyIndexTxEntry(snapshot, entry);
+      }
+      applyIndexTxEntry(snapshot, changes.nullKeyChanges);
 
-      final ODocument nullIndexEntry = operationDocument.field("nullEntries");
-      applyIndexTxEntry(snapshot, nullIndexEntry);
     } finally {
       releaseSharedLock();
     }
   }
 
-  public void commit() {
+  /**
+   * Interprets transaction index changes for a certain key. Override it to customize index behaviour on interpreting index changes.
+   * This may be viewed as an optimization, but in some cases this is a requirement. For example, if you put multiple values under
+   * the same key during the transaction for single-valued/unique index, but remove all of them except one before commit, there is
+   * no point in throwing {@link com.orientechnologies.orient.core.storage.ORecordDuplicatedException} while applying index
+   * changes.
+   *
+   * @param changes the changes to interpret.
+   * @return the interpreted index key changes.
+   */
+  protected Iterable<OTransactionIndexChangesPerKey.OTransactionIndexEntry> interpretTxKeyChanges(
+          OTransactionIndexChangesPerKey changes) {
+    return changes.entries;
+  }
+
+  private void applyIndexTxEntry(Map<Object, Object> snapshot, OTransactionIndexChangesPerKey entry) {
+    for (OTransactionIndexChangesPerKey.OTransactionIndexEntry op : interpretTxKeyChanges(entry)) {
+      switch (op.operation) {
+      case PUT:
+        putInSnapshot(entry.key, op.value, snapshot);
+        break;
+      case REMOVE:
+        if (op.value != null)
+          removeFromSnapshot(entry.key, op.value, snapshot);
+        else
+          removeFromSnapshot(entry.key, snapshot);
+        break;
+      case CLEAR:
+        // SHOULD NEVER BE THE CASE HANDLE BY cleared FLAG
+        break;
+      }
+    }
+  }
+
+  public void commit(IndexTxSnapshot snapshots) {
     acquireSharedLock();
     try {
-      final IndexTxSnapshot indexTxSnapshot = txSnapshot.get();
-      if (indexTxSnapshot.clear)
+      if (snapshots.clear)
         clear();
 
-      commitSnapshot(indexTxSnapshot.indexSnapshot);
+      commitSnapshot(snapshots.indexSnapshot);
     } finally {
       releaseSharedLock();
     }
   }
 
-  public void preCommit() {
-    txSnapshot.set(new IndexTxSnapshot());
+  public void preCommit(IndexTxSnapshot snapshots) {
   }
 
-  public void postCommit() {
-    txSnapshot.set(new IndexTxSnapshot());
+  public void postCommit(IndexTxSnapshot snapshots) {
   }
 
   public ODocument getConfiguration() {
@@ -765,7 +753,6 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
 
   @Override
   public ODocument getMetadata() {
-    // return getConfiguration().field("metadata", OType.EMBEDDED);
     return metadata;
   }
 
@@ -799,7 +786,12 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
   public OIndexKeyCursor keyCursor() {
     acquireSharedLock();
     try {
-      return storage.getIndexKeyCursor(indexId);
+      while (true)
+        try {
+          return storage.getIndexKeyCursor(indexId);
+        } catch (OInvalidIndexEngineIdException ignore) {
+          doReloadIndexEngine();
+        }
     } finally {
       releaseSharedLock();
     }
@@ -820,10 +812,7 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
 
       final OIndexAbstract<?> that = (OIndexAbstract<?>) o;
 
-      if (!name.equals(that.name))
-        return false;
-
-      return true;
+      return name.equals(that.name);
     } finally {
       releaseSharedLock();
     }
@@ -857,7 +846,7 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
 
   protected abstract OBinarySerializer determineValueSerializer();
 
-  protected void populateIndex(ODocument doc, Object fieldValue) {
+  private void populateIndex(ODocument doc, Object fieldValue) {
     if (fieldValue instanceof Collection) {
       for (final Object fieldValueItem : (Collection<?>) fieldValue) {
         put(fieldValueItem, doc);
@@ -887,7 +876,7 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
     remove(key, value);
   }
 
-  protected void removeFromSnapshot(Object key, Map<Object, Object> snapshot) {
+  private void removeFromSnapshot(Object key, Map<Object, Object> snapshot) {
     // storage will delay real operations till the end of tx
     remove(key);
   }
@@ -909,17 +898,42 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
   }
 
   @Override
-  public void setType(OType type) {
-    indexDefinition = new OSimpleKeyIndexDefinition(version, type);
-    updateConfiguration();
+  public String getIndexNameByKey(final Object key) {
+    OBaseIndexEngine engine;
+
+    while (true) {
+      try {
+        engine = storage.getIndexEngine(indexId);
+        break;
+      } catch (OInvalidIndexEngineIdException ignore) {
+        doReloadIndexEngine();
+      }
+    }
+    return engine.getIndexNameByKey(key);
   }
 
-  protected ODatabaseDocumentInternal getDatabase() {
-    return ODatabaseRecordThreadLocal.INSTANCE.get();
+  @Override
+  public boolean acquireAtomicExclusiveLock(Object key) {
+    OBaseIndexEngine engine;
+
+    while (true) {
+      try {
+        engine = storage.getIndexEngine(indexId);
+        break;
+      } catch (OInvalidIndexEngineIdException ignore) {
+        doReloadIndexEngine();
+      }
+    }
+
+    return engine.acquireAtomicExclusiveLock(key);
   }
 
-  protected long[] indexCluster(final String clusterName, final OProgressListener iProgressListener, long documentNum,
-      long documentIndexed, long documentTotal) {
+  protected static ODatabaseDocumentInternal getDatabase() {
+    return ODatabaseRecordThreadLocal.instance().get();
+  }
+
+  private long[] indexCluster(final String clusterName, final OProgressListener iProgressListener, long documentNum,
+                              long documentIndexed, long documentTotal) {
     try {
       for (final ORecord record : getDatabase().browseCluster(clusterName)) {
         if (Thread.interrupted())
@@ -930,18 +944,17 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
 
           if (indexDefinition == null)
             throw new OConfigurationException(
-                "Index '" + name + "' cannot be rebuilt because has no a valid definition (" + indexDefinition + ")");
+                    "Index '" + name + "' cannot be rebuilt because has no a valid definition (" + indexDefinition + ")");
 
           final Object fieldValue = indexDefinition.getDocumentValueToIndex(doc);
 
           if (fieldValue != null || !indexDefinition.isNullValuesIgnored()) {
             try {
               populateIndex(doc, fieldValue);
-            } catch (OIndexException e) {
+            } catch (OTooBigIndexKeyException | OIndexException e) {
               OLogManager.instance().error(this,
-                  "Exception during index rebuild. Exception was caused by following key/ value pair - key %s, value %s."
-                      + " Rebuild will continue from this point",
-                  e, fieldValue, doc.getIdentity());
+                      "Exception during index rebuild. Exception was caused by following key/ value pair - key %s, value %s."
+                              + " Rebuild will continue from this point", e, fieldValue, doc.getIdentity());
             }
 
             ++documentIndexed;
@@ -952,11 +965,11 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
         if (iProgressListener != null)
           iProgressListener.onProgress(this, documentNum, (float) (documentNum * 100.0 / documentTotal));
       }
-    } catch (NoSuchElementException e) {
+    } catch (NoSuchElementException ignore) {
       // END OF CLUSTER REACHED, IGNORE IT
     }
 
-    return new long[] { documentNum, documentIndexed };
+    return new long[]{documentNum, documentIndexed};
   }
 
   protected void releaseExclusiveLock() {
@@ -976,9 +989,9 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
   }
 
   private void removeValuesContainer() {
-    if (valueContainerAlgorithm.equals(ODefaultIndexFactory.SBTREEBONSAI_VALUE_CONTAINER)) {
+    if (valueContainerAlgorithm.equals(ODefaultIndexFactory.SBTREE_BONSAI_VALUE_CONTAINER)) {
 
-      final OAtomicOperation atomicOperation = storage.getAtomicOperationsManager().getCurrentOperation();
+      final OAtomicOperation atomicOperation = OAtomicOperationsManager.getCurrentOperation();
 
       final OReadCache readCache = storage.getReadCache();
       final OWriteCache writeCache = storage.getWriteCache();
@@ -987,7 +1000,7 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
         try {
           final String fileName = getName() + OIndexRIDContainer.INDEX_FILE_EXTENSION;
           if (writeCache.exists(fileName)) {
-            final long fileId = readCache.openFile(fileName, writeCache);
+            final long fileId = writeCache.loadFile(fileName);
             readCache.deleteFile(fileId, writeCache);
           }
         } catch (IOException e) {
@@ -997,7 +1010,7 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
         try {
           final String fileName = getName() + OIndexRIDContainer.INDEX_FILE_EXTENSION;
           if (atomicOperation.isFileExists(fileName)) {
-            final long fileId = atomicOperation.openFile(fileName);
+            final long fileId = atomicOperation.loadFile(fileName);
             atomicOperation.deleteFile(fileId);
           }
         } catch (IOException e) {
@@ -1008,99 +1021,41 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
     }
   }
 
-  private void applyIndexTxEntry(Map<Object, Object> snapshot, ODocument entry) {
-    final Object key;
-    if (entry.field("k") != null) {
-      Object serKey = entry.field("k");
-      try {
-        ODocument keyContainer = null;
-        // Check for PROTOCOL_VERSION_24 that remove CSV serialization.
-        if (serKey instanceof String) {
-          final String serializedKey = OStringSerializerHelper.decode((String) serKey);
-          keyContainer = new ODocument();
-          keyContainer.setLazyLoad(false);
-          keyContainer.setTrackingChanges(false);
-
-          ORecordSerializerSchemaAware2CSV.INSTANCE.fromString(serializedKey, keyContainer, null);
-        } else if (serKey instanceof ODocument) {
-          keyContainer = (ODocument) serKey;
-        }
-
-        if (keyContainer == null)
-          throw new OTransactionException("Key was not provided during key-value pair insertion");
-
-        final Object storedKey = keyContainer.field("key");
-        if (storedKey instanceof List)
-          key = new OCompositeKey((List<? extends Comparable<?>>) storedKey);
-        else if (Boolean.TRUE.equals(keyContainer.field("binary"))) {
-          key = OStreamSerializerAnyStreamable.INSTANCE.fromStream((byte[]) storedKey);
-        } else
-          key = storedKey;
-      } catch (IOException ioe) {
-        throw OException.wrapException(new OTransactionException("Error during index changes deserialization. "), ioe);
-      }
-    } else
-      key = null;
-
-    final List<ODocument> operations = entry.field("ops");
-    if (operations != null) {
-      for (final ODocument op : operations) {
-        op.setLazyLoad(false);
-        final int operation = (Integer) op.rawField("o");
-        final OIdentifiable value = op.field("v");
-
-        if (operation == OPERATION.PUT.ordinal())
-          putInSnapshot(key, value, snapshot);
-        else if (operation == OPERATION.REMOVE.ordinal()) {
-          if (value == null)
-            removeFromSnapshot(key, snapshot);
-          else {
-            removeFromSnapshot(key, value, snapshot);
-          }
-        }
-      }
-    }
-  }
-
   protected void onIndexEngineChange(final int indexId) {
-    storage.callIndexEngine(false, false, indexId, new OIndexEngineCallback<Object>() {
-      @Override
-      public Object callEngine(OIndexEngine engine) {
-        engine.init(getName(), getType(), getDefinition(), isAutomatic(), getMetadata());
-        return null;
+    while (true)
+      try {
+        storage.callIndexEngine(false, false, indexId, engine -> {
+          engine.init(getName(), getType(), getDefinition(), isAutomatic(), getMetadata());
+          return null;
+        });
+        break;
+      } catch (OInvalidIndexEngineIdException ignore) {
+        doReloadIndexEngine();
       }
-    });
   }
 
-  protected static final class IndexTxSnapshot {
-    public Map<Object, Object> indexSnapshot = new HashMap<Object, Object>();
-    public boolean             clear         = false;
-  }
-
-  private static class IndexTxSnapshotThreadLocal extends ThreadLocal<IndexTxSnapshot> {
-    @Override
-    protected IndexTxSnapshot initialValue() {
-      return new IndexTxSnapshot();
-    }
-  }
-
-  protected IndexConfiguration indexConfigurationInstance(final ODocument document) {
+  IndexConfiguration indexConfigurationInstance(final ODocument document) {
     return new IndexConfiguration(document);
   }
 
+  public static final class IndexTxSnapshot {
+    public Map<Object, Object> indexSnapshot = new HashMap<>();
+    public boolean clear = false;
+  }
+
   protected static class IndexConfiguration {
-    protected final ODocument document;
+    final ODocument document;
 
     public IndexConfiguration(ODocument document) {
       this.document = document;
     }
 
-    public ODocument getDocument() {
+    ODocument getDocument() {
       return document;
     }
 
-    public synchronized ODocument updateConfiguration(String type, String name, int version, OIndexDefinition indexDefinition,
-        Set<String> clustersToIndex, String algorithm, String valueContainerAlgorithm) {
+    synchronized void updateConfiguration(String type, String name, int version, OIndexDefinition indexDefinition,
+                                          Set<String> clustersToIndex, String algorithm, String valueContainerAlgorithm) {
       document.field(OIndexInternal.CONFIG_TYPE, type);
       document.field(OIndexInternal.CONFIG_NAME, name);
       document.field(OIndexInternal.INDEX_VERSION, version);
@@ -1122,7 +1077,23 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T>, OOrientSta
       document.field(ALGORITHM, algorithm);
       document.field(VALUE_CONTAINER_ALGORITHM, valueContainerAlgorithm);
 
-      return document;
     }
   }
+
+  public static void manualIndexesWarning() {
+    if (!OGlobalConfiguration.INDEX_ALLOW_MANUAL_INDEXES.getValueAsBoolean()) {
+      throw new OManualIndexesAreProhibited(
+              "Manual indexes are deprecated , not supported any more and will be removed in next versions if you still want to use them, "
+                      + "please set global property `" + OGlobalConfiguration.INDEX_ALLOW_MANUAL_INDEXES.getKey() + "` to `true`");
+    }
+
+    if (OGlobalConfiguration.INDEX_ALLOW_MANUAL_INDEXES_WARNING.getValueAsBoolean()) {
+      OLogManager.instance().warn(OIndexAbstract.class, "Seems you use manual indexes. "
+              + "Manual indexes are deprecated , not supported any more and will be removed in next versions if you do not want "
+              + "to see warning, please set global property `" + OGlobalConfiguration.INDEX_ALLOW_MANUAL_INDEXES_WARNING.getKey()
+              + "` to `false`");
+    }
+  }
+
+
 }

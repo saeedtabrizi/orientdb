@@ -1,17 +1,16 @@
 package com.orientechnologies.orient.test.database.auto;
 
-import java.util.*;
-
-import org.testng.Assert;
-import org.testng.annotations.*;
-import org.testng.annotations.Optional;
-
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OSchema;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
+import org.testng.Assert;
+import org.testng.annotations.Optional;
+import org.testng.annotations.*;
+
+import java.util.*;
 
 @Test(groups = { "index" })
 public class SQLSelectIndexReuseTest extends AbstractIndexReuseTest {
@@ -74,7 +73,6 @@ public class SQLSelectIndexReuseTest extends AbstractIndexReuseTest {
 
     oClass.createIndex("sqlSelectIndexReuseTestEmbeddedListTwoProp8", OClass.INDEX_TYPE.NOTUNIQUE, "fEmbeddedListTwo", "prop8");
 
-    schema.save();
 
     final String fullTextIndexStrings[] = { "Alice : What is the use of a book, without pictures or conversations?",
         "Rabbit : Oh my ears and whiskers, how late it's getting!",
@@ -2473,8 +2471,6 @@ public class SQLSelectIndexReuseTest extends AbstractIndexReuseTest {
 
     oClass.createIndex("sqlSelectIndexReuseTestOnPropertiesFromClassAndSuperclass", OClass.INDEX_TYPE.UNIQUE, "prop0", "prop1");
 
-    schema.save();
-
     long oldIndexUsage = profiler.getCounter("db.demo.query.indexUsed");
     long oldcompositeIndexUsed = profiler.getCounter("db.demo.query.compositeIndexUsed");
     long oldcompositeIndexUsed2 = profiler.getCounter("db.demo.query.compositeIndexUsed.2");
@@ -2510,15 +2506,15 @@ public class SQLSelectIndexReuseTest extends AbstractIndexReuseTest {
       klazz.createIndex("a", "NOTUNIQUE", "a");
     }
 
-    database.newInstance("CountFunctionWithNotUniqueIndexTest").field("a", "a").field("b", "b").save();
-    database.newInstance("CountFunctionWithNotUniqueIndexTest").field("a", "a").field("b", "b").save();
-    database.newInstance("CountFunctionWithNotUniqueIndexTest").field("a", "a").field("b", "e").save();
-    database.newInstance("CountFunctionWithNotUniqueIndexTest").field("a", "c").field("b", "c").save();
+    database.<ODocument>newInstance("CountFunctionWithNotUniqueIndexTest").field("a", "a").field("b", "b").save();
+    database.<ODocument>newInstance("CountFunctionWithNotUniqueIndexTest").field("a", "a").field("b", "b").save();
+    database.<ODocument>newInstance("CountFunctionWithNotUniqueIndexTest").field("a", "a").field("b", "e").save();
+    database.<ODocument>newInstance("CountFunctionWithNotUniqueIndexTest").field("a", "c").field("b", "c").save();
 
     ODocument result = (ODocument) database.query(
         new OSQLSynchQuery<ODocument>("select count(*) from CountFunctionWithNotUniqueIndexTest where a = 'a' and b = 'c'")).get(0);
 
-    Assert.assertEquals(result.field("count", Long.class), 0l);
+    Assert.assertEquals(result.<Object>field("count", Long.class), 0l);
 
     Assert.assertEquals(profiler.getCounter("db.demo.query.indexUsed"), oldIndexUsage + 1);
     Assert.assertEquals(profiler.getCounter("db.demo.query.compositeIndexUsed"), oldcompositeIndexUsed);
@@ -2535,15 +2531,15 @@ public class SQLSelectIndexReuseTest extends AbstractIndexReuseTest {
       klazz.createIndex("testCountFunctionWithUniqueIndex", "NOTUNIQUE", "a");
     }
 
-    database.newInstance("CountFunctionWithUniqueIndexTest").field("a", "a").field("b", "c").save();
-    database.newInstance("CountFunctionWithUniqueIndexTest").field("a", "a").field("b", "c").save();
-    database.newInstance("CountFunctionWithUniqueIndexTest").field("a", "a").field("b", "e").save();
-    ODocument doc = database.newInstance("CountFunctionWithUniqueIndexTest").field("a", "a").field("b", "b").save();
+    database.<ODocument>newInstance("CountFunctionWithUniqueIndexTest").field("a", "a").field("b", "c").save();
+    database.<ODocument>newInstance("CountFunctionWithUniqueIndexTest").field("a", "a").field("b", "c").save();
+    database.<ODocument>newInstance("CountFunctionWithUniqueIndexTest").field("a", "a").field("b", "e").save();
+    ODocument doc = database.<ODocument>newInstance("CountFunctionWithUniqueIndexTest").field("a", "a").field("b", "b").save();
 
     ODocument result = (ODocument) database.query(
         new OSQLSynchQuery<ODocument>("select count(*) from CountFunctionWithUniqueIndexTest where a = 'a' and b = 'c'")).get(0);
 
-    Assert.assertEquals(result.field("count", Long.class), 2l);
+    Assert.assertEquals(result.<Object>field("count", Long.class), 2l);
     doc.delete();
 
     Assert.assertEquals(profiler.getCounter("db.demo.query.indexUsed"), oldIndexUsage + 1);

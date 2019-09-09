@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,71 +14,65 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sharding.auto;
 
-import com.orientechnologies.common.io.OIOUtils;
+import com.orientechnologies.common.exception.OException;
+import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.common.serialization.types.OBinarySerializer;
-import com.orientechnologies.orient.core.config.OGlobalConfiguration;
-import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
-import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
-import com.orientechnologies.orient.core.exception.OConfigurationException;
-import com.orientechnologies.orient.core.index.OIndexCursor;
-import com.orientechnologies.orient.core.index.OIndexDefinition;
-import com.orientechnologies.orient.core.index.OIndexEngine;
-import com.orientechnologies.orient.core.index.OIndexKeyCursor;
-import com.orientechnologies.orient.core.index.hashindex.local.OHashIndexBucket;
-import com.orientechnologies.orient.core.index.hashindex.local.OHashTable;
-import com.orientechnologies.orient.core.index.hashindex.local.OLocalHashTable;
-import com.orientechnologies.orient.core.index.hashindex.local.OMurmurHash3HashFunction;
+import com.orientechnologies.common.util.OCommonConst;
+import com.orientechnologies.orient.core.encryption.OEncryption;
+import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.index.*;
+import com.orientechnologies.orient.core.index.engine.OIndexEngine;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.storage.OStorage;
 import com.orientechnologies.orient.core.storage.impl.local.OAbstractPaginatedStorage;
-import com.orientechnologies.orient.core.storage.impl.local.paginated.OLocalPaginatedStorage;
+import com.orientechnologies.orient.core.storage.index.hashindex.local.OHashFunction;
+import com.orientechnologies.orient.core.storage.index.hashindex.local.OHashTable;
+import com.orientechnologies.orient.core.storage.index.hashindex.local.OMurmurHash3HashFunction;
+import com.orientechnologies.orient.core.storage.index.hashindex.local.OSHA256HashFunction;
+import com.orientechnologies.orient.core.storage.index.hashindex.local.v2.OLocalHashTableV2;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Index engine implementation that relies on multiple hash indexes partitioned by key.
- * 
- * @author Luca Garulli
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public final class OAutoShardingIndexEngine implements OIndexEngine {
-  public static final int                        VERSION                             = 1;
-  public static final String                     METADATA_FILE_EXTENSION             = ".asmm";
-  public static final String                     SUBINDEX_METADATA_FILE_EXTENSION    = ".asm";
-  public static final String                     SUBINDEX_TREE_FILE_EXTENSION        = ".ast";
-  public static final String                     SUBINDEX_BUCKET_FILE_EXTENSION      = ".asb";
-  public static final String                     SUBINDEX_NULL_BUCKET_FILE_EXTENSION = ".asn";
+  public static final  int    VERSION                             = 1;
+  private static final String SUBINDEX_METADATA_FILE_EXTENSION    = ".asm";
+  private static final String SUBINDEX_TREE_FILE_EXTENSION        = ".ast";
+  private static final String SUBINDEX_BUCKET_FILE_EXTENSION      = ".asb";
+  private static final String SUBINDEX_NULL_BUCKET_FILE_EXTENSION = ".asn";
 
   private final OAbstractPaginatedStorage        storage;
-  private final boolean                          durableInNonTx;
-  private final OMurmurHash3HashFunction<Object> hashFunction;
-  private List<OHashTable<Object, Object>>       partitions;
-  private OAutoShardingStrategy                  strategy;
-  private int                                    version;
+  private       List<OHashTable<Object, Object>> partitions;
+  private       OAutoShardingStrategy            strategy;
+  private final int                              version;
   private final String                           name;
-  private int                                    partitionSize;
+  private       int                              partitionSize;
+  private final AtomicLong                       bonsayFileId = new AtomicLong(0);
+  private final int                              id;
 
-  public OAutoShardingIndexEngine(final String iName, final Boolean iDurableInNonTxMode, final OAbstractPaginatedStorage iStorage,
-      final int iVersion) {
+  OAutoShardingIndexEngine(final String iName, int id, final OAbstractPaginatedStorage iStorage, final int iVersion) {
     this.name = iName;
+    this.id = id;
     this.storage = iStorage;
-    this.hashFunction = new OMurmurHash3HashFunction<Object>();
-
-    if (iDurableInNonTxMode == null)
-      durableInNonTx = OGlobalConfiguration.INDEX_DURABLE_IN_NON_TX_MODE.getValueAsBoolean();
-    else
-      durableInNonTx = iDurableInNonTxMode;
-
     this.version = iVersion;
+  }
+
+  @Override
+  public int getId() {
+    return id;
   }
 
   @Override
@@ -92,67 +86,76 @@ public final class OAutoShardingIndexEngine implements OIndexEngine {
 
   @Override
   public void create(final OBinarySerializer valueSerializer, final boolean isAutomatic, final OType[] keyTypes,
-      final boolean nullPointerSupport, final OBinarySerializer keySerializer, final int keySize, final Set<String> clustersToIndex,
-      ODocument metadata) {
+      final boolean nullPointerSupport, final OBinarySerializer keySerializer, final int keySize,
+      final Map<String, String> engineProperties, OEncryption encryption) {
 
     this.strategy = new OAutoShardingMurmurStrategy(keySerializer);
-    this.hashFunction.setValueSerializer(keySerializer);
-    this.partitionSize = clustersToIndex.size();
 
-    final OStorage storage = getDatabase().getStorage().getUnderlying();
-    if (storage instanceof OLocalPaginatedStorage) {
-      // WRITE INDEX METADATA INFORMATION
-      final String path = ((OLocalPaginatedStorage) storage).getStoragePath();
+    final OHashFunction<Object> hashFunction;
 
-      final File fileMetadata = new File(path + "/" + name + METADATA_FILE_EXTENSION);
-      if (fileMetadata.exists())
-        fileMetadata.delete();
+    if (encryption != null) {
+      //noinspection unchecked
+      hashFunction = new OSHA256HashFunction<>(keySerializer);
+    } else {
+      //noinspection unchecked
+      hashFunction = new OMurmurHash3HashFunction<>(keySerializer);
+    }
+
+    final String partitionsProperty = engineProperties.get("partitions");
+    if (partitionsProperty != null) {
       try {
-        if (metadata == null)
-          metadata = new ODocument();
-        metadata.field("partitions", partitionSize);
-        OIOUtils.writeFile(fileMetadata, metadata.toJSON());
-      } catch (IOException e1) {
-        throw new OConfigurationException("Cannot create sharded index metadata file '" + fileMetadata + "'");
+        this.partitionSize = Integer.valueOf(partitionsProperty);
+      } catch (NumberFormatException e) {
+        OLogManager.instance().error(this, "Invalid value of 'partitions' property : `" + partitionsProperty + "`", e);
       }
     }
 
+    engineProperties.put("partitions", "" + partitionSize);
+
     init();
-    for (OHashTable<Object, Object> p : partitions)
-      p.create(keySerializer, valueSerializer, keyTypes, nullPointerSupport);
+
+    try {
+      for (OHashTable<Object, Object> p : partitions) {
+        //noinspection unchecked
+        p.create(keySerializer, valueSerializer, keyTypes, encryption, hashFunction, nullPointerSupport);
+      }
+    } catch (IOException e) {
+      throw OException.wrapException(new OIndexException("Error during creation of index with name " + name), e);
+    }
   }
 
   @Override
   public void load(final String indexName, final OBinarySerializer valueSerializer, final boolean isAutomatic,
-      final OBinarySerializer keySerializer, final OType[] keyTypes, final boolean nullPointerSupport, final int keySize) {
+      final OBinarySerializer keySerializer, final OType[] keyTypes, final boolean nullPointerSupport, final int keySize,
+      final Map<String, String> engineProperties, OEncryption encryption) {
 
     this.strategy = new OAutoShardingMurmurStrategy(keySerializer);
 
-    final OStorage storage = getDatabase().getStorage().getUnderlying();
-    if (storage instanceof OLocalPaginatedStorage) {
-      // LOAD INDEX METADATA INFORMATION
-      final String path = ((OLocalPaginatedStorage) storage).getStoragePath();
+    if (storage != null) {
+      final String partitionsAsString = engineProperties.get("partitions");
+      if (partitionsAsString == null || partitionsAsString.isEmpty())
+        throw new OIndexException(
+            "Cannot load autosharding index '" + indexName + "' because there is no metadata about the number of partitions");
 
-      final File fileMetadata = new File(path + "/" + name + METADATA_FILE_EXTENSION);
+      partitionSize = Integer.parseInt(partitionsAsString);
+      init();
 
-      if (!fileMetadata.exists())
-        throw new OConfigurationException("Cannot find sharded index metadata file '" + fileMetadata + "'");
-      try {
-        final ODocument metadata = new ODocument();
-        metadata.fromJSON(OIOUtils.readFileAsString(fileMetadata));
-        partitionSize = metadata.field("partitions");
-        init();
+      int i = 0;
 
-      } catch (IOException e1) {
-        throw new OConfigurationException("Cannot load sharded index metadata file '" + fileMetadata + "'");
+      final OHashFunction<Object> hashFunction;
+
+      if (encryption != null) {
+        //noinspection unchecked
+        hashFunction = new OSHA256HashFunction<>(keySerializer);
+      } else {
+        //noinspection unchecked
+        hashFunction = new OMurmurHash3HashFunction<>(keySerializer);
       }
+
+      for (OHashTable<Object, Object> p : partitions)
+        //noinspection unchecked
+        p.load(indexName + "_" + (i++), keyTypes, nullPointerSupport, encryption, hashFunction, keySerializer, valueSerializer);
     }
-
-    int i = 0;
-    for (OHashTable<Object, Object> p : partitions)
-      p.load(indexName + "_" + (i++), keyTypes, nullPointerSupport);
-
-    hashFunction.setValueSerializer(keySerializer);
   }
 
   @Override
@@ -163,16 +166,40 @@ public final class OAutoShardingIndexEngine implements OIndexEngine {
   }
 
   @Override
-  public void deleteWithoutLoad(final String indexName) {
-    if (partitions != null)
-      for (OHashTable<Object, Object> p : partitions)
-        p.deleteWithoutLoad(indexName, (OAbstractPaginatedStorage) getDatabase().getStorage().getUnderlying());
+  public void delete() {
+    try {
+      if (partitions != null) {
+        doClearPartitions();
+
+        for (OHashTable<Object, Object> p : partitions) {
+          p.delete();
+        }
+      }
+
+    } catch (IOException e) {
+      throw OException.wrapException(new OIndexException("Error during deletion of index with name " + name), e);
+    }
   }
 
-  @Override
-  public void delete() {
-    for (OHashTable<Object, Object> p : partitions)
-      p.delete();
+  private void doClearPartitions() throws IOException {
+    for (OHashTable<Object, Object> p : partitions) {
+      final OHashTable.Entry<Object, Object> firstEntry = p.firstEntry();
+
+      if (firstEntry != null) {
+        OHashTable.Entry<Object, Object>[] entries = p.ceilingEntries(firstEntry.key);
+        while (entries.length > 0) {
+          for (final OHashTable.Entry<Object, Object> entry : entries) {
+            p.remove(entry.key);
+          }
+
+          entries = p.higherEntries(entries[entries.length - 1].key);
+        }
+      }
+
+      if (p.isNullKeyIsSupported()) {
+        p.remove(null);
+      }
+    }
   }
 
   @Override
@@ -184,11 +211,10 @@ public final class OAutoShardingIndexEngine implements OIndexEngine {
     if (partitions != null)
       return;
 
-    partitions = new ArrayList<OHashTable<Object, Object>>();
+    partitions = new ArrayList<>(partitionSize);
     for (int i = 0; i < partitionSize; ++i) {
-      partitions
-          .add(new OLocalHashTable<Object, Object>(name + "_" + i, SUBINDEX_METADATA_FILE_EXTENSION, SUBINDEX_TREE_FILE_EXTENSION,
-              SUBINDEX_BUCKET_FILE_EXTENSION, SUBINDEX_NULL_BUCKET_FILE_EXTENSION, hashFunction, durableInNonTx, storage));
+      partitions.add(new OLocalHashTableV2<>(id, name + "_" + i, SUBINDEX_METADATA_FILE_EXTENSION, SUBINDEX_TREE_FILE_EXTENSION,
+          SUBINDEX_BUCKET_FILE_EXTENSION, SUBINDEX_NULL_BUCKET_FILE_EXTENSION, storage));
     }
   }
 
@@ -199,19 +225,29 @@ public final class OAutoShardingIndexEngine implements OIndexEngine {
 
   @Override
   public boolean remove(final Object key) {
-    return getPartition(key).remove(key) != null;
+    try {
+      return getPartition(key).remove(key) != null;
+    } catch (IOException e) {
+      throw OException.wrapException(new OIndexException("Error during deletion of key " + key + " of index with name " + name), e);
+    }
   }
 
   @Override
   public void clear() {
-    for (OHashTable<Object, Object> p : partitions)
-      p.clear();
+    try {
+      if (partitions != null) {
+        doClearPartitions();
+      }
+    } catch (IOException e) {
+      throw OException.wrapException(new OIndexException("Error during clear of index with name " + name), e);
+    }
   }
 
   @Override
   public void close() {
-    for (OHashTable<Object, Object> p : partitions)
-      p.close();
+    if (partitions != null)
+      for (OHashTable<Object, Object> p : partitions)
+        p.close();
   }
 
   @Override
@@ -221,31 +257,61 @@ public final class OAutoShardingIndexEngine implements OIndexEngine {
 
   @Override
   public void put(final Object key, final Object value) {
-    getPartition(key).put(key, value);
+    try {
+      getPartition(key).put(key, value);
+    } catch (IOException e) {
+      throw OException
+          .wrapException(new OIndexException("Error during insertion of key " + key + " of index with name " + name), e);
+    }
+  }
+
+  @Override
+  public void update(Object key, OIndexKeyUpdater<Object> updater) {
+    Object value = get(key);
+    OIndexUpdateAction<Object> updated = updater.update(value, bonsayFileId);
+    if (updated.isChange())
+      put(key, updated.getValue());
+    else if (updated.isRemove()) {
+      remove(key);
+    } else if (updated.isNothing()) {
+      //Do Nothing
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public boolean validatedPut(Object key, ORID value, Validator<Object, ORID> validator) {
+    try {
+      return getPartition(key).validatedPut(key, value, (Validator) validator);
+    } catch (IOException e) {
+      throw OException
+          .wrapException(new OIndexException("Error during insertion of key " + key + " of index with name " + name), e);
+    }
   }
 
   @Override
   public long size(final ValuesTransformer transformer) {
     long counter = 0;
 
-    for (OHashTable<Object, Object> p : partitions) {
-      if (transformer == null)
-        counter += p.size();
-      else {
-        OHashIndexBucket.Entry<Object, Object> firstEntry = p.firstEntry();
-        if (firstEntry == null)
-          return 0;
+    if (partitions != null)
+      for (OHashTable<Object, Object> p : partitions) {
+        if (transformer == null)
+          counter += p.size();
+        else {
+          final OHashTable.Entry<Object, Object> firstEntry = p.firstEntry();
+          if (firstEntry == null)
+            continue;
 
-        OHashIndexBucket.Entry<Object, Object>[] entries = p.ceilingEntries(firstEntry.key);
+          OHashTable.Entry<Object, Object>[] entries = p.ceilingEntries(firstEntry.key);
 
-        while (entries.length > 0) {
-          for (OHashIndexBucket.Entry<Object, Object> entry : entries)
-            counter += transformer.transformFromValue(entry.value).size();
+          while (entries.length > 0) {
+            for (OHashTable.Entry<Object, Object> entry : entries)
+              counter += transformer.transformFromValue(entry.value).size();
 
-          entries = p.higherEntries(entries[entries.length - 1].key);
+            entries = p.higherEntries(entries[entries.length - 1].key);
+          }
         }
       }
-    }
     return counter;
   }
 
@@ -271,17 +337,64 @@ public final class OAutoShardingIndexEngine implements OIndexEngine {
 
   @Override
   public OIndexKeyCursor keyCursor() {
-    throw new UnsupportedOperationException("keyCursor");
+    return new OIndexKeyCursor() {
+      private int nextPartition = 1;
+      private OHashTable<Object, Object> hashTable;
+      private int nextEntriesIndex;
+      private OHashTable.Entry<Object, Object>[] entries;
+
+      {
+        if (partitions == null || partitions.isEmpty())
+          //noinspection unchecked
+          entries = OCommonConst.EMPTY_BUCKET_ENTRY_ARRAY;
+        else {
+          hashTable = partitions.get(0);
+          OHashTable.Entry<Object, Object> firstEntry = hashTable.firstEntry();
+          if (firstEntry == null)
+            //noinspection unchecked
+            entries = OCommonConst.EMPTY_BUCKET_ENTRY_ARRAY;
+          else
+            entries = hashTable.ceilingEntries(firstEntry.key);
+        }
+      }
+
+      @Override
+      public Object next(final int prefetchSize) {
+        if (entries.length == 0) {
+          return null;
+        }
+
+        final OHashTable.Entry<Object, Object> bucketEntry = entries[nextEntriesIndex];
+        nextEntriesIndex++;
+        if (nextEntriesIndex >= entries.length) {
+          entries = hashTable.higherEntries(entries[entries.length - 1].key);
+          nextEntriesIndex = 0;
+
+          if (entries.length == 0 && nextPartition < partitions.size()) {
+            // GET NEXT PARTITION
+            hashTable = partitions.get(nextPartition++);
+            OHashTable.Entry<Object, Object> firstEntry = hashTable.firstEntry();
+            if (firstEntry == null)
+              //noinspection unchecked
+              entries = OCommonConst.EMPTY_BUCKET_ENTRY_ARRAY;
+            else
+              entries = hashTable.ceilingEntries(firstEntry.key);
+          }
+        }
+
+        return bucketEntry.key;
+      }
+    };
   }
 
   @Override
-  public OIndexCursor iterateEntriesBetween(Object rangeFrom, boolean fromInclusive, Object rangeTo, boolean toInclusive,
-      boolean ascSortOrder, ValuesTransformer transformer) {
+  public OIndexCursor iterateEntriesBetween(final Object rangeFrom, final boolean fromInclusive, final Object rangeTo,
+      final boolean toInclusive, boolean ascSortOrder, ValuesTransformer transformer) {
     throw new UnsupportedOperationException("iterateEntriesBetween");
   }
 
   @Override
-  public OIndexCursor iterateEntriesMajor(Object fromKey, boolean isInclusive, boolean ascSortOrder,
+  public OIndexCursor iterateEntriesMajor(final Object fromKey, final boolean isInclusive, final boolean ascSortOrder,
       ValuesTransformer transformer) {
     throw new UnsupportedOperationException("iterateEntriesMajor");
   }
@@ -301,12 +414,19 @@ public final class OAutoShardingIndexEngine implements OIndexEngine {
     throw new UnsupportedOperationException("lastKey");
   }
 
-  private ODatabaseDocumentInternal getDatabase() {
-    return ODatabaseRecordThreadLocal.INSTANCE.get();
+  @Override
+  public boolean acquireAtomicExclusiveLock(final Object key) {
+    getPartition(key).acquireAtomicExclusiveLock();
+    return false;
+  }
+
+  @Override
+  public String getIndexNameByKey(final Object key) {
+    return getPartition(key).getName();
   }
 
   private OHashTable<Object, Object> getPartition(final Object iKey) {
-    final int partitionId = strategy.getPartitionsId(iKey, partitionSize);
+    final int partitionId = iKey != null ? strategy.getPartitionsId(iKey, partitionSize) : 0;
     return partitions.get(partitionId);
   }
 }

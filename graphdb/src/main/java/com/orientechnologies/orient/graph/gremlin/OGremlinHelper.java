@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.graph.gremlin;
@@ -24,11 +24,13 @@ import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.command.OCommandManager;
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.exception.OCommandExecutionException;
+import com.orientechnologies.orient.core.id.ORecordId;
+import com.orientechnologies.orient.core.record.ORecordInternal;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraph;
+import com.tinkerpop.blueprints.impls.orient.OrientGraphFactory;
 import com.tinkerpop.gremlin.groovy.jsr223.GremlinGroovyScriptEngine;
 import com.tinkerpop.gremlin.groovy.jsr223.GremlinGroovyScriptEngineFactory;
 import com.tinkerpop.gremlin.java.GremlinPipeline;
@@ -40,21 +42,15 @@ import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
 
 public class OGremlinHelper {
-  private static final String                     PARAM_OUTPUT = "output";
+  private static final String PARAM_OUTPUT = "output";
   private static GremlinGroovyScriptEngineFactory factory;
-  private static OGremlinHelper                   instance     = new OGremlinHelper();
+  private static OGremlinHelper instance = new OGremlinHelper();
 
-  private int                                     maxPool      = 50;
+  private int maxPool = 50;
 
   public interface OGremlinCallback {
     boolean call(ScriptEngine iEngine, OrientBaseGraph iGraph);
@@ -63,19 +59,19 @@ public class OGremlinHelper {
   public OGremlinHelper() {
     try {
       factory = new GremlinGroovyScriptEngineFactory();
-    }catch( java.lang.NoClassDefFoundError e ){
+    } catch (java.lang.NoClassDefFoundError e) {
       OLogManager.instance().warn(this, "GREMLIN language not available (not in classpath)");
     }
     OCommandManager.instance().registerRequester("gremlin", OCommandGremlin.class);
     OCommandManager.instance().registerExecutor(OCommandGremlin.class, OCommandGremlinExecutor.class);
   }
 
-  public static boolean isGremlinAvailable(){
+  public static boolean isGremlinAvailable() {
     return factory != null;
   }
 
   @SuppressWarnings("unchecked")
-  public static Object execute(final ODatabaseDocumentTx iDatabase, final String iText,
+  public static Object execute(final ODatabaseDocumentInternal iDatabase, final String iText,
       final Map<Object, Object> iConfiguredParameters, Map<Object, Object> iCurrentParameters, final List<Object> iResult,
       final OGremlinCallback iBeforeExecution, final OGremlinCallback iAfterExecution) {
     return execute(OGremlinHelper.global().acquireGraph(iDatabase), iText, iConfiguredParameters, iCurrentParameters, iResult,
@@ -95,6 +91,9 @@ public class OGremlinHelper {
           if (!iBeforeExecution.call(engine, graph))
             return null;
 
+        if (iText == null) {
+          return null;
+        }
         final Object scriptResult = engine.eval(iText);
 
         if (iAfterExecution != null)
@@ -125,12 +124,21 @@ public class OGremlinHelper {
           final Iterator<?> it = ((GremlinPipeline<?, ?>) scriptResult).iterator();
           Object finalResult = null;
           List<Object> resultCollection = null;
-
+          int cursor = -1;
           while (it.hasNext()) {
             Object current = it.next();
 
             // if (current instanceof OrientElement)
             // current = ((OrientElement) current).getRawElement();
+            if (current instanceof Map) {
+              ODocument doc = new ODocument().fromMap((Map<String, ? extends Object>) current);
+              ORecordInternal.setIdentity(doc, new ORecordId(-2, cursor--));
+              current = doc;
+            } else if (current instanceof List) {
+              ODocument doc = new ODocument().field("value", current);
+              ORecordInternal.setIdentity(doc, new ORecordId(-2, cursor--));
+              current = doc;
+            }
 
             if (finalResult != null) {
               if (resultCollection == null) {
@@ -243,7 +251,7 @@ public class OGremlinHelper {
       try {
         Object newClone;
         for (Class<?> obj = objectToClone.getClass(); !obj.equals(Object.class); obj = obj.getSuperclass()) {
-          Method m[] = obj.getDeclaredMethods();
+          Method[] m = obj.getDeclaredMethods();
           for (int i = 0; i < m.length; i++) {
             if (m[i].getName().equals("clone")) {
               m[i].setAccessible(true);
@@ -259,7 +267,7 @@ public class OGremlinHelper {
         // ***************************************************************************************************************************************
         // 3. Polymorphic clone (Deep cloning by Serialization)
         // ***************************************************************************************************************************************
-      } catch (Throwable e1) {
+      } catch (Exception e1) {
         try {
           final ByteArrayOutputStream bytes = new ByteArrayOutputStream() {
             public synchronized byte[] toByteArray() {
@@ -277,9 +285,9 @@ public class OGremlinHelper {
           // ***************************************************************************************************************************************
           // 4. Impossible to clone
           // ***************************************************************************************************************************************
-        } catch (Throwable e2) {
-          OLogManager.instance().error(null, "[GremlinHelper] error on cloning object %s, previous %s", e2, objectToClone,
-              previousClone);
+        } catch (Exception e2) {
+          OLogManager.instance()
+              .error(null, "[GremlinHelper] error on cloning object %s, previous %s", e2, objectToClone, previousClone);
           return null;
         }
       }
@@ -290,8 +298,8 @@ public class OGremlinHelper {
     return instance;
   }
 
-  public static ODatabaseDocumentTx getGraphDatabase(final ODatabaseDocumentInternal iCurrentDatabase) {
-    ODatabaseDocumentInternal currentDb = ODatabaseRecordThreadLocal.INSTANCE.get();
+  public static ODatabaseDocumentInternal getGraphDatabase(final ODatabaseDocumentInternal iCurrentDatabase) {
+    ODatabaseDocumentInternal currentDb = ODatabaseRecordThreadLocal.instance().get();
     if (currentDb == null && iCurrentDatabase != null)
       // GET FROM THE RECORD
       currentDb = iCurrentDatabase;
@@ -299,12 +307,7 @@ public class OGremlinHelper {
     if (currentDb != null)
       currentDb = (ODatabaseDocumentInternal) currentDb.getDatabaseOwner();
 
-    final ODatabaseDocumentTx db;
-    if (currentDb instanceof ODatabaseDocumentTx)
-      db = (ODatabaseDocumentTx) currentDb;
-    else
-      throw new OCommandExecutionException("Cannot find a database of type ODatabaseDocumentTx or ODatabaseDocumentTx");
-    return db;
+    return currentDb;
   }
 
   public static String getEngineVersion() {
@@ -330,8 +333,8 @@ public class OGremlinHelper {
   public void releaseEngine(final ScriptEngine engine) {
   }
 
-  public OrientGraph acquireGraph(final ODatabaseDocumentTx database) {
-    return new OrientGraph(database);
+  public OrientGraph acquireGraph(final ODatabaseDocumentInternal database) {
+    return (OrientGraph) OrientGraphFactory.getTxGraphImplFactory().getGraph(database);
   }
 
   public void releaseGraph(final OrientBaseGraph graph) {

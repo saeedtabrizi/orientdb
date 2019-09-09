@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.storage.impl.local.statistic;
@@ -40,22 +40,22 @@ import java.util.Map;
  * {@link OAbstractPaginatedStorage#completeGatheringPerformanceStatisticForCurrentThread()}.
  * <p>
  * List of gathered performance characteristics can be deduced from getXXX methods. There are 2 kind of methods , one kind do not
- * accept any parameters, they return performance data on system level and, other kind accept component name, they return performance
- * data gathered on separate component or on system level if null is passed as method name. If data from component with passed in
- * name is absent then -1 is returned.
+ * accept any parameters, they return performance data on system level and, other kind accept component name, they return
+ * performance data gathered on separate component or on system level if null is passed as method name. If data from component with
+ * passed in name is absent then -1 is returned.
  * <p>
  * Some data are gathered only on system level for example write ahead log performance data or commit time {@link #getCommitTime()}.
  * <p>
- * This container may be used both for gathering information in single thread and in mutlithreading environment.
- * Container itself is not thread safe, but it supports snapshoting of data.
+ * This container may be used both for gathering information in single thread and in multithreaded environment. Container itself is
+ * not thread safe, but it supports data snapshots.
  * <p>
- * Every time when new data are gathered by container it checks whether minimum interval between two snapshots is passed
- * and makes data snapshot if needed, data snapshot can be used by aggregator which merges statistics from all
- * containers together. Only last snapshot is hold by container.
+ * Every time when new data are gathered by container it checks whether minimum interval between two snapshots is passed and makes
+ * data snapshot if needed, data snapshot can be used by aggregator which merges statistics from all containers together. Only last
+ * snapshot is hold by container.
  * <p>
  * Also container supports time series functionality by clearing of previous statics after provided time interval.
  *
- * @author Andrey Lomakin
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @see OPerformanceStatisticManager
  */
 public class OSessionStoragePerformanceStatistic {
@@ -67,12 +67,12 @@ public class OSessionStoragePerformanceStatistic {
   /**
    * Stack of time stamps which is used to init clock in startTimerXXX methods.
    */
-  private final Deque<Long> timeStamps = new ArrayDeque<Long>();
+  private final Deque<Long> timeStamps = new ArrayDeque<>();
 
   /**
    * Stack of active components or in another words components which currently perform actions inside current thread.
    */
-  private Deque<Component> componentsStack = new ArrayDeque<Component>();
+  private final Deque<Component> componentsStack = new ArrayDeque<>();
 
   /**
    * Container for performance counters of system performance as whole.
@@ -93,9 +93,8 @@ public class OSessionStoragePerformanceStatistic {
   private final long intervalBetweenSnapshots;
 
   /**
-   * Interval between two time series in nanoseconds.
-   * When this interval is passed, new attempt to make data snapshot will clear performance statistic.
-   * <code>-1</code> means that performance data will not be cleared.
+   * Interval between two time series in nanoseconds. When this interval is passed, new attempt to make data snapshot will clear
+   * performance statistic. <code>-1</code> means that performance data will not be cleared.
    */
   private final long cleanUpInterval;
 
@@ -117,47 +116,39 @@ public class OSessionStoragePerformanceStatistic {
   /**
    * Map containing performance counters specific for concrete software component.
    */
-  private Map<String, PerformanceCountersHolder> countersByComponent = new HashMap<String, PerformanceCountersHolder>();
+  private final Map<String, PerformanceCountersHolder> countersByComponent = new HashMap<>();
 
   /**
-   * Performance statistic gathered from write cache.
-   * It is lazy initialized to decrease memory consumption.
+   * Performance statistic gathered from write cache. It is lazy initialized to decrease memory consumption.
    */
   private WritCacheCountersHolder writCacheCountersHolder;
 
   /**
-   * Storage performance characteristics.
-   * It is lazy initialized to decrease memory consumption.
+   * Storage performance characteristics. It is lazy initialized to decrease memory consumption.
    */
   private StorageCountersHolder storageCountersHolder;
 
   /**
-   * Write ahead log performance characteristics.
-   * It is lazy initialized to decrease memory consumption.
+   * Write ahead log performance characteristics. It is lazy initialized to decrease memory consumption.
    */
   private WALCountersHolder walCountersHolder;
 
   /**
    * @param intervalBetweenSnapshots Minimum interval between two snapshots taken by container.
-   * @param cleanUpInterval          Minimum interval between two time series, in other words container clears all statistic
-   *                                 during next try of making snapshot after this interval is over.
-   *                                 <code>-1</code> means that data will not be cleared.
+   * @param cleanUpInterval          Minimum interval between two time series, in other words container clears all statistic during
+   *                                 next try of making
+   *                                 snapshot after this interval is over. <code>-1</code> means that data will not be cleared.
    */
   public OSessionStoragePerformanceStatistic(long intervalBetweenSnapshots, long cleanUpInterval) {
-    this(intervalBetweenSnapshots, new NanoTimer() {
-      @Override
-      public long getNano() {
-        return System.nanoTime();
-      }
-    }, cleanUpInterval);
+    this(intervalBetweenSnapshots, System::nanoTime, cleanUpInterval);
   }
 
   /**
    * @param nanoTimer                Service to get current value of PC nano time.
    * @param intervalBetweenSnapshots Minimum interval between two snapshots taken by container.
-   * @param cleanUpInterval          Minimum interval between two time series, in other words container clears all statistic
-   *                                 during next try of making snapshot after this interval is over.
-   *                                 <code>-1</code> means that data will not be cleared.
+   * @param cleanUpInterval          Minimum interval between two time series, in other words container clears all statistic during
+   *                                 next try of making
+   *                                 snapshot after this interval is over. <code>-1</code> means that data will not be cleared.
    */
   public OSessionStoragePerformanceStatistic(long intervalBetweenSnapshots, NanoTimer nanoTimer, long cleanUpInterval) {
     this.nanoTimer = nanoTimer;
@@ -176,7 +167,6 @@ public class OSessionStoragePerformanceStatistic {
    * both components at once started to be gathered.
    *
    * @param componentName Name of component which started to perform operation on data. Name is case sensitive.
-   * @param type
    */
   public void startComponentOperation(String componentName, ComponentType type) {
     final Component currentComponent = componentsStack.peek();
@@ -190,8 +180,8 @@ public class OSessionStoragePerformanceStatistic {
   }
 
   /**
-   * Indicates that the most earliest component in stack of components has completed it's operation, so performance data
-   * for this component is stopped to be gathered.
+   * Indicates that the most earliest component in stack of components has completed it's operation, so performance data for this
+   * component is stopped to be gathered.
    *
    * @see #startComponentOperation(String, ComponentType)
    */
@@ -205,11 +195,8 @@ public class OSessionStoragePerformanceStatistic {
     if (currentComponent.operationCount == 0) {
       final String componentName = currentComponent.name;
 
-      PerformanceCountersHolder cHolder = countersByComponent.get(componentName);
-      if (cHolder == null) {
-        cHolder = currentComponent.type.newCountersHolder();
-        countersByComponent.put(componentName, cHolder);
-      }
+      PerformanceCountersHolder cHolder = countersByComponent
+          .computeIfAbsent(componentName, k -> currentComponent.type.newCountersHolder());
 
       cHolder.operationsCount++;
 
@@ -233,6 +220,7 @@ public class OSessionStoragePerformanceStatistic {
    * <code>-1</code> will be returned.
    *
    * @param componentName Name of component data of which should be returned. Name is case sensitive.
+   *
    * @return Read speed of data in pages per second on cache level or value which is less than 0, which means that value cannot be
    * calculated.
    */
@@ -261,6 +249,7 @@ public class OSessionStoragePerformanceStatistic {
    * will be returned.
    *
    * @param componentName Name of component data of which should be returned. Name is case sensitive.
+   *
    * @return Read speed of data from file system in pages per second or value which is less than 0, which means that value cannot be
    * calculated.
    */
@@ -288,6 +277,7 @@ public class OSessionStoragePerformanceStatistic {
    * returned.
    *
    * @param componentName Name of component data of which should be returned. Name is case sensitive.
+   *
    * @return Amount of pages read from cache in total.
    */
   public long getAmountOfPagesReadFromCache(String componentName) {
@@ -314,6 +304,7 @@ public class OSessionStoragePerformanceStatistic {
    * returned.
    *
    * @param componentName Name of component data of which should be returned. Name is case sensitive.
+   *
    * @return Amount of pages are read from file.
    */
   public long getAmountOfPagesReadFromFile(String componentName) {
@@ -341,6 +332,7 @@ public class OSessionStoragePerformanceStatistic {
    * <code>-1</code> will be returned.
    *
    * @param componentName Name of component data of which should be returned. Name is case sensitive.
+   *
    * @return Write speed of data in pages per second on cache level or value which is less than 0, which means that value cannot be
    * calculated.
    */
@@ -368,6 +360,7 @@ public class OSessionStoragePerformanceStatistic {
    * returned.
    *
    * @param componentName Name of component data of which should be returned. Name is case sensitive.
+   *
    * @return Amount of pages written to cache.
    */
   public long getAmountOfPagesWrittenInCache(String componentName) {
@@ -408,6 +401,7 @@ public class OSessionStoragePerformanceStatistic {
    * system will be returned. If data for component with passed in name does not exist then <code>-1</code> will be returned.
    *
    * @param componentName Name of component data of which should be returned. Name is case sensitive.
+   *
    * @return Percent of cache hits or value which is less than 0, which means that value cannot be calculated.
    */
   public int getCacheHits(String componentName) {
@@ -427,6 +421,7 @@ public class OSessionStoragePerformanceStatistic {
    * If null value is passed or data for component with passed in name does not exist then <code>-1</code> will be returned.
    *
    * @param componentName Name of component data of which should be returned. Name is case sensitive.
+   *
    * @return Average amount of pages which were read from cache for component with given name during single data operation or value
    * which is less than 0, which means that value cannot be calculated.
    */
@@ -443,8 +438,8 @@ public class OSessionStoragePerformanceStatistic {
   }
 
   /**
-   * Takes performance data are split by components from last snapshot and aggregates them with data passed inside method as parameter.
-   * Result of aggregation of performance data is returned inside of passed in performance data.
+   * Takes performance data are split by components from last snapshot and aggregates them with data passed inside method as
+   * parameter. Result of aggregation of performance data is returned inside of passed in performance data.
    *
    * @param counters Performance data for each component.
    */
@@ -455,21 +450,18 @@ public class OSessionStoragePerformanceStatistic {
     for (Map.Entry<String, PerformanceCountersHolder> entry : snapshot.countersByComponent.entrySet()) {
       final String componentName = entry.getKey();
 
-      PerformanceCountersHolder holder = counters.get(componentName);
-      if (holder == null) {
-        holder = entry.getValue().newInstance();
-        counters.put(componentName, holder);
-      }
+      PerformanceCountersHolder holder = counters.computeIfAbsent(componentName, k -> entry.getValue().newInstance());
 
       entry.getValue().pushData(holder);
     }
   }
 
   /**
-   * Takes write cache performance data from last snapshot and aggregates them with data passed inside method as parameter.
-   * Result of aggregation of performance data is returned inside of passed in performance data and as result of this method call.
+   * Takes write cache performance data from last snapshot and aggregates them with data passed inside method as parameter. Result
+   * of aggregation of performance data is returned inside of passed in performance data and as result of this method call.
    *
    * @param holder Performance data for write cache may be <code>null</code>
+   *
    * @return Result of aggregation of performance data
    */
   public WritCacheCountersHolder pushWriteCacheCounters(WritCacheCountersHolder holder) {
@@ -488,10 +480,11 @@ public class OSessionStoragePerformanceStatistic {
   }
 
   /**
-   * Takes storage performance data from last snapshot and aggregates them with data passed inside method as parameter.
-   * Result of aggregation of performance data is returned inside of passed in performance data and as result of this method call.
+   * Takes storage performance data from last snapshot and aggregates them with data passed inside method as parameter. Result of
+   * aggregation of performance data is returned inside of passed in performance data and as result of this method call.
    *
    * @param holder Performance data for storage may be <code>null</code>
+   *
    * @return Result of aggregation of performance data
    */
   public StorageCountersHolder pushStorageCounters(StorageCountersHolder holder) {
@@ -510,10 +503,11 @@ public class OSessionStoragePerformanceStatistic {
   }
 
   /**
-   * Takes write ahead log data from last snapshot and aggregates them with data passed inside method as parameter.
-   * Result of aggregation of performance data is returned inside of passed in performance data and as result of this method call.
+   * Takes write ahead log data from last snapshot and aggregates them with data passed inside method as parameter. Result of
+   * aggregation of performance data is returned inside of passed in performance data and as result of this method call.
    *
    * @param holder Performance data for write ahead log may be <code>null</code>
+   *
    * @return Result of aggregation of performance data
    */
   public WALCountersHolder pushWALCounters(WALCountersHolder holder) {
@@ -545,8 +539,8 @@ public class OSessionStoragePerformanceStatistic {
   }
 
   /**
-   * Takes performance data for component from last snapshot and aggregates them with data passed inside method as parameter.
-   * Result of aggregation of performance data is returned inside of passed in performance data.
+   * Takes performance data for component from last snapshot and aggregates them with data passed inside method as parameter. Result
+   * of aggregation of performance data is returned inside of passed in performance data.
    *
    * @param name   Name of component for which performance data are gathered.
    * @param holder Performance data for given component.
@@ -580,7 +574,7 @@ public class OSessionStoragePerformanceStatistic {
 
     document.field("commitTime", getCommitTime(), OType.LONG);
 
-    final Map<String, ODocument> countersMap = new HashMap<String, ODocument>();
+    final Map<String, ODocument> countersMap = new HashMap<>();
     for (Map.Entry<String, PerformanceCountersHolder> entry : countersByComponent.entrySet()) {
       countersMap.put(entry.getKey(), entry.getValue().toDocument());
     }
@@ -598,8 +592,9 @@ public class OSessionStoragePerformanceStatistic {
   /**
    * Increments counter of page accesses from cache.
    * <p>
-   * If you wish to gather statistic for current durable component please call {@link #startComponentOperation(String, ComponentType)} method
-   * before the call and {@link #completeComponentOperation()} after the call.
+   * If you wish to gather statistic for current durable component please call
+   * {@link #startComponentOperation(String, ComponentType)} method before the call and {@link #completeComponentOperation()} after
+   * the call.
    */
   public void incrementPageAccessOnCacheLevel(boolean cacheHit) {
     performanceCountersHolder.cacheAccessCount++;
@@ -609,11 +604,8 @@ public class OSessionStoragePerformanceStatistic {
     for (Component component : componentsStack) {
       final String componentName = component.name;
 
-      PerformanceCountersHolder cHolder = countersByComponent.get(componentName);
-      if (cHolder == null) {
-        cHolder = component.type.newCountersHolder();
-        countersByComponent.put(componentName, cHolder);
-      }
+      PerformanceCountersHolder cHolder = countersByComponent
+          .computeIfAbsent(componentName, k -> component.type.newCountersHolder());
 
       cHolder.cacheAccessCount++;
       if (cacheHit)
@@ -633,8 +625,9 @@ public class OSessionStoragePerformanceStatistic {
   /**
    * Stops and records results of timer which counts how much time was spent on read of page from file system.
    * <p>
-   * If you wish to gather statistic for current durable component please call {@link #startComponentOperation(String, ComponentType)} method
-   * before the call and {@link #completeComponentOperation()} after the call.
+   * If you wish to gather statistic for current durable component please call
+   * {@link #startComponentOperation(String, ComponentType)} method before the call and {@link #completeComponentOperation()} after
+   * the call.
    *
    * @param readPages Amount of pages which were read by single call to file system.
    */
@@ -648,13 +641,19 @@ public class OSessionStoragePerformanceStatistic {
     for (Component component : componentsStack) {
       final String componentName = component.name;
 
-      PerformanceCountersHolder cHolder = countersByComponent.get(componentName);
-      if (cHolder == null) {
-        cHolder = component.type.newCountersHolder();
-        countersByComponent.put(componentName, cHolder);
-      }
+      PerformanceCountersHolder cHolder = countersByComponent
+          .computeIfAbsent(componentName, k -> component.type.newCountersHolder());
       cHolder.pageReadFromFileTime += timeDiff;
       cHolder.pageReadFromFileCount += readPages;
+    }
+
+    final Component currentComponent = componentsStack.peek();
+    if (currentComponent != null) {
+      PerformanceCountersHolder currentHolder = countersByComponent.get(currentComponent.name);
+
+      if (currentHolder.currentOperation != null) {
+        currentHolder.currentOperation.incrementOperationsCounter(0, readPages);
+      }
     }
 
     makeSnapshotIfNeeded(endTs);
@@ -673,7 +672,7 @@ public class OSessionStoragePerformanceStatistic {
    * @param pagesFlushed Amount of pages were flushed during this operation.
    */
   public void stopWriteCacheFlushTimer(int pagesFlushed) {
-    //lazy initialization to prevent memory consumption
+    // lazy initialization to prevent memory consumption
     if (writCacheCountersHolder == null)
       writCacheCountersHolder = new WritCacheCountersHolder();
 
@@ -719,8 +718,7 @@ public class OSessionStoragePerformanceStatistic {
   }
 
   /**
-   * General method which is used ba all stopXXXTimer methods to delegate their
-   * functionality.
+   * General method which is used ba all stopXXXTimer methods to delegate their functionality.
    */
   private void pushTimer() {
     timeStamps.push(nanoTimer.getNano());
@@ -729,8 +727,9 @@ public class OSessionStoragePerformanceStatistic {
   /**
    * Stops and records results of timer which counts how much time was spent on read of page from disk cache.
    * <p>
-   * If you wish to gather statistic for current durable component please call {@link #startComponentOperation(String, ComponentType)} method
-   * before the call and {@link #completeComponentOperation()} after the call.
+   * If you wish to gather statistic for current durable component please call
+   * {@link #startComponentOperation(String, ComponentType)} method before the call and {@link #completeComponentOperation()} after
+   * the call.
    */
   public void stopPageReadFromCacheTimer() {
     final long endTs = nanoTimer.getNano();
@@ -741,14 +740,20 @@ public class OSessionStoragePerformanceStatistic {
 
     for (Component component : componentsStack) {
       final String componentName = component.name;
-      PerformanceCountersHolder cHolder = countersByComponent.get(componentName);
-      if (cHolder == null) {
-        cHolder = component.type.newCountersHolder();
-        countersByComponent.put(componentName, cHolder);
-      }
+      PerformanceCountersHolder cHolder = countersByComponent
+          .computeIfAbsent(componentName, k -> component.type.newCountersHolder());
 
       cHolder.pageReadFromCacheTime += timeDiff;
       cHolder.pageReadFromCacheCount++;
+    }
+
+    final Component currentComponent = componentsStack.peek();
+    if (currentComponent != null) {
+      PerformanceCountersHolder currentHolder = countersByComponent.get(currentComponent.name);
+
+      if (currentHolder.currentOperation != null) {
+        currentHolder.currentOperation.incrementOperationsCounter(1, 0);
+      }
     }
 
     makeSnapshotIfNeeded(endTs);
@@ -787,8 +792,9 @@ public class OSessionStoragePerformanceStatistic {
   /**
    * Stops and records results of timer which counts how much time was spent to write page to disk cache.
    * <p>
-   * If you wish to gather statistic for current durable component please call {@link #startComponentOperation(String, ComponentType)} method
-   * before the call and {@link #completeComponentOperation()} after the call.
+   * If you wish to gather statistic for current durable component please call
+   * {@link #startComponentOperation(String, ComponentType)} method before the call and {@link #completeComponentOperation()} after
+   * the call.
    */
   public void stopPageWriteInCacheTimer() {
     final long endTs = nanoTimer.getNano();
@@ -799,11 +805,8 @@ public class OSessionStoragePerformanceStatistic {
 
     for (Component component : componentsStack) {
       final String componentName = component.name;
-      PerformanceCountersHolder cHolder = countersByComponent.get(componentName);
-      if (cHolder == null) {
-        cHolder = component.type.newCountersHolder();
-        countersByComponent.put(componentName, cHolder);
-      }
+      PerformanceCountersHolder cHolder = countersByComponent
+          .computeIfAbsent(componentName, k -> component.type.newCountersHolder());
 
       cHolder.pageWriteToCacheTime += timeDiff;
       cHolder.pageWriteToCacheCount++;
@@ -824,9 +827,9 @@ public class OSessionStoragePerformanceStatistic {
     final long endTs = nanoTimer.getNano();
     final long timeDiff = (endTs - timeStamps.pop());
 
-    ClusterCountersHolder cHolder = (ClusterCountersHolder) countersByComponent.get(component.name);
+    OClusterCountersHolder cHolder = (OClusterCountersHolder) countersByComponent.get(component.name);
     if (cHolder == null) {
-      cHolder = (ClusterCountersHolder) ComponentType.CLUSTER.newCountersHolder();
+      cHolder = (OClusterCountersHolder) ComponentType.CLUSTER.newCountersHolder();
       countersByComponent.put(component.name, cHolder);
     }
 
@@ -848,9 +851,9 @@ public class OSessionStoragePerformanceStatistic {
     final long endTs = nanoTimer.getNano();
     final long timeDiff = (endTs - timeStamps.pop());
 
-    ClusterCountersHolder cHolder = (ClusterCountersHolder) countersByComponent.get(component.name);
+    OClusterCountersHolder cHolder = (OClusterCountersHolder) countersByComponent.get(component.name);
     if (cHolder == null) {
-      cHolder = (ClusterCountersHolder) ComponentType.CLUSTER.newCountersHolder();
+      cHolder = (OClusterCountersHolder) ComponentType.CLUSTER.newCountersHolder();
       countersByComponent.put(component.name, cHolder);
     }
 
@@ -872,9 +875,9 @@ public class OSessionStoragePerformanceStatistic {
     final long endTs = nanoTimer.getNano();
     final long timeDiff = (endTs - timeStamps.pop());
 
-    ClusterCountersHolder cHolder = (ClusterCountersHolder) countersByComponent.get(component.name);
+    OClusterCountersHolder cHolder = (OClusterCountersHolder) countersByComponent.get(component.name);
     if (cHolder == null) {
-      cHolder = (ClusterCountersHolder) ComponentType.CLUSTER.newCountersHolder();
+      cHolder = (OClusterCountersHolder) ComponentType.CLUSTER.newCountersHolder();
       countersByComponent.put(component.name, cHolder);
     }
 
@@ -896,9 +899,9 @@ public class OSessionStoragePerformanceStatistic {
     final long endTs = nanoTimer.getNano();
     final long timeDiff = (endTs - timeStamps.pop());
 
-    ClusterCountersHolder cHolder = (ClusterCountersHolder) countersByComponent.get(component.name);
+    OClusterCountersHolder cHolder = (OClusterCountersHolder) countersByComponent.get(component.name);
     if (cHolder == null) {
-      cHolder = (ClusterCountersHolder) ComponentType.CLUSTER.newCountersHolder();
+      cHolder = (OClusterCountersHolder) ComponentType.CLUSTER.newCountersHolder();
       countersByComponent.put(component.name, cHolder);
     }
 
@@ -1154,13 +1157,12 @@ public class OSessionStoragePerformanceStatistic {
   }
 
   private void checkComponentType(Component component, ComponentType expected) {
-    if (component.type.equals(expected))
+    if (!component.type.equals(expected))
       throw new IllegalStateException("Invalid component type , required " + expected + " but found " + component.type);
   }
 
   /**
-   * Makes snapshot of data if time for next snapshot is passed.
-   * Also clear all data if {@link #cleanUpInterval} interval is over.
+   * Makes snapshot of data if time for next snapshot is passed. Also clear all data if {@link #cleanUpInterval} interval is over.
    *
    * @param currentTime Time of last measurement in nanoseconds or -1 if time is unknown
    */
@@ -1234,20 +1236,17 @@ public class OSessionStoragePerformanceStatistic {
       PerformanceCountersHolder newCountersHolder() {
         return new PerformanceCountersHolder();
       }
-    },
-    INDEX {
+    }, INDEX {
       @Override
       IndexCountersHolder newCountersHolder() {
         return new IndexCountersHolder();
       }
-    },
-    CLUSTER {
+    }, CLUSTER {
       @Override
-      ClusterCountersHolder newCountersHolder() {
-        return new ClusterCountersHolder();
+      OClusterCountersHolder newCountersHolder() {
+        return new OClusterCountersHolder();
       }
-    },
-    RIDBAG {
+    }, RIDBAG {
       @Override
       RidbagCountersHolder newCountersHolder() {
         return new RidbagCountersHolder();
@@ -1328,8 +1327,7 @@ public class OSessionStoragePerformanceStatistic {
     }
 
     /**
-     * @return Average time which is spent on logging of  "stop atomic operation" record or <code>-1</code>
-     * if value is undefined.
+     * @return Average time which is spent on logging of "stop atomic operation" record or <code>-1</code> if value is undefined.
      */
     public long getStopAOTime() {
       if (stopRecordCount == 0)
@@ -1339,8 +1337,7 @@ public class OSessionStoragePerformanceStatistic {
     }
 
     /**
-     * @return Average time which is spent on logging of "start atomic operation" record or <code>-1</code> if value is
-     * undefined.
+     * @return Average time which is spent on logging of "start atomic operation" record or <code>-1</code> if value is undefined.
      */
     public long getStartAOTime() {
       if (startRecordCount == 0)
@@ -1361,11 +1358,11 @@ public class OSessionStoragePerformanceStatistic {
 
     @Override
     public ODocument toDocument() {
-      ODocument document = new ODocument();
+      final ODocument document = new ODocument();
 
-      document.field("logTime", getLogTime());
-      document.field("startAOTime", getStartAOTime());
-      document.field("stopAOTime", getStopAOTime());
+      writeMetric(document, "logTime", getLogTime(), OType.LONG);
+      writeMetric(document, "startAOTime", getStartAOTime(), OType.LONG);
+      writeMetric(document, "stopAOTime", getStopAOTime(), OType.LONG);
 
       return document;
     }
@@ -1400,7 +1397,7 @@ public class OSessionStoragePerformanceStatistic {
     @Override
     public ODocument toDocument() {
       final ODocument document = new ODocument();
-      document.field("fullCheckpointTime", getFullCheckpointTime(), OType.LONG);
+      writeMetric(document, "fullCheckpointTime", getFullCheckpointTime(), OType.LONG);
 
       return document;
     }
@@ -1475,8 +1472,8 @@ public class OSessionStoragePerformanceStatistic {
     }
 
     /**
-     * @return Average amount of time which is spent on each "page flush" operation of write cache or <code>-1</code> if
-     * value is undefined.
+     * @return Average amount of time which is spent on each "page flush" operation of write cache or <code>-1</code> if value is
+     * undefined.
      */
     public long getFlushOperationsTime() {
       if (flushOperationsCount == 0)
@@ -1486,8 +1483,7 @@ public class OSessionStoragePerformanceStatistic {
     }
 
     /**
-     * @return Average amount of time which is spent on "fuzzy checkpoint" operation or <code>-1</code> if
-     * value if undefined.
+     * @return Average amount of time which is spent on "fuzzy checkpoint" operation or <code>-1</code> if value if undefined.
      */
     public long getFuzzyCheckpointTime() {
       if (fuzzyCheckpointCount == 0)
@@ -1500,130 +1496,37 @@ public class OSessionStoragePerformanceStatistic {
     public ODocument toDocument() {
       final ODocument document = new ODocument();
 
-      document.field("pagesPerFlush", getPagesPerFlush(), OType.LONG);
-      document.field("flushOperationsTime", getFlushOperationsTime(), OType.LONG);
-      document.field("fuzzyCheckpointTime", getFuzzyCheckpointTime(), OType.LONG);
+      writeMetric(document, "pagesPerFlush", getPagesPerFlush(), OType.LONG);
+      writeMetric(document, "flushOperationsTime", getFlushOperationsTime(), OType.LONG);
+      writeMetric(document, "fuzzyCheckpointTime", getFuzzyCheckpointTime(), OType.LONG);
 
       return document;
     }
   }
 
-  /**
-   * Container for cluster related performance numbers
-   */
-  public static class ClusterCountersHolder extends PerformanceCountersHolder {
-    /**
-     * Amount of all created records.
-     */
-    private long createdRecords;
-
-    /**
-     * Total time is needed to create all records
-     */
-    private long timeRecordCreation;
-
-    /**
-     * Amount of all deleted records
-     */
-    private long deletedRecords;
-
-    /**
-     * Total time is needed to delete all records
-     */
-    private long timeRecordDeletion;
-
-    /**
-     * Amount of all updated records
-     */
-    private long updatedRecords;
-
-    /**
-     * Total time which is needed to update all records
-     */
-    private long timeRecordUpdate;
-
-    /**
-     * Amount of all read records
-     */
-    private long readRecords;
-
-    /**
-     * Total time which is needed to read all records.
-     */
-    private long timeRecordRead;
-
-    @Override
-    public ClusterCountersHolder newInstance() {
-      return new ClusterCountersHolder();
-    }
-
-    @Override
-    public void clean() {
-      super.clean();
-
-      createdRecords = 0;
-      timeRecordCreation = 0;
-
-      deletedRecords = 0;
-      timeRecordDeletion = 0;
-
-      updatedRecords = 0;
-      timeRecordUpdate = 0;
-
-      readRecords = 0;
-      timeRecordRead = 0;
-    }
-
-    public long getRecordCreationTime() {
-      if (createdRecords == 0)
-        return -1;
-
-      return timeRecordCreation / createdRecords;
-    }
-
-    public long getRecordDeletionTime() {
-      if (deletedRecords == 0)
-        return -1;
-
-      return timeRecordDeletion / deletedRecords;
-    }
-
-    public long getRecordUpdateTime() {
-      if (updatedRecords == 0)
-        return -1;
-
-      return timeRecordUpdate / updatedRecords;
-    }
-
-    public long getRecordReadTime() {
-      if (readRecords == 0)
-        return -1;
-
-      return timeRecordRead / readRecords;
-    }
-
-    @Override
-    public ODocument toDocument() {
-      final ODocument document = super.toDocument();
-
-      document.field("recordCreationTime", getRecordCreationTime());
-      document.field("recordDeletionTime", getRecordDeletionTime());
-      document.field("recordUpdateTime", getRecordUpdateTime());
-      document.field("recordReadTime", getRecordReadTime());
-
-      return document;
-    }
-  }
-
+  @SuppressWarnings("unused")
   public static class IndexCountersHolder extends PerformanceCountersHolder {
     private long updatedEntries;
     private long timeUpdateEntry;
+    private long updateEntryPages;
+    private long updateEntryFilePages;
+    private long updateEntryPageTime;
+    private long updateEntryFilePageTime;
 
     private long deletedEntries;
     private long timeDeleteEntry;
+    private long deleteEntryPages;
+    private long deleteEntryFilePages;
+    private long deleteEntryPageTime;
+    private long deleteEntryFilePageTime;
 
     private long readEntries;
     private long timeReadEntry;
+    private long readEntryPages;
+
+    private long readEntryFilePages;
+    private long readEntryPageTime;
+    private long readEntryFilePageTime;
 
     @Override
     public IndexCountersHolder newInstance() {
@@ -1636,12 +1539,24 @@ public class OSessionStoragePerformanceStatistic {
 
       updatedEntries = 0;
       timeUpdateEntry = 0;
+      updateEntryPages = 0;
+      updateEntryFilePages = 0;
+      updateEntryPageTime = 0;
+      updateEntryFilePageTime = 0;
 
       deletedEntries = 0;
       timeDeleteEntry = 0;
+      deleteEntryPages = 0;
+      deleteEntryFilePages = 0;
+      deleteEntryPageTime = 0;
+      deleteEntryFilePageTime = 0;
 
       readEntries = 0;
       timeReadEntry = 0;
+      readEntryPages = 0;
+      readEntryFilePages = 0;
+      readEntryPageTime = 0;
+      readEntryFilePageTime = 0;
     }
 
     public long getUpdateEntryTime() {
@@ -1651,11 +1566,53 @@ public class OSessionStoragePerformanceStatistic {
       return timeUpdateEntry / updatedEntries;
     }
 
+    public long getUpdateEntryPages() {
+      if (updatedEntries == 0)
+        return -1;
+
+      return updateEntryPages / updatedEntries;
+    }
+
+    public long getUpdateEntryHitRate() {
+      if (updateEntryPages == 0)
+        return -1;
+
+      return (int) ((100 * (updateEntryPages - updateEntryFilePages)) / updateEntryPages);
+    }
+
+    public long getUpdateEntryPageTime() {
+      if (updateEntryPages == 0)
+        return -1;
+
+      return updateEntryPageTime / updateEntryPages;
+    }
+
+    public long getUpdateEntryFilePageTime() {
+      if (updateEntryFilePages == 0)
+        return -1;
+
+      return updateEntryFilePageTime / updateEntryFilePages;
+    }
+
     public long getDeleteEntryTime() {
       if (deletedEntries == 0)
         return -1;
 
       return timeDeleteEntry / deletedEntries;
+    }
+
+    public long getDeleteEntryPages() {
+      if (deletedEntries == 0)
+        return -1;
+
+      return deleteEntryPages / deletedEntries;
+    }
+
+    public long getDeleteEntryHitRate() {
+      if (deleteEntryPages == 0)
+        return -1;
+
+      return (int) ((100 * (deleteEntryPages - deleteEntryFilePages)) / deleteEntryPages);
     }
 
     public long getReadEntryTime() {
@@ -1665,30 +1622,73 @@ public class OSessionStoragePerformanceStatistic {
       return timeReadEntry / readEntries;
     }
 
+    public long getReadEntryPages() {
+      if (readEntries == 0)
+        return -1;
+
+      return readEntryPages / readEntries;
+    }
+
     @Override
     public ODocument toDocument() {
       final ODocument document = super.toDocument();
 
-      document.field("updateEntryTime", getUpdateEntryTime());
-      document.field("deleteEntryTime", getDeleteEntryTime());
-      document.field("readEntryTime", getReadEntryTime());
+      writeMetric(document, "updateEntryTime", getUpdateEntryTime(), OType.LONG);
+      writeMetric(document, "updateEntryPages", getUpdateEntryPages(), OType.LONG);
+      writeMetric(document, "deleteEntryTime", getDeleteEntryTime(), OType.LONG);
+      writeMetric(document, "deleteEntryPages", getDeleteEntryPages(), OType.LONG);
+      writeMetric(document, "readEntryTime", getReadEntryTime(), OType.LONG);
+      writeMetric(document, "readEntryPages", getReadEntryPages(), OType.LONG);
 
       return document;
     }
+
+    private class UpdateEntryOperation extends OOperation {
+      @Override
+      void incrementOperationsCounter(int pages, int filePages) {
+        IndexCountersHolder.this.updateEntryPages += pages;
+        IndexCountersHolder.this.updateEntryFilePages += filePages;
+      }
+    }
+
+    private class DeleteEntryOperation extends OOperation {
+      @Override
+      void incrementOperationsCounter(int pages, int filePages) {
+        IndexCountersHolder.this.deleteEntryPages += pages;
+        IndexCountersHolder.this.deleteEntryFilePages += filePages;
+      }
+    }
+
+    private class ReadEntryOperation extends OOperation {
+      @Override
+      void incrementOperationsCounter(int pages, int filePages) {
+        IndexCountersHolder.this.readEntryPages += pages;
+        IndexCountersHolder.this.readEntryFilePages += filePages;
+      }
+    }
   }
 
+  @SuppressWarnings("unused")
   public static class RidbagCountersHolder extends PerformanceCountersHolder {
     private long updatedEntries;
     private long timeUpdateEntry;
+    private long updateEntryPages;
+    private long updateEntryFilePages;
 
     private long deletedEntries;
     private long timeDeleteEntry;
+    private long deleteEntryPages;
+    private long deleteEntryFilePages;
 
     private long readEntries;
     private long timeReadEntry;
+    private long readEntryPages;
+    private long readEntryFilePages;
 
     private long loads;
     private long loadTime;
+    private long loadPages;
+    private long loadFilePages;
 
     @Override
     public PerformanceCountersHolder newInstance() {
@@ -1701,15 +1701,23 @@ public class OSessionStoragePerformanceStatistic {
 
       updatedEntries = 0;
       timeUpdateEntry = 0;
+      updateEntryPages = 0;
+      updateEntryFilePages = 0;
 
       deletedEntries = 0;
       timeDeleteEntry = 0;
+      deleteEntryPages = 0;
+      deleteEntryFilePages = 0;
 
       readEntries = 0;
       timeReadEntry = 0;
+      readEntryPages = 0;
+      readEntryFilePages = 0;
 
       loads = 0;
       loadTime = 0;
+      loadPages = 0;
+      loadFilePages = 0;
     }
 
     public long getUpdateEntryTime() {
@@ -1719,11 +1727,25 @@ public class OSessionStoragePerformanceStatistic {
       return timeUpdateEntry / updatedEntries;
     }
 
+    public long getUpdateEntryPages() {
+      if (updatedEntries == 0)
+        return -1;
+
+      return updateEntryPages / updatedEntries;
+    }
+
     public long getDeleteEntryTime() {
       if (deletedEntries == 0)
         return -1;
 
       return timeDeleteEntry / deletedEntries;
+    }
+
+    public long getDeleteEntryPages() {
+      if (deletedEntries == 0)
+        return -1;
+
+      return deleteEntryPages / deletedEntries;
     }
 
     public long getReadEntryTime() {
@@ -1733,20 +1755,70 @@ public class OSessionStoragePerformanceStatistic {
       return timeReadEntry / readEntries;
     }
 
+    public long getReadEntryPages() {
+      if (readEntries == 0)
+        return -1;
+
+      return readEntryPages / readEntries;
+    }
+
     public long getLoadTime() {
       return loadTime / loads;
+    }
+
+    public long getLoadPages() {
+      if (loads == 0)
+        return -1;
+
+      return loadPages / loads;
     }
 
     @Override
     public ODocument toDocument() {
       final ODocument document = super.toDocument();
 
-      document.field("updateEntryTime", getUpdateEntryTime());
-      document.field("deleteEntryTime", getDeleteEntryTime());
-      document.field("readEntryTime", getReadEntryTime());
-      document.field("loadTime", getLoadTime());
+      writeMetric(document, "updateEntryTime", getUpdateEntryTime(), OType.LONG);
+      writeMetric(document, "updateEntryPages", getUpdateEntryPages(), OType.LONG);
+      writeMetric(document, "deleteEntryTime", getDeleteEntryTime(), OType.LONG);
+      writeMetric(document, "deleteEntryPages", getDeleteEntryPages(), OType.LONG);
+      writeMetric(document, "readEntryTime", getReadEntryTime(), OType.LONG);
+      writeMetric(document, "readEntryPages", getReadEntryPages(), OType.LONG);
+      writeMetric(document, "loadTime", getLoadTime(), OType.LONG);
+      writeMetric(document, "loadPages", getLoadPages(), OType.LONG);
 
       return document;
+    }
+
+    private class UpdateEntryOperation extends OOperation {
+      @Override
+      void incrementOperationsCounter(int pages, int filePages) {
+        RidbagCountersHolder.this.updateEntryPages += pages;
+        RidbagCountersHolder.this.updateEntryFilePages += filePages;
+      }
+    }
+
+    private class DeleteEntryPages extends OOperation {
+      @Override
+      void incrementOperationsCounter(int pages, int filePages) {
+        RidbagCountersHolder.this.deleteEntryPages += pages;
+        RidbagCountersHolder.this.deleteEntryFilePages += filePages;
+      }
+    }
+
+    private class ReadEntryPages extends OOperation {
+      @Override
+      void incrementOperationsCounter(int pages, int filePages) {
+        RidbagCountersHolder.this.readEntryPages += pages;
+        RidbagCountersHolder.this.readEntryFilePages += filePages;
+      }
+    }
+
+    private class LoadPages extends OOperation {
+      @Override
+      void incrementOperationsCounter(int pages, int filePages) {
+        RidbagCountersHolder.this.loadPages += pages;
+        RidbagCountersHolder.this.loadFilePages += filePages;
+      }
     }
   }
 
@@ -1809,9 +1881,13 @@ public class OSessionStoragePerformanceStatistic {
      */
     private long pageWriteToCacheCount = 0;
 
+    @SuppressWarnings("unused")
+    private OOperation currentOperation;
+
     /**
      * Clears all performance data.
      */
+    @Override
     public void clean() {
       commitCount = 0;
       commitTime = 0;
@@ -1831,6 +1907,7 @@ public class OSessionStoragePerformanceStatistic {
      *
      * @param aggregator Data to aggregate
      */
+    @Override
     public void pushData(PerformanceCountersHolder aggregator) {
       aggregator.operationsCount += operationsCount;
       aggregator.cacheAccessCount += cacheAccessCount;
@@ -1934,18 +2011,19 @@ public class OSessionStoragePerformanceStatistic {
      *
      * @return Performance characteristics of storage.
      */
+    @Override
     public ODocument toDocument() {
       final ODocument document = new ODocument();
 
-      document.field("readSpeedFromCacheInPages", getReadSpeedFromCacheInPages(), OType.LONG);
-      document.field("readSpeedFromFileInPages", getReadSpeedFromFileInPages(), OType.LONG);
-      document.field("amountOfPagesReadFromCache", getAmountOfPagesReadFromCache(), OType.LONG);
-      document.field("writeSpeedInCacheInPages", getWriteSpeedInCacheInPages(), OType.LONG);
-      document.field("amountOfPagesWrittenInCache", getAmountOfPagesWrittenInCache(), OType.LONG);
-      document.field("amountOfPagesReadFromFile", getAmountOfPagesReadFromFile(), OType.LONG);
-      document.field("cacheHits", getCacheHits(), OType.INTEGER);
-      document.field("amountOfPagesPerOperation", getAmountOfPagesPerOperation(), OType.LONG);
-      document.field("commitTime", getCommitTime(), OType.LONG);
+      writeMetric(document, "readSpeedFromCacheInPages", getReadSpeedFromCacheInPages(), OType.LONG);
+      writeMetric(document, "readSpeedFromFileInPages", getReadSpeedFromFileInPages(), OType.LONG);
+      writeMetric(document, "amountOfPagesReadFromCache", getAmountOfPagesReadFromCache(), OType.LONG);
+      writeMetric(document, "writeSpeedInCacheInPages", getWriteSpeedInCacheInPages(), OType.LONG);
+      writeMetric(document, "amountOfPagesWrittenInCache", getAmountOfPagesWrittenInCache(), OType.LONG);
+      writeMetric(document, "amountOfPagesReadFromFile", getAmountOfPagesReadFromFile(), OType.LONG);
+      writeMetric(document, "cacheHits", getCacheHits(), OType.INTEGER);
+      writeMetric(document, "amountOfPagesPerOperation", getAmountOfPagesPerOperation(), OType.LONG);
+      writeMetric(document, "commitTime", getCommitTime(), OType.LONG);
 
       return document;
     }
@@ -1958,7 +2036,7 @@ public class OSessionStoragePerformanceStatistic {
   /**
    * Snapshot of all performance data of current container.
    */
-  public final static class PerformanceSnapshot {
+  public static final class PerformanceSnapshot {
     public final PerformanceCountersHolder performanceCountersHolder;
     public final WritCacheCountersHolder   writCacheCountersHolder;
     public final StorageCountersHolder     storageCountersHolder;
@@ -1976,8 +2054,8 @@ public class OSessionStoragePerformanceStatistic {
       this.performanceCountersHolder = performanceCountersHolder.newInstance();
       performanceCountersHolder.pushData(this.performanceCountersHolder);
 
-      //to preserve thread safety we assign map instance to the final field when it is completely filled by data
-      Map<String, PerformanceCountersHolder> counters = new HashMap<String, PerformanceCountersHolder>();
+      // to preserve thread safety we assign map instance to the final field when it is completely filled by data
+      Map<String, PerformanceCountersHolder> counters = new HashMap<>();
       for (Map.Entry<String, PerformanceCountersHolder> entry : countersByComponent.entrySet()) {
         final PerformanceCountersHolder holder = entry.getValue().newInstance();
         entry.getValue().pushData(holder);
@@ -2027,8 +2105,6 @@ public class OSessionStoragePerformanceStatistic {
 
     /**
      * Accumulates data in current and passed in containers and push data back to passed in container.
-     *
-     * @param holder
      */
     void pushData(T holder);
 
@@ -2040,4 +2116,13 @@ public class OSessionStoragePerformanceStatistic {
     ODocument toDocument();
   }
 
+  public static void writeMetric(final ODocument document, final String metricName, final Number metricValue) {
+    writeMetric(document, metricName, metricValue, OType.LONG);
+  }
+
+  public static void writeMetric(final ODocument document, final String metricName, final Number metricValue,
+      final OType metricType) {
+    if (metricValue.longValue() != -1)
+      document.field(metricName, metricValue, metricType);
+  }
 }

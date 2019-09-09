@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,19 +14,16 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 
 package com.orientechnologies.orient.core.storage;
 
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
-
 import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
-import java.util.Arrays;
 
 /**
  * This class represent CRUD operation result RET is the actual result Stores addition information about command execution process
@@ -54,20 +51,17 @@ public class OStorageOperationResult<RET> implements Externalizable {
     this(result, null, false);
   }
 
-  @SuppressFBWarnings("EI_EXPOSE_REP2")
   public OStorageOperationResult(final RET result, final boolean moved) {
     this.result = result;
     this.isMoved = moved;
   }
 
-  @SuppressFBWarnings("EI_EXPOSE_REP")
   public OStorageOperationResult(final RET result, final byte[] content, final boolean moved) {
     this.result = result;
     this.modifiedRecordContent = content;
     this.isMoved = moved;
   }
 
-  @SuppressFBWarnings("EI_EXPOSE_REP")
   public byte[] getModifiedRecordContent() {
     return modifiedRecordContent;
   }

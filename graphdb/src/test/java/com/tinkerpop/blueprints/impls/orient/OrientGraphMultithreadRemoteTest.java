@@ -10,9 +10,12 @@ import org.junit.*;
 import com.orientechnologies.orient.client.remote.OServerAdmin;
 import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.server.OServer;
 import com.orientechnologies.orient.server.OServerMain;
 import com.tinkerpop.blueprints.Vertex;
+
+import static org.junit.Assert.assertEquals;
 
 public class OrientGraphMultithreadRemoteTest {
   private static final String serverPort = System.getProperty("orient.server.port", "3080");
@@ -47,6 +50,10 @@ public class OrientGraphMultithreadRemoteTest {
   public static void stopEmbeddedServer() throws Exception {
     server.shutdown();
     Thread.sleep(1000);
+    ODatabaseDocumentTx.closeAll();
+
+    Orient.instance().shutdown();
+    Orient.instance().startup();
 
     if (oldOrientDBHome != null)
       System.setProperty("ORIENTDB_HOME", oldOrientDBHome);
@@ -82,7 +89,6 @@ public class OrientGraphMultithreadRemoteTest {
   }
 
   @Test
-  @Ignore
   public void testThreadingInsert() throws InterruptedException {
     List<Thread> threads = new ArrayList<Thread>();
     int threadCount = 8;
@@ -130,29 +136,7 @@ public class OrientGraphMultithreadRemoteTest {
       }
     }
     OrientGraph graph = graphFactory.getTx();
-
-    long actualRecords = graph.countVertices();
-
-    if (actualRecords != records) {
-      System.out
-          .println("Count of records on server does not equal to expected count of records. Try to reproduce it next 10 times");
-
-      int reproduced = 0;
-      while (true) {
-        if (graph.countVertices() != records)
-          reproduced++;
-        else
-          break;
-        if (reproduced == 10) {
-          System.out.println("Test goes in forever loop to investigate reason of this error.");
-          while (true)
-            ;
-        }
-      }
-
-      Assert.fail();
-    }
-
+    assertEquals(graph.countVertices(), records);
     graph.shutdown();
 
   }

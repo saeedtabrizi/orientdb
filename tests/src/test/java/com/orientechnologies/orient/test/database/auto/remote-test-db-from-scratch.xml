@@ -8,6 +8,7 @@
             <class name="com.orientechnologies.orient.test.database.auto.DbListenerTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.ServerTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.DBMethodsTest"/>
+            <class name="com.orientechnologies.orient.test.database.auto.ConnectDatabaseTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.DbCopyTest"/>
         </classes>
     </test>
@@ -74,22 +75,21 @@
             <class name="com.orientechnologies.orient.test.database.auto.ClassIndexTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.PropertyIndexTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.CollectionIndexTest"/>
-            <class name="com.orientechnologies.orient.test.database.auto.SQLSelectCompositeIndexDirectSearchTest"/>
+            <class name="com.orientechnologies.orient.test.database.auto.IndexTxAwareOneValueGetValuesTest"/>
+            <class name="com.orientechnologies.orient.test.database.auto.IndexTxAwareMultiValueGetValuesTest"/>
+            <class name="com.orientechnologies.orient.test.database.auto.IndexTxAwareMultiValueGetTest"/>
+            <class name="com.orientechnologies.orient.test.database.auto.IndexTxAwareOneValueGetTest"/>
+            <class name="com.orientechnologies.orient.test.database.auto.IndexTxAwareMultiValueGetEntriesTest"/>
+            <class name="com.orientechnologies.orient.test.database.auto.IndexTxAwareOneValueGetEntriesTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.MapIndexTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.SQLSelectByLinkedPropertyIndexReuseTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.LinkListIndexTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.LinkBagIndexTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.LinkMapIndexTest"/>
-            <class name="com.orientechnologies.orient.test.database.auto.SQLIndexWithoutSchemaTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.IndexTxTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.OrderByIndexReuseTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.LinkSetIndexTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.CompositeIndexWithNullTest"/>
-        </classes>
-    </test>
-    <test name="Dictionary">
-        <classes>
-            <!-- <class name="com.orientechnologies.orient.test.database.auto.DictionaryTest" /> -->
         </classes>
     </test>
     <test name="Query">
@@ -136,6 +136,7 @@
             <class name="com.orientechnologies.orient.test.database.auto.SQLDeleteEdgeTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.SequenceTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.SQLBatchTest"/>
+            <class name="com.orientechnologies.orient.test.database.auto.SQLSequenceTest"/>
         </classes>
     </test>
     <test name="other-commands">
@@ -149,13 +150,13 @@
             <class name="com.orientechnologies.orient.test.database.auto.DateTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.SQLFindReferencesTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.SQLCreateLinkTest"/>
+            <class name="com.orientechnologies.orient.test.database.auto.MultipleDBTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.ConcurrentUpdatesTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.ConcurrentQueriesTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.DatabaseThreadFactoryTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.CollateTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.OEmbeddedRidBagTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.OSBTreeRidBagTest"/>
-            <class name="com.orientechnologies.orient.test.database.auto.HideRecordTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.PoolTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.RemoteProtocolCommandsTest"/>
             <class name="com.orientechnologies.orient.test.database.auto.RecordReloadTest"/>

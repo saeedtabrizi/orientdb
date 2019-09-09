@@ -1,6 +1,6 @@
 /*
  *
- *  * Copyright 2014 Orient Technologies.
+ *  * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  * Licensed under the Apache License, Version 2.0 (the "License");
  *  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -42,55 +41,48 @@ public class LuceneMassiveInsertDeleteTest extends BaseLuceneTest {
 
   @Before
   public void init() {
-    initDB();
-    OSchema schema = databaseDocumentTx.getMetadata().getSchema();
+    OSchema schema = db.getMetadata().getSchema();
     OClass v = schema.getClass("V");
     OClass song = schema.createClass("City");
     song.setSuperClass(v);
     song.createProperty("name", OType.STRING);
 
-    databaseDocumentTx.command(new OCommandSQL("create index City.name on City (name) FULLTEXT ENGINE LUCENE")).execute();
+    db.command(new OCommandSQL("create index City.name on City (name) FULLTEXT ENGINE LUCENE")).execute();
 
   }
 
   @Test
   public void loadCloseDelete() {
 
-    ODocument city = new ODocument("City");
     int size = 1000;
     for (int i = 0; i < size; i++) {
+      ODocument city = new ODocument("City");
       city.field("name", "Rome " + i);
-      databaseDocumentTx.save(city);
-      city.reset();
-      city.setClassName("City");
+      db.save(city);
     }
-    String query = "select * from City where [name] LUCENE \"(name:Rome)\"";
-    List<ODocument> docs = databaseDocumentTx.query(new OSQLSynchQuery<ODocument>(query));
+    String query = "select * from City where name LUCENE 'name:Rome'";
+    List<ODocument> docs = db.query(new OSQLSynchQuery<ODocument>(query));
     Assert.assertEquals(docs.size(), size);
 
-    databaseDocumentTx.close();
-    databaseDocumentTx.open("admin", "admin");
-    docs = databaseDocumentTx.query(new OSQLSynchQuery<ODocument>(query));
+    db.close();
+    db.open("admin", "admin");
+    docs = db.query(new OSQLSynchQuery<ODocument>(query));
     Assert.assertEquals(docs.size(), size);
 
-    databaseDocumentTx.command(new OCommandSQL("delete vertex City")).execute();
+    db.command(new OCommandSQL("delete vertex City")).execute();
 
-    docs = databaseDocumentTx.query(new OSQLSynchQuery<ODocument>(query));
+    docs = db.query(new OSQLSynchQuery<ODocument>(query));
     Assert.assertEquals(docs.size(), 0);
 
-    databaseDocumentTx.close();
-    databaseDocumentTx.open("admin", "admin");
-    docs = databaseDocumentTx.query(new OSQLSynchQuery<ODocument>(query));
+    db.close();
+    db.open("admin", "admin");
+    docs = db.query(new OSQLSynchQuery<ODocument>(query));
     Assert.assertEquals(docs.size(), 0);
 
-    databaseDocumentTx.getMetadata().reload();
-    OIndex idx = databaseDocumentTx.getMetadata().getSchema().getClass("City").getClassIndex("City.name");
+    db.getMetadata().reload();
+    OIndex idx = db.getMetadata().getSchema().getClass("City").getClassIndex("City.name");
     idx.flush();
     Assert.assertEquals(idx.getSize(), 0);
   }
 
-  @After
-  public void deInit() {
-    deInitDB();
-  }
 }

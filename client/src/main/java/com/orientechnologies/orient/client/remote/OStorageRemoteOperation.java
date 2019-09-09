@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,21 +14,21 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.client.remote;
 
-import com.orientechnologies.orient.enterprise.channel.binary.OChannelBinaryAsynchClient;
-
 import java.io.IOException;
+
+import com.orientechnologies.orient.client.binary.OChannelBinaryAsynchClient;
 
 /**
  * Created by tglman on 16/12/15.
  */
 public interface OStorageRemoteOperation<T> {
 
-  T execute(final OChannelBinaryAsynchClient network) throws IOException;
+  T execute(final OChannelBinaryAsynchClient network, OStorageRemoteSession session) throws IOException;
 
 }
 

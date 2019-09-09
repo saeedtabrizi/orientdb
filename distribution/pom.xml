@@ -17,12 +17,11 @@
     <parent>
         <groupId>com.orientechnologies</groupId>
         <artifactId>orientdb-parent</artifactId>
-        <version>2.2.0-SNAPSHOT</version>
+        <version>3.1.0-SNAPSHOT</version>
         <relativePath>../</relativePath>
     </parent>
 
     <artifactId>orientdb-community</artifactId>
-    <packaging>pom</packaging>
 
     <name>OrientDB Community Distribution</name>
 
@@ -30,9 +29,19 @@
         <VERSION>${project.version}</VERSION>
         <BUILD>${implementation.build}; ${maven.build.timestamp}</BUILD>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <argLine>-Xmx${heapSize} -Xms${heapSize} -Dstorage.diskCache.bufferSize=4096</argLine>
+        <project.rootdir>${project.basedir}/../</project.rootdir>
     </properties>
 
     <dependencies>
+        <!--<dependency>-->
+        <!--<groupId>org.testng</groupId>-->
+        <!--<artifactId>testng</artifactId>-->
+        <!--<version>6.9.8</version>-->
+        <!--<scope>test</scope>-->
+        <!--</dependency>-->
+
+
         <dependency>
             <groupId>com.orientechnologies</groupId>
             <artifactId>orientdb-client</artifactId>
@@ -69,29 +78,6 @@
         </dependency>
         <dependency>
             <groupId>com.orientechnologies</groupId>
-            <artifactId>orientdb-graphdb</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-
-        <!-- #5256 removed dep from orientdb-graphdb -->
-        <dependency>
-            <groupId>com.tinkerpop.rexster</groupId>
-            <artifactId>rexster-core</artifactId>
-            <version>${blueprints.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.tinkerpop.gremlin</groupId>
-            <artifactId>gremlin-java</artifactId>
-            <version>${blueprints.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.tinkerpop.gremlin</groupId>
-            <artifactId>gremlin-groovy</artifactId>
-            <version>${blueprints.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.orientechnologies</groupId>
             <artifactId>orientdb-etl</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -105,11 +91,67 @@
             <artifactId>orientdb-jdbc</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.orientechnologies</groupId>
+            <artifactId>orientdb-studio</artifactId>
+            <version>${project.version}</version>
+            <type>zip</type>
+        </dependency>
 
+
+        <dependency>
+            <groupId>com.orientechnologies</groupId>
+            <artifactId>orientdb-test-commons</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>1.5.1</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.11.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-jul</artifactId>
+            <version>2.11.0</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+            <version>2.11.0</version>
+            <scope>test</scope>
+        </dependency>
 
     </dependencies>
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                    </archive>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
@@ -125,21 +167,28 @@
                             <executable>${java.home}/bin/java</executable>
                             <workingDirectory>${project.basedir}</workingDirectory>
                             <arguments>
-                                <argument>-XX:MaxDirectMemorySize=512g</argument>
+                                <argument>-Xmx${heapSize}</argument>
+                                <argument>-DridBag.embeddedToSbtreeBonsaiThreshold=10000000</argument>
                                 <argument>-classpath</argument>
-                                <classpath />
-                                <argument>com.orientechnologies.orient.graph.console.OInternalGraphImporter</argument>
-                                <argument>${project.basedir}/../graphdb/src/test/resources/graph-example-2.xml</argument>
-                                <argument>plocal:${project.basedir}/target/databases/GratefulDeadConcerts</argument>
+                                <classpath/>
+                                <argument>com.orientechnologies.orient.console.OConsoleDatabaseApp</argument>
+                                <argument>CREATE DATABASE plocal:${basedir}/target/databases/demodb;</argument>
+                                <argument>CONNECT plocal:${basedir}/target/databases/demodb admin admin;</argument>
+                                <argument>LOAD SCRIPT ${basedir}/src/main/resources/demodb-1-schema.osql;</argument>
+                                <argument>LOAD SCRIPT ${basedir}/src/main/resources/demodb-2.osql;</argument>
+                                <argument>LOAD SCRIPT ${basedir}/src/main/resources/demodb-3.osql;</argument>
+                                <argument>LOAD SCRIPT ${basedir}/src/main/resources/demodb-4.osql;</argument>
+                                <argument>LOAD SCRIPT ${basedir}/src/main/resources/demodb-5.osql;</argument>
                             </arguments>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
+
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>2.4</version>
                 <executions>
                     <execution>
                         <id>distribution-package</id>
@@ -161,27 +210,154 @@
                     </execution>
                 </executions>
             </plugin>
-            <plugin>
-                <groupId>com.spotify</groupId>
-                <artifactId>docker-maven-plugin</artifactId>
-                <version>0.4.3</version>
-                <configuration>
-                    <imageName>orientdb/orientdb</imageName>
-                    <imageTags>
-                        <imageTag>${project.version}</imageTag>
-                    </imageTags>
-                    <dockerDirectory>docker</dockerDirectory>
-                    <!-- copy the service's jar file from target into the root directory of the image -->
-                    <resources>
-                        <resource>
-                            <targetPath>/</targetPath>
-                            <directory>${project.build.directory}/</directory>
-                            <include>${project.build.finalName}.tar.gz</include>
-                        </resource>
-                    </resources>
-                </configuration>
-            </plugin>
         </plugins>
     </build>
 
+    <profiles>
+        <profile>
+            <id>qa</id>
+
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.spotify</groupId>
+                        <artifactId>docker-maven-plugin</artifactId>
+                        <version>1.1.1</version>
+                        <executions>
+                            <execution>
+                                <id>build-image</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>build</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <imageName>orientdb/orientdb</imageName>
+                            <imageTags>
+                                <imageTag>${project.version}</imageTag>
+                            </imageTags>
+                            <dockerDirectory>${project.basedir}/docker</dockerDirectory>
+                            <!-- copy the service's jar file from target into the root directory of the image -->
+                            <resources>
+                                <resource>
+                                    <targetPath>/</targetPath>
+                                    <directory>${project.build.directory}/</directory>
+                                    <include>${project.build.finalName}.tar.gz</include>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <systemPropertyVariables>
+                                <buildDirectory>${project.build.directory}</buildDirectory>
+                                <buildName>${project.build.finalName}</buildName>
+                            </systemPropertyVariables>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+
+        </profile>
+
+        <profile>
+            <id>ci</id>
+            <activation>
+                <property>
+                    <name>orientdb.test.env</name>
+                    <value>ci</value>
+                </property>
+            </activation>
+            <properties>
+                <exclude.test.1>empty.java</exclude.test.1>
+                <exclude.test.2>empty.java</exclude.test.2>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <version>${surefire.version}</version>
+                        <configuration>
+                            <excludes>
+                                <exclude>**/OCommunityEditionSingleNodeIT.java</exclude>
+                                <exclude>**/OGitHubIssuesIT.java</exclude>
+                                <exclude>**/ODemoDbFromDocumentationAttractionsIT.java</exclude>
+                                <exclude>**/ODemoDbFromDocumentationBusinessOpportunitiesIT.java</exclude>
+                                <exclude>**/ODemoDbFromDocumentationCustomersIT.java</exclude>
+                                <exclude>**/ODemoDbFromDocumentationFriendshipIT.java</exclude>
+                                <exclude>**/ODemoDbFromDocumentationLocationsIT.java</exclude>
+                                <exclude>**/ODemoDbFromDocumentationOrdersIT.java</exclude>
+                                <exclude>**/ODemoDbFromDocumentationPolymorphismIT.java</exclude>
+                                <exclude>**/ODemoDbFromDocumentationProfileIT.java</exclude>
+                                <exclude>**/ODemoDbFromDocumentationRecommendationsIT.java</exclude>
+                                <exclude>**/ODemoDbFromDocumentationReviewsIT.java</exclude>
+                                <exclude>**/ODemoDbFromDocumentationServicesIT.java</exclude>
+                                <exclude>**/ODemoDbFromDocumentationShortestPathsIT.java</exclude>
+                                <exclude>**/ODemoDbFromDocumentationTraversesIT.java</exclude>
+                                <exclude>**/ODemoDbGroupByTestIT.java</exclude>
+                                <exclude>**/ODemoDbMetadataConsistencyIT.java</exclude>
+                            </excludes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
+            <id>integration_docker</id>
+            <activation>
+                <property>
+                    <name>orientdb.test.env</name>
+                    <value>integration_docker</value>
+                </property>
+            </activation>
+            <properties>
+                <exclude.test.1>empty.java</exclude.test.1>
+                <exclude.test.2>empty.java</exclude.test.2>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <version>${surefire.version}</version>
+                        <configuration>
+                            <excludes>
+                                <include>**/OCommunityEditionSingleNodeIT.java</include>
+                                <include>**/OGitHubIssuesIT.java</include>
+                                <include>**/ODemoDbFromDocumentationAttractionsIT.java</include>
+                                <include>**/ODemoDbFromDocumentationBusinessOpportunitiesIT.java</include>
+                                <include>**/ODemoDbFromDocumentationCustomersIT.java</include>
+                                <include>**/ODemoDbFromDocumentationFriendshipIT.java</include>
+                                <include>**/ODemoDbFromDocumentationLocationsIT.java</include>
+                                <include>**/ODemoDbFromDocumentationOrdersIT.java</include>
+                                <include>**/ODemoDbFromDocumentationPolymorphismIT.java</include>
+                                <include>**/ODemoDbFromDocumentationProfileIT.java</include>
+                                <include>**/ODemoDbFromDocumentationRecommendationsIT.java</include>
+                                <include>**/ODemoDbFromDocumentationReviewsIT.java</include>
+                                <include>**/ODemoDbFromDocumentationServicesIT.java</include>
+                                <include>**/ODemoDbFromDocumentationShortestPathsIT.java</include>
+                                <include>**/ODemoDbFromDocumentationTraversesIT.java</include>
+                                <include>**/ODemoDbGroupByTestIT.java</include>
+                                <include>**/ODemoDbMetadataConsistencyIT.java</include>
+                            </excludes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+    </profiles>
 </project>

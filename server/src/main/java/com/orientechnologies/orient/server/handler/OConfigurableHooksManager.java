@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,17 +14,22 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.orientechnologies.orient.server.handler;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.util.*;
 
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.db.ODatabase;
 import com.orientechnologies.orient.core.db.ODatabaseInternal;
 import com.orientechnologies.orient.core.db.ODatabaseLifecycleListener;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.hook.ORecordHook;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -32,14 +37,11 @@ import com.orientechnologies.orient.server.config.OServerConfiguration;
 import com.orientechnologies.orient.server.config.OServerHookConfiguration;
 import com.orientechnologies.orient.server.config.OServerParameterConfiguration;
 
-import java.lang.reflect.Method;
-import java.util.List;
-
 /**
  * User: kasper fock Date: 09/11/12 Time: 22:35 Registers hooks defined the in xml configuration.
- *
+ * <p>
  * Hooks can be defined in xml as :
- *
+ * <p>
  * <hooks> <hook class="HookClass"> <parameters> <parameter name="foo" value="bar" /> </parameters> </hook> </hooks> In case any
  * parameters is defined the hook class should have a method with following signature: public void config(OServer oServer,
  * OServerParameterConfiguration[] iParams)
@@ -54,6 +56,14 @@ public class OConfigurableHooksManager implements ODatabaseLifecycleListener {
       Orient.instance().addDbLifecycleListener(this);
   }
 
+  public void addHook(OServerHookConfiguration configuration) {
+    if (this.configuredHooks == null) {
+      configuredHooks = new ArrayList<>();
+      Orient.instance().addDbLifecycleListener(this);
+    }
+    configuredHooks.add(configuration);
+  }
+
   @Override
   public PRIORITY getPriority() {
     return PRIORITY.LAST;
@@ -65,28 +75,40 @@ public class OConfigurableHooksManager implements ODatabaseLifecycleListener {
   }
 
   public void onOpen(ODatabaseInternal iDatabase) {
-    final ODatabase<?> db = (ODatabase<?>) iDatabase;
-    for (OServerHookConfiguration hook : configuredHooks) {
-      try {
-        final ORecordHook.HOOK_POSITION pos = ORecordHook.HOOK_POSITION.valueOf(hook.position);
-        final ORecordHook h = (ORecordHook) Class.forName(hook.clazz).newInstance();
-        if (hook.parameters != null && hook.parameters.length > 0)
+    if (!iDatabase.getStorage().isRemote()) {
+      final ODatabase<?> db = (ODatabase<?>) iDatabase;
+      for (OServerHookConfiguration hook : configuredHooks) {
+        try {
+          final ORecordHook.HOOK_POSITION pos = ORecordHook.HOOK_POSITION.valueOf(hook.position);
+          Class<?> klass = Class.forName(hook.clazz);
+          final ORecordHook h;
+          Constructor constructor = null;
           try {
-            final Method m = h.getClass().getDeclaredMethod("config", new Class[] { OServerParameterConfiguration[].class });
-            m.invoke(h, new Object[] { hook.parameters });
-          } catch (Exception e) {
-            OLogManager
-                .instance()
-                .warn(
-                    this,
-                    "[configure] Failed to configure hook '%s'. Parameters specified but hook don support parameters. Should have a method config with parameters OServerParameterConfiguration[] ",
-                    hook.clazz);
-
+            constructor = klass.getConstructor(ODatabaseDocument.class);
+          } catch (NoSuchMethodException ex) {
+            //Ignore
           }
-        db.registerHook(h, pos);
-      } catch (Exception e) {
-        OLogManager.instance().error(this, "[configure] Failed to configure hook '%s' due to the an error : ", e, hook.clazz,
-            e.getMessage());
+
+          if (constructor != null) {
+            h = (ORecordHook) constructor.newInstance(iDatabase);
+          } else {
+            h = (ORecordHook) klass.newInstance();
+          }
+          if (hook.parameters != null && hook.parameters.length > 0)
+            try {
+              final Method m = h.getClass().getDeclaredMethod("config", new Class[] { OServerParameterConfiguration[].class });
+              m.invoke(h, new Object[] { hook.parameters });
+            } catch (Exception e) {
+              OLogManager.instance().warn(this,
+                  "[configure] Failed to configure hook '%s'. Parameters specified but hook don support parameters. Should have a method config with parameters OServerParameterConfiguration[] ",
+                  hook.clazz);
+
+            }
+          db.registerHook(h, pos);
+        } catch (Exception e) {
+          OLogManager.instance()
+              .error(this, "[configure] Failed to configure hook '%s' due to the an error : ", e, hook.clazz, e.getMessage());
+        }
       }
     }
   }
@@ -97,14 +119,6 @@ public class OConfigurableHooksManager implements ODatabaseLifecycleListener {
 
   @Override
   public void onDrop(ODatabaseInternal iDatabase) {
-  }
-
-  @Override
-  public void onCreateClass(ODatabaseInternal iDatabase, OClass iClass) {
-  }
-
-  @Override
-  public void onDropClass(ODatabaseInternal iDatabase, OClass iClass) {
   }
 
   @Override

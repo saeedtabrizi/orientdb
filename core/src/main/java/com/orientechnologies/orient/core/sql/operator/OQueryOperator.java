@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql.operator;
@@ -29,6 +29,7 @@ import com.orientechnologies.orient.core.index.OIndexCursor;
 import com.orientechnologies.orient.core.index.OIndexDefinition;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.serialization.serializer.record.binary.ODocumentSerializer;
 import com.orientechnologies.orient.core.sql.OIndexSearchResult;
 import com.orientechnologies.orient.core.sql.filter.OSQLFilterCondition;
 import com.orientechnologies.orient.core.sql.operator.math.OQueryOperatorDivide;
@@ -41,8 +42,8 @@ import java.util.List;
 
 /**
  * Query Operators. Remember to handle the operator in OQueryItemCondition.
- * 
- * @author Luca Garulli
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public abstract class OQueryOperator {
 
@@ -72,7 +73,7 @@ public abstract class OQueryOperator {
    * PERFORMANCE (MOST USED BEFORE)
    */
   protected static final Class<?>[] DEFAULT_OPERATORS_ORDER = { OQueryOperatorEquals.class, OQueryOperatorAnd.class,
-      OQueryOperatorOr.class, OQueryOperatorNotEquals.class, OQueryOperatorNot.class, OQueryOperatorMinorEquals.class,
+      OQueryOperatorOr.class, OQueryOperatorNotEquals.class, OQueryOperatorNotEquals2.class, OQueryOperatorNot.class, OQueryOperatorMinorEquals.class,
       OQueryOperatorMinor.class, OQueryOperatorMajorEquals.class, OQueryOperatorContainsAll.class, OQueryOperatorMajor.class,
       OQueryOperatorLike.class, OQueryOperatorMatches.class, OQueryOperatorInstanceof.class, OQueryOperatorIs.class,
       OQueryOperatorIn.class, OQueryOperatorContainsKey.class, OQueryOperatorContainsValue.class, OQueryOperatorContainsText.class,
@@ -103,11 +104,12 @@ public abstract class OQueryOperator {
   }
 
   public abstract Object evaluateRecord(final OIdentifiable iRecord, ODocument iCurrentResult,
-      final OSQLFilterCondition iCondition, final Object iLeft, final Object iRight, OCommandContext iContext);
+      final OSQLFilterCondition iCondition, final Object iLeft, final Object iRight,
+      OCommandContext iContext, final ODocumentSerializer serializer);
 
   /**
    * Returns hint how index can be used to calculate result of operator execution.
-   * 
+   *
    * @param iLeft
    *          Value of left query parameter.
    * @param iRight
@@ -125,7 +127,7 @@ public abstract class OQueryOperator {
   /**
    * Performs index query and returns index cursor which presents subset of index data which corresponds to result of execution of
    * given operator.
-   * 
+   *
    * <p/>
    * Query that should be executed can be presented like: [[property0 = keyParam0] and [property1 = keyParam1] and] propertyN
    * operator keyParamN.
@@ -134,8 +136,8 @@ public abstract class OQueryOperator {
    * method execute query using given parameters.
    * <p/>
    * Multiple parameters are passed in to implement composite indexes support.
-   * 
-   * 
+   *
+   *
    * @param iContext
    * @param index
    *          Instance of index that will be used to calculate result of operator execution.
@@ -157,7 +159,7 @@ public abstract class OQueryOperator {
 
   /**
    * Default State-less implementation: does not save parameters and just return itself
-   * 
+   *
    * @param iParams
    * @return
    */
@@ -179,7 +181,7 @@ public abstract class OQueryOperator {
 
   /**
    * Check priority of this operator compare to given operator.
-   * 
+   *
    * @param other
    * @return ORDER place of this operator compared to given operator
    */
@@ -237,6 +239,10 @@ public abstract class OQueryOperator {
 
   public boolean canShortCircuit(Object l) {
     return false;
+  }
+
+  public boolean canBeMerged() {
+    return true;
   }
 
   public boolean isSupportingBinaryEvaluate() {

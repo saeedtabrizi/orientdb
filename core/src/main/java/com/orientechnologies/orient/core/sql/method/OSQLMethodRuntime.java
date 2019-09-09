@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql.method;
@@ -44,7 +44,7 @@ import java.util.List;
 /**
  * Wraps function managing the binding of parameters.
  * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public class OSQLMethodRuntime extends OSQLFilterItemAbstract implements Comparable<OSQLMethodRuntime> {
@@ -93,7 +93,7 @@ public class OSQLMethodRuntime extends OSQLFilterItemAbstract implements Compara
             runtimeParameters[i] = ((OSQLMethodRuntime) configuredParameters[i]).execute(iThis, iCurrentRecord, iCurrentResult,
                 iContext);
           else if (configuredParameters[i] instanceof OSQLFunctionRuntime)
-            runtimeParameters[i] = ((OSQLFunctionRuntime) configuredParameters[i]).execute(iThis, iCurrentRecord, iCurrentResult,
+            runtimeParameters[i] = ((OSQLFunctionRuntime) configuredParameters[i]).execute(iCurrentRecord, iCurrentRecord, iCurrentResult,
                 iContext);
           else if (configuredParameters[i] instanceof OSQLFilterItemVariable) {
             runtimeParameters[i] = ((OSQLFilterItemVariable) configuredParameters[i]).getValue(iCurrentRecord, iCurrentResult,
@@ -105,7 +105,7 @@ public class OSQLMethodRuntime extends OSQLFilterItemAbstract implements Compara
           } else if (configuredParameters[i] instanceof OCommandSQL) {
             try {
               runtimeParameters[i] = ((OCommandSQL) configuredParameters[i]).setContext(iContext).execute();
-            } catch (OCommandExecutorNotFoundException e) {
+            } catch (OCommandExecutorNotFoundException ignore) {
               // TRY WITH SIMPLE CONDITION
               final String text = ((OCommandSQL) configuredParameters[i]).getText();
               final OSQLPredicate pred = new OSQLPredicate(text);
@@ -161,7 +161,7 @@ public class OSQLMethodRuntime extends OSQLFilterItemAbstract implements Compara
 
     final List<String> funcParamsText = OStringSerializerHelper.getParameters(iText);
 
-    method = OSQLEngine.getInstance().getMethod(funcName);
+    method = OSQLEngine.getMethod(funcName);
     if (method == null)
       throw new OCommandSQLParsingException("Unknown method " + funcName + "()");
 

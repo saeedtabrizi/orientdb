@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 Orient Technologies LTD (info--at--orientechnologies.com)
+ * Copyright 2010-2013 OrientDB LTD (info--at--orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,14 +15,14 @@
  */
 package com.orientechnologies.orient.core.storage.impl.local.paginated.wal;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
 
 /**
  * Immutable number representing the position in WAL file (LSN).
  * 
- * @author Andrey Lomakin
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 29.04.13
  */
 public class OLogSequenceNumber implements Comparable<OLogSequenceNumber> {
@@ -34,7 +34,7 @@ public class OLogSequenceNumber implements Comparable<OLogSequenceNumber> {
     this.position = position;
   }
 
-  public OLogSequenceNumber(final ObjectInput in) throws IOException, ClassNotFoundException {
+  public OLogSequenceNumber(final DataInput in) throws IOException {
     this.segment = in.readLong();
     this.position = in.readLong();
   }
@@ -86,7 +86,7 @@ public class OLogSequenceNumber implements Comparable<OLogSequenceNumber> {
     return 0;
   }
 
-  public void writeExternal(final ObjectOutput out) throws IOException {
+  public void toStream(final DataOutput out) throws IOException {
     out.writeLong(segment);
     out.writeLong(position);
   }

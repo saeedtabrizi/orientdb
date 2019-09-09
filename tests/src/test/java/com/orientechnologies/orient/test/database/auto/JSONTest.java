@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 package com.orientechnologies.orient.test.database.auto;
 
+import com.orientechnologies.orient.core.config.OStorageConfiguration;
 import com.orientechnologies.orient.core.db.ODatabase;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.db.record.OTrackedList;
@@ -30,14 +31,12 @@ import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.orientechnologies.orient.core.util.ODateHelper;
 import com.orientechnologies.orient.object.db.OObjectDatabaseTx;
-
 import org.testng.Assert;
 import org.testng.annotations.Optional;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
 import java.util.*;
-import java.util.regex.Pattern;
 
 @SuppressWarnings("unchecked")
 @Test
@@ -399,7 +398,7 @@ public class JSONTest extends DocumentDBBaseTest {
 
   public void testSpecialChar() {
     ODocument doc = new ODocument().fromJSON("{name:{\"%Field\":[\"value1\",\"value2\"],\"%Field2\":{},\"%Field3\":\"value3\"}}");
-    doc.save();
+    doc.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     ODocument doc2 = database.load(doc.getIdentity());
     Assert.assertEquals(doc, doc2);
@@ -434,7 +433,7 @@ public class JSONTest extends DocumentDBBaseTest {
   public void testSpecialChars() {
     ODocument doc = new ODocument()
         .fromJSON("{Field:{\"Key1\":[\"Value1\",\"Value2\"],\"Key2\":{\"%%dummy%%\":null},\"Key3\":\"Value3\"}}");
-    doc.save();
+    doc.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     ODocument doc2 = database.load(doc.getIdentity());
     Assert.assertEquals(doc, doc2);
@@ -443,12 +442,12 @@ public class JSONTest extends DocumentDBBaseTest {
   public void testJsonToStream() {
     String doc1Json = "{Key1:{\"%Field1\":[{},{},{},{},{}],\"%Field2\":false,\"%Field3\":\"Value1\"}}";
     ODocument doc1 = new ODocument().fromJSON(doc1Json);
-    String doc1String = new String(ORecordSerializerSchemaAware2CSV.INSTANCE.toStream(doc1, false));
+    String doc1String = new String(ORecordSerializerSchemaAware2CSV.INSTANCE.toStream(doc1));
     Assert.assertEquals(doc1Json, "{" + doc1String + "}");
 
     String doc2Json = "{Key1:{\"%Field1\":[{},{},{},{},{}],\"%Field2\":false,\"%Field3\":\"Value1\"}}";
     ODocument doc2 = new ODocument().fromJSON(doc2Json);
-    String doc2String = new String(ORecordSerializerSchemaAware2CSV.INSTANCE.toStream(doc2, false));
+    String doc2String = new String(ORecordSerializerSchemaAware2CSV.INSTANCE.toStream(doc2));
     Assert.assertEquals(doc2Json, "{" + doc2String + "}");
   }
 

@@ -1,29 +1,26 @@
 /**
- * Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- * 	http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * For more information: http://www.orientechnologies.com
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS"
+ * BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language
+ * governing permissions and limitations under the License.
+ * <p>
+ * For more information: http://orientdb.com
  */
 package com.orientechnologies.orient.jdbc;
 
 import com.orientechnologies.common.exception.OException;
-import com.orientechnologies.orient.core.command.OCommandRequest;
+import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.exception.OQueryParsingException;
-import com.orientechnologies.orient.core.query.OQuery;
-import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.record.impl.ORecordBytes;
-import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
+import com.orientechnologies.orient.core.sql.executor.OInternalResultSet;
+import com.orientechnologies.orient.core.sql.executor.OResultInternal;
+import com.orientechnologies.orient.core.sql.executor.OResultSet;
 import com.orientechnologies.orient.jdbc.OrientJdbcParameterMetadata.ParameterDefinition;
 
 import java.io.IOException;
@@ -32,7 +29,6 @@ import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.sql.*;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,11 +36,10 @@ import java.util.Map;
 /**
  * @author Roberto Franchini (CELI Srl - franchini@celi.it)
  * @author Salvatore Piccione (TXT e-solutions SpA - salvo.picci@gmail.com)
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OrientJdbcPreparedStatement extends OrientJdbcStatement implements PreparedStatement {
 
-  protected final String               sql;
   protected final Map<Integer, Object> params;
 
   public OrientJdbcPreparedStatement(OrientJdbcConnection iConnection, String sql) {
@@ -60,19 +55,27 @@ public class OrientJdbcPreparedStatement extends OrientJdbcStatement implements 
       int resultSetHoldability, String sql) {
     super(iConnection, resultSetType, resultSetConcurrency, resultSetHoldability);
     this.sql = sql;
-    params = new HashMap<Integer, Object>();
+    params = new HashMap<>();
   }
 
   @SuppressWarnings("unchecked")
   public ResultSet executeQuery() throws SQLException {
+
+    //    return super.executeQuery(sql);
+    sql = mayCleanForSpark(sql);
+
     if (sql.equalsIgnoreCase("select 1")) {
       // OPTIMIZATION
-      documents = new ArrayList<ODocument>();
-      documents.add(new ODocument().field("1", 1));
+      OResultInternal element = new OResultInternal();
+      element.setProperty("1", 1);
+      OInternalResultSet rs = new OInternalResultSet();
+      rs.add(element);
+      oResultSet = rs;
     } else {
       try {
-        query = new OSQLSynchQuery<ODocument>(sql);
-        documents = database.query((OQuery<? extends Object>) query, params.values().toArray());
+//        sql = new OSQLSynchQuery<ODocument>(mayCleanForSpark(sql));
+        oResultSet = database.query(sql, params.values().toArray());
+
       } catch (OQueryParsingException e) {
         throw new SQLSyntaxErrorException("Error while parsing query", e);
       } catch (OException e) {
@@ -82,7 +85,7 @@ public class OrientJdbcPreparedStatement extends OrientJdbcStatement implements 
     }
 
     // return super.executeQuery(sql);
-    resultSet = new OrientJdbcResultSet(this, documents, resultSetType, resultSetConcurrency, resultSetHoldability);
+    resultSet = new OrientJdbcResultSet(this, oResultSet, resultSetType, resultSetConcurrency, resultSetHoldability);
     return resultSet;
   }
 
@@ -91,10 +94,11 @@ public class OrientJdbcPreparedStatement extends OrientJdbcStatement implements 
   }
 
   @Override
-  protected <RET> RET executeCommand(OCommandRequest query) throws SQLException {
+  protected OResultSet executeCommand(String query) throws SQLException {
 
     try {
-      return database.command(query).execute(params.values().toArray());
+      database.activateOnCurrentThread();
+      return database.command(query, params.values().toArray());
     } catch (OException e) {
       throw new SQLException("Error while executing command", e);
     }
@@ -186,6 +190,8 @@ public class OrientJdbcPreparedStatement extends OrientJdbcStatement implements 
   }
 
   public void addBatch() throws SQLException {
+
+    //    batches.add(sql);
     throw new UnsupportedOperationException();
   }
 
@@ -210,10 +216,10 @@ public class OrientJdbcPreparedStatement extends OrientJdbcStatement implements 
   }
 
   public ResultSetMetaData getMetaData() throws SQLException {
-    if (this.getResultSet() != null) {
-      return this.getResultSet().getMetaData();
-    }
-    return null;
+    if (resultSet == null)
+      executeQuery();
+
+    return getResultSet().getMetaData();
   }
 
   public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {

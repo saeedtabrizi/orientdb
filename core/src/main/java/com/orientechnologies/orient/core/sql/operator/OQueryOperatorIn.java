@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql.operator;
@@ -23,31 +23,22 @@ import com.orientechnologies.common.collection.OMultiValue;
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.ORID;
-import com.orientechnologies.orient.core.index.OCompositeIndexDefinition;
-import com.orientechnologies.orient.core.index.OIndex;
-import com.orientechnologies.orient.core.index.OIndexCursor;
-import com.orientechnologies.orient.core.index.OIndexCursorCollectionValue;
-import com.orientechnologies.orient.core.index.OIndexCursorSingleValue;
-import com.orientechnologies.orient.core.index.OIndexDefinition;
-import com.orientechnologies.orient.core.index.OIndexInternal;
+import com.orientechnologies.orient.core.index.*;
+import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.record.impl.ODocumentHelper;
 import com.orientechnologies.orient.core.sql.OSQLHelper;
 import com.orientechnologies.orient.core.sql.filter.OSQLFilterCondition;
 import com.orientechnologies.orient.core.sql.filter.OSQLFilterItem;
 import com.orientechnologies.orient.core.sql.filter.OSQLFilterItemField;
 import com.orientechnologies.orient.core.sql.filter.OSQLFilterItemParameter;
+import com.orientechnologies.orient.core.sql.query.OLegacyResultSet;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * IN operator.
  *
- * @author Luca Garulli
- *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OQueryOperatorIn extends OQueryOperatorEqualityNotNulls {
 
@@ -72,19 +63,41 @@ public class OQueryOperatorIn extends OQueryOperatorEqualityNotNulls {
 
     if (indexDefinition.getParamCount() == 1) {
       final Object inKeyValue = keyParams.get(0);
-      final Collection<Object> inParams;
+      Collection<Object> inParams;
       if (inKeyValue instanceof List<?>)
         inParams = (Collection<Object>) inKeyValue;
       else if (inKeyValue instanceof OSQLFilterItem)
         inParams = (Collection<Object>) ((OSQLFilterItem) inKeyValue).getValue(null, null, iContext);
       else
-        throw new IllegalArgumentException("Key '" + inKeyValue + "' is not valid");
+        inParams = Collections.singleton(inKeyValue);
 
+      if (inParams instanceof OLegacyResultSet) { //manage IN (subquery)
+        Set newInParams = new HashSet();
+        for (Object o : ((OLegacyResultSet) inParams)) {
+          if (o instanceof ODocument && ((ODocument) o).getIdentity().getClusterId() < -1) {
+            ODocument doc = (ODocument) o;
+            String[] fieldNames = doc.fieldNames();
+            if (fieldNames.length == 1) {
+              newInParams.add(doc.field(fieldNames[0]));
+            } else {
+              newInParams.add(o);
+            }
+          } else {
+            newInParams.add(o);
+          }
+        }
+        inParams = newInParams;
+      }
       final List<Object> inKeys = new ArrayList<Object>();
 
       boolean containsNotCompatibleKey = false;
       for (final Object keyValue : inParams) {
-        final Object key = indexDefinition.createValue(OSQLHelper.getValue(keyValue));
+        final Object key;
+        if (indexDefinition instanceof OIndexDefinitionMultiValue)
+          key = ((OIndexDefinitionMultiValue) indexDefinition).createSingleValue(OSQLHelper.getValue(keyValue));
+        else
+          key = indexDefinition.createValue(OSQLHelper.getValue(keyValue));
+
         if (key == null) {
           containsNotCompatibleKey = true;
           break;
@@ -166,8 +179,8 @@ public class OQueryOperatorIn extends OQueryOperatorEqualityNotNulls {
 
       ridCollection = OMultiValue.getMultiValueIterable(iLeft);
       ridSize = OMultiValue.getSize(iLeft);
-    } else if (iLeft instanceof OSQLFilterItemField
-        && ODocumentHelper.ATTRIBUTE_RID.equals(((OSQLFilterItemField) iLeft).getRoot())) {
+    } else if (iLeft instanceof OSQLFilterItemField && ODocumentHelper.ATTRIBUTE_RID
+        .equals(((OSQLFilterItemField) iLeft).getRoot())) {
       if (iRight instanceof OSQLFilterItem)
         iRight = ((OSQLFilterItem) iRight).getValue(null, null, null);
       ridCollection = OMultiValue.getMultiValueIterable(iRight);
@@ -190,8 +203,8 @@ public class OQueryOperatorIn extends OQueryOperatorEqualityNotNulls {
 
       ridCollection = OMultiValue.getMultiValueIterable(iLeft, false);
       ridSize = OMultiValue.getSize(iLeft);
-    } else if (iLeft instanceof OSQLFilterItemField
-        && ODocumentHelper.ATTRIBUTE_RID.equals(((OSQLFilterItemField) iLeft).getRoot())) {
+    } else if (iLeft instanceof OSQLFilterItemField && ODocumentHelper.ATTRIBUTE_RID
+        .equals(((OSQLFilterItemField) iLeft).getRoot())) {
       if (iRight instanceof OSQLFilterItem)
         iRight = ((OSQLFilterItem) iRight).getValue(null, null, null);
 

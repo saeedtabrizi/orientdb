@@ -21,13 +21,6 @@ import static org.junit.Assert.*;
 
 public class OTokenHandlerImplTest {
 
-  @Before
-  public void beforeTest() {
-    if (Orient.instance().getEngine("memory") == null) {
-      Orient.instance().startup();
-    }
-  }
-
   @Test
   @Ignore
   public void testWebTokenCreationValidation() throws InvalidKeyException, NoSuchAlgorithmException, IOException {
@@ -146,7 +139,7 @@ public class OTokenHandlerImplTest {
       ONetworkProtocolData data = new ONetworkProtocolData();
       data.driverName = "aa";
       data.driverVersion = "aa";
-      data.serializationImpl = "a";
+      data.setSerializationImpl("a");
       data.protocolVersion = 2;
 
       byte[] token = handler.getSignedBinaryToken(db, original, data);
@@ -177,7 +170,7 @@ public class OTokenHandlerImplTest {
       ONetworkProtocolData data = new ONetworkProtocolData();
       data.driverName = "aa";
       data.driverVersion = "aa";
-      data.serializationImpl = "a";
+      data.setSerializationImpl("a");
       data.protocolVersion = 2;
 
       byte[] token = handler.getSignedBinaryToken(db, original, data);
@@ -202,7 +195,7 @@ public class OTokenHandlerImplTest {
       ONetworkProtocolData data = new ONetworkProtocolData();
       data.driverName = "aa";
       data.driverVersion = "aa";
-      data.serializationImpl = "a";
+      data.setSerializationImpl("a");
       data.protocolVersion = 2;
 
       byte[] token = handler.getSignedBinaryToken(db, original, data);

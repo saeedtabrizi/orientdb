@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -23,20 +23,18 @@ package com.orientechnologies.orient.graph;
 import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 import org.junit.AfterClass;
 
+import java.util.Locale;
+
 /**
  * Base class for tests against Non transactonal Graphs.
- * 
- * @author Luca Garulli
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public abstract class GraphNoTxAbstractTest {
   protected static OrientGraphNoTx graph;
 
-  public static enum ENV {
-    DEV, RELEASE, CI
-  }
-
   public static ENV getEnvironment() {
-    String envName = System.getProperty("orientdb.test.env", "dev").toUpperCase();
+    String envName = System.getProperty("orientdb.test.env", "dev").toUpperCase(Locale.ENGLISH);
     ENV result = null;
     try {
       result = ENV.valueOf(envName);
@@ -58,7 +56,7 @@ public abstract class GraphNoTxAbstractTest {
 
   public static void init(final String dbName) {
     final String storageType = getStorageType();
-    final String buildDirectory = System.getProperty("buildDirectory", ".");
+    final String buildDirectory = "./target/";
 
 //    OFileUtils.deleteRecursively(new File(buildDirectory + "/" + dbName));
 
@@ -75,5 +73,9 @@ public abstract class GraphNoTxAbstractTest {
       graph.shutdown();
       graph = null;
     }
+  }
+
+  public static enum ENV {
+    DEV, RELEASE, CI
   }
 }

@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.core.sql;
@@ -23,6 +23,7 @@ import com.orientechnologies.orient.core.command.OCommandDistributedReplicateReq
 import com.orientechnologies.orient.core.command.OCommandRequest;
 import com.orientechnologies.orient.core.command.OCommandRequestText;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.exception.OCommandExecutionException;
 import com.orientechnologies.orient.core.index.OIndex;
 
@@ -31,7 +32,7 @@ import java.util.Map;
 /**
  * SQL REMOVE INDEX command: Remove an index
  *
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 @SuppressWarnings("unchecked")
 public class OCommandExecutorSQLDropIndex extends OCommandExecutorSQLAbstract implements OCommandDistributedReplicateRequest {
@@ -83,24 +84,25 @@ public class OCommandExecutorSQLDropIndex extends OCommandExecutorSQLAbstract im
     if (name == null)
       throw new OCommandExecutionException("Cannot execute the command because it has not been parsed yet");
 
+    final ODatabaseDocumentInternal database = getDatabase();
     if (name.equals("*")) {
       long totalIndexed = 0;
-      for (OIndex<?> idx : getDatabase().getMetadata().getIndexManager().getIndexes()) {
-        getDatabase().getMetadata().getIndexManager().dropIndex(idx.getName());
+      for (OIndex<?> idx : database.getMetadata().getIndexManagerInternal().getIndexes(database)) {
+        database.getMetadata().getIndexManagerInternal().dropIndex(database, idx.getName());
         totalIndexed++;
       }
 
       return totalIndexed;
 
     } else
-      getDatabase().getMetadata().getIndexManager().dropIndex(name);
+      database.getMetadata().getIndexManagerInternal().dropIndex(database, name);
 
     return 1;
   }
 
   @Override
   public long getDistributedTimeout() {
-    return OGlobalConfiguration.DISTRIBUTED_COMMAND_TASK_SYNCH_TIMEOUT.getValueAsLong();
+    return getDatabase().getConfiguration().getValueAsLong(OGlobalConfiguration.DISTRIBUTED_COMMAND_QUICK_TASK_SYNCH_TIMEOUT);
   }
 
   @Override

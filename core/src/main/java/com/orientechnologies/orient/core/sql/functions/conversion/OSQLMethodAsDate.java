@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Orient Technologies.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  * Copyright 2013 Geomatys.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,19 +16,22 @@
  */
 package com.orientechnologies.orient.core.sql.functions.conversion;
 
+import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.sql.method.misc.OAbstractSQLMethod;
 
 import java.text.ParseException;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.GregorianCalendar;
 
 /**
  * Transforms a value to date. If the conversion is not possible, null is returned.
- * 
+ *
  * @author Johann Sorel (Geomatys)
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OSQLMethodAsDate extends OAbstractSQLMethod {
 
@@ -47,14 +50,28 @@ public class OSQLMethodAsDate extends OAbstractSQLMethod {
   public Object execute(Object iThis, OIdentifiable iCurrentRecord, OCommandContext iContext, Object ioResult, Object[] iParams) {
     if (iThis != null) {
       if (iThis instanceof Date) {
-        return iThis;
+        Calendar cal = new GregorianCalendar();
+        cal.setTime((Date) iThis);
+        cal.set(Calendar.HOUR, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        return cal.getTime();
       } else if (iThis instanceof Number) {
-        return new Date(((Number) iThis).longValue());
+        Date val = new Date(((Number) iThis).longValue());
+        Calendar cal = new GregorianCalendar();
+        cal.setTime(val);
+        cal.set(Calendar.HOUR, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        return cal.getTime();
       } else {
         try {
-          return ODatabaseRecordThreadLocal.INSTANCE.get().getStorage().getConfiguration().getDateFormatInstance().parse(iThis.toString());
+          return ODatabaseRecordThreadLocal.instance().get().getStorage().getConfiguration().getDateFormatInstance()
+              .parse(iThis.toString());
         } catch (ParseException e) {
-          // IGNORE IT: RETURN NULL
+          OLogManager.instance().error(this, "Error during %s execution", e, NAME);
         }
       }
     }

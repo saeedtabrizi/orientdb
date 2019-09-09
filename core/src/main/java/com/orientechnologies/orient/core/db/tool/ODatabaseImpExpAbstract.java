@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.db.tool;
@@ -24,19 +24,16 @@ import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.metadata.OMetadataDefault;
 
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Abstract class for import/export of database and data in general.
- * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
+ *
  */
 public abstract class ODatabaseImpExpAbstract extends ODatabaseTool {
-  protected final static String       DEFAULT_EXT               = ".json";
+  protected static final String       DEFAULT_EXT               = ".json";
   protected ODatabaseDocumentInternal database;
   protected String                    fileName;
   protected Set<String>               includeClusters;
@@ -58,14 +55,14 @@ public abstract class ODatabaseImpExpAbstract extends ODatabaseTool {
       final OCommandOutputListener iListener) {
     database = iDatabase;
     fileName = iFileName;
-    
+
     // Fix bug where you can't backup files with spaces. Now you can wrap with quotes and the filesystem won't create
     // directories with quotes in their name.
     if (fileName != null) {
-    	if ((fileName.startsWith("\"") && fileName.endsWith("\"")) || (fileName.startsWith("'") && fileName.endsWith("'"))) {
-    		fileName = fileName.substring(1, fileName.length() - 1);
-    		iListener.onMessage("Detected quotes surrounding filename; new backup file: " + fileName); 
-    	}
+      if ((fileName.startsWith("\"") && fileName.endsWith("\"")) || (fileName.startsWith("'") && fileName.endsWith("'"))) {
+        fileName = fileName.substring(1, fileName.length() - 1);
+        iListener.onMessage("Detected quotes surrounding filename; new backup file: " + fileName);
+      }
     }
 
     if (fileName != null && fileName.indexOf('.') == -1)
@@ -199,10 +196,6 @@ public abstract class ODatabaseImpExpAbstract extends ODatabaseTool {
 
   protected void parseSetting(final String option, final List<String> items) {
     if (option.equalsIgnoreCase("-excludeAll")) {
-      includeClasses = new HashSet<String>();
-      excludeClasses = null;
-      includeClusters = new HashSet<String>();
-      excludeClusters = null;
       includeInfo = false;
       includeClusterDefinitions = false;
       includeSchema = false;
@@ -214,24 +207,24 @@ public abstract class ODatabaseImpExpAbstract extends ODatabaseTool {
     } else if (option.equalsIgnoreCase("-includeClass")) {
       includeClasses = new HashSet<String>();
       for (String item : items)
-        includeClasses.add(item.toUpperCase());
+        includeClasses.add(item.toUpperCase(Locale.ENGLISH));
       includeRecords = true;
 
     } else if (option.equalsIgnoreCase("-excludeClass")) {
       excludeClasses = new HashSet<String>(items);
       for (String item : items)
-        excludeClasses.add(item.toUpperCase());
+        excludeClasses.add(item.toUpperCase(Locale.ENGLISH));
 
     } else if (option.equalsIgnoreCase("-includeCluster")) {
       includeClusters = new HashSet<String>(items);
       for (String item : items)
-        includeClusters.add(item.toUpperCase());
+        includeClusters.add(item.toUpperCase(Locale.ENGLISH));
       includeRecords = true;
 
     } else if (option.equalsIgnoreCase("-excludeCluster")) {
       excludeClusters = new HashSet<String>(items);
       for (String item : items)
-        excludeClusters.add(item.toUpperCase());
+        excludeClusters.add(item.toUpperCase(Locale.ENGLISH));
 
     } else if (option.equalsIgnoreCase("-includeInfo")) {
       includeInfo = Boolean.parseBoolean(items.get(0));
@@ -241,7 +234,10 @@ public abstract class ODatabaseImpExpAbstract extends ODatabaseTool {
 
     } else if (option.equalsIgnoreCase("-includeSchema")) {
       includeSchema = Boolean.parseBoolean(items.get(0));
-
+      if (includeSchema) {
+        includeClusterDefinitions = true;
+        includeInfo = true;
+      }
     } else if (option.equalsIgnoreCase("-includeSecurity")) {
       includeSecurity = Boolean.parseBoolean(items.get(0));
 

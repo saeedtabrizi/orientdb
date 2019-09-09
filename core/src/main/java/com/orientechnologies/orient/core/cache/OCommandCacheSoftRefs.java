@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -26,14 +26,16 @@ import com.orientechnologies.common.io.OIOUtils;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.common.profiler.OProfiler;
 import com.orientechnologies.orient.core.Orient;
+import com.orientechnologies.orient.core.config.OContextConfiguration;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.exception.OConfigurationException;
 import com.orientechnologies.orient.core.metadata.security.OSecurityUser;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.query.OResultSet;
+import com.orientechnologies.orient.core.sql.query.OLegacyResultSet;
 import com.orientechnologies.orient.core.storage.OStorage;
-import com.orientechnologies.orient.core.storage.impl.local.paginated.OLocalPaginatedStorage;
+import com.orientechnologies.orient.core.storage.disk.OLocalPaginatedStorage;
+import com.orientechnologies.orient.core.storage.impl.local.OAbstractPaginatedStorage;
 
 import java.io.File;
 import java.io.IOException;
@@ -44,14 +46,14 @@ import java.util.Set;
 
 /**
  * Command cache implementation that uses Soft references to avoid overloading Java Heap.
- * 
- * @author Luca Garulli
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OCommandCacheSoftRefs implements OCommandCache {
 
-  private String CONFIG_FILE = "command-cache.json";
+  private static String CONFIG_FILE = "command-cache.json";
 
-  ODocument      configuration;
+  private ODocument configuration;
 
   public static class OCachedResult {
     Object      result;
@@ -72,22 +74,29 @@ public class OCommandCacheSoftRefs implements OCommandCache {
     }
   }
 
-  private class OCommandCacheImplRefs extends OSoftRefsHashMap<String, OCachedResult> {
+  private static class OCommandCacheImplRefs extends OSoftRefsHashMap<String, OCachedResult> {
   }
 
-  private final String          databaseName;
-  private Set<String>           clusters         = new HashSet<String>();
-  private volatile boolean      enable           = OGlobalConfiguration.COMMAND_CACHE_ENABLED.getValueAsBoolean();
-  private OCommandCacheImplRefs cache            = new OCommandCacheImplRefs();
-  private int                   minExecutionTime = OGlobalConfiguration.COMMAND_CACHE_MIN_EXECUTION_TIME.getValueAsInteger();
-  private int                   maxResultsetSize = OGlobalConfiguration.COMMAND_CACHE_MAX_RESULSET_SIZE.getValueAsInteger();
+  private final    String                databaseName;
+  private final    String                fileConfigPath;
+  private          Set<String>           clusters = new HashSet<String>();
+  private volatile boolean               enable;
+  private          OCommandCacheImplRefs cache    = new OCommandCacheImplRefs();
+  private          int                   minExecutionTime;
+  private          int                   maxResultsetSize;
 
-  private STRATEGY              evictStrategy    = STRATEGY
-      .valueOf(OGlobalConfiguration.COMMAND_CACHE_EVICT_STRATEGY.getValueAsString());
+  private STRATEGY evictStrategy = STRATEGY.valueOf(OGlobalConfiguration.COMMAND_CACHE_EVICT_STRATEGY.getValueAsString());
 
-  public OCommandCacheSoftRefs(final String iDatabaseName) {
-    databaseName = iDatabaseName;
-
+  public OCommandCacheSoftRefs(final OStorage storage) {
+    databaseName = storage.getName();
+    if (storage instanceof OLocalPaginatedStorage) {
+      fileConfigPath = ((OLocalPaginatedStorage) storage).getStoragePath().resolve(CONFIG_FILE).toString();
+    } else
+      fileConfigPath = null;
+    OContextConfiguration configuration = storage.getConfiguration().getContextConfiguration();
+    enable = configuration.getValueAsBoolean(OGlobalConfiguration.COMMAND_CACHE_ENABLED);
+    minExecutionTime = configuration.getValueAsInteger(OGlobalConfiguration.COMMAND_CACHE_MIN_EXECUTION_TIME);
+    maxResultsetSize = configuration.getValueAsInteger(OGlobalConfiguration.COMMAND_CACHE_MAX_RESULSET_SIZE);
     initCache();
 
   }
@@ -107,8 +116,8 @@ public class OCommandCacheSoftRefs implements OCommandCache {
         updateCfgOnDisk();
       }
     } catch (Exception e) {
-      OException.wrapException(new OConfigurationException(
-          "Cannot change Command Cache Cache configuration file '" + CONFIG_FILE + "'. Command Cache will use default settings"),
+      throw OException.wrapException(new OConfigurationException(
+              "Cannot change Command Cache Cache configuration file '" + CONFIG_FILE + "'. Command Cache will use default settings"),
           e);
     }
 
@@ -116,18 +125,18 @@ public class OCommandCacheSoftRefs implements OCommandCache {
 
   public void changeConfig(ODocument cfg) {
 
-    synchronized (configuration) {
+    synchronized (this) {
       ODocument oldConfig = configuration;
       configuration = cfg;
       configure();
       try {
         updateCfgOnDisk();
       } catch (IOException e) {
-        OException.wrapException(new OConfigurationException(
-            "Cannot change Command Cache Cache configuration file '" + CONFIG_FILE + "'. Command Cache will use default settings"),
-            e);
         configuration = oldConfig;
         configure();
+        throw OException.wrapException(new OConfigurationException(
+                "Cannot change Command Cache Cache configuration file '" + CONFIG_FILE + "'. Command Cache will use default settings"),
+            e);
       }
     }
   }
@@ -144,7 +153,7 @@ public class OCommandCacheSoftRefs implements OCommandCache {
   private boolean updateCfgOnDisk() throws IOException {
     File f = getConfigFile();
     if (f != null) {
-      OLogManager.instance().info(this, "Saving Command Cache config for db : %s", databaseName);
+      OLogManager.instance().debug(this, "Saving Command Cache config for db: %s", databaseName);
       OIOUtils.writeFile(f, configuration.toJSON("prettyPrint"));
       return true;
     }
@@ -159,21 +168,16 @@ public class OCommandCacheSoftRefs implements OCommandCache {
         return new ODocument().fromJSON(configurationContent);
       }
     } catch (Exception e) {
-      OException.wrapException(
-          new OConfigurationException(
-              "Cannot load Command Cache Cache configuration file '" + CONFIG_FILE + "'. Command Cache will use default settings"),
-          e);
+      throw OException.wrapException(new OConfigurationException(
+          "Cannot load Command Cache Cache configuration file '" + CONFIG_FILE + "'. Command Cache will use default settings"), e);
     }
     return null;
   }
 
   private File getConfigFile() {
-    OStorage storage = Orient.instance().getStorage(databaseName);
-
-    if (storage instanceof OLocalPaginatedStorage) {
-      return new File(((OLocalPaginatedStorage) storage).getStoragePath() + File.separator + CONFIG_FILE);
+    if (fileConfigPath != null) {
+      return new File(fileConfigPath);
     }
-
     return null;
   }
 
@@ -187,12 +191,13 @@ public class OCommandCacheSoftRefs implements OCommandCache {
     deleteFileIfExists();
   }
 
-  protected void deleteFileIfExists() {
+  protected boolean deleteFileIfExists() {
     File f = getConfigFile();
     if (f != null) {
-      OLogManager.instance().info(this, "Removing Command Cache config for db : %s", databaseName);
-      f.delete();
+      OLogManager.instance().debug(this, "Removing Command Cache config for db: %s", databaseName);
+      return f.delete();
     }
+    return false;
   }
 
   @Override
@@ -208,8 +213,8 @@ public class OCommandCacheSoftRefs implements OCommandCache {
     try {
       updateCfgOnDisk();
     } catch (IOException e) {
-      OException
-          .wrapException(new OConfigurationException("Cannot write Command Cache Cache configuration to  file '" + CONFIG_FILE), e);
+      throw OException.wrapException(
+          new OConfigurationException("Cannot write Command Cache Cache configuration to file '" + CONFIG_FILE + "'"), e);
     }
     return this;
   }
@@ -226,8 +231,8 @@ public class OCommandCacheSoftRefs implements OCommandCache {
     try {
       updateCfgOnDisk();
     } catch (IOException e) {
-      OException
-          .wrapException(new OConfigurationException("Cannot write Command Cache Cache configuration to  file '" + CONFIG_FILE), e);
+      throw OException.wrapException(
+          new OConfigurationException("Cannot write Command Cache Cache configuration to file '" + CONFIG_FILE + "'"), e);
     }
     return this;
   }
@@ -271,8 +276,8 @@ public class OCommandCacheSoftRefs implements OCommandCache {
         profiler.updateCounter(profiler.getDatabaseMetric(databaseName, "queryCache.hit"), "Results returned by Query Cache", +1);
 
       } else {
-        profiler.updateCounter(profiler.getDatabaseMetric(databaseName, "queryCache.miss"), "Results not returned by Query Cache",
-            +1);
+        profiler
+            .updateCounter(profiler.getDatabaseMetric(databaseName, "queryCache.miss"), "Results not returned by Query Cache", +1);
       }
     }
 
@@ -294,8 +299,8 @@ public class OCommandCacheSoftRefs implements OCommandCache {
       return;
 
     int resultsetSize = 1;
-    if (iResult instanceof OResultSet) {
-      resultsetSize = ((OResultSet) iResult).size();
+    if (iResult instanceof OLegacyResultSet) {
+      resultsetSize = ((OLegacyResultSet) iResult).size();
 
       if (resultsetSize > maxResultsetSize)
         // TOO BIG RESULTSET, SKIP IT
@@ -357,7 +362,7 @@ public class OCommandCacheSoftRefs implements OCommandCache {
 
       if (evictStrategy == STRATEGY.INVALIDATE_ALL) {
         if (OLogManager.instance().isDebugEnabled())
-          OLogManager.instance().debug(this, "Invalidate all cached results (%d)  ", size());
+          OLogManager.instance().debug(this, "Invalidate all cached results (%d)", size());
 
         clear();
         return;
@@ -371,7 +376,7 @@ public class OCommandCacheSoftRefs implements OCommandCache {
       }
 
       int evicted = 0;
-      for (Iterator<Map.Entry<String, OCachedResult>> it = cache.entrySet().iterator(); it.hasNext();) {
+      for (Iterator<Map.Entry<String, OCachedResult>> it = cache.entrySet().iterator(); it.hasNext(); ) {
         final OCachedResult cached = it.next().getValue();
         if (cached != null) {
           if (cached.involvedClusters == null || cached.involvedClusters.isEmpty() || cached.involvedClusters.contains(iCluster)) {
@@ -426,6 +431,14 @@ public class OCommandCacheSoftRefs implements OCommandCache {
     synchronized (this) {
       return cache.entrySet();
     }
+  }
+
+  public static boolean clearFiles(OAbstractPaginatedStorage storage) {
+    String name = ((OLocalPaginatedStorage) storage).getStoragePath().resolve(CONFIG_FILE).toString();
+    File file = new File(name);
+    if (file.exists())
+      return file.delete();
+    return false;
   }
 
 }

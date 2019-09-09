@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 Orient Technologies LTD (info--at--orientechnologies.com)
+ * Copyright 2010-2013 OrientDB LTD (info--at--orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,11 @@
  */
 package com.orientechnologies.orient.core.storage.impl.local.paginated.wal;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
 /**
- * @author Andrey Lomakin
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 30.05.13
  */
 public abstract class OOperationUnitRecord extends OAbstractWALRecord {
@@ -33,21 +36,50 @@ public abstract class OOperationUnitRecord extends OAbstractWALRecord {
     return operationUnitId;
   }
 
-  @Override
-  public int toStream(final byte[] content, final int offset) {
-    return operationUnitId.toStream(content, offset);
+  public void setOperationUnitId(final OOperationUnitId operationUnitId) {
+    this.operationUnitId = operationUnitId;
   }
 
   @Override
-  public int fromStream(final byte[] content, final int offset) {
+  public final int toStream(final byte[] content, final int offset) {
+    final ByteBuffer buffer = ByteBuffer.wrap(content).order(ByteOrder.nativeOrder());
+    buffer.position(offset);
+
+    operationUnitId.toStream(buffer);
+
+    serializeToByteBuffer(buffer);
+
+    return buffer.position();
+  }
+
+  @Override
+  public final void toStream(ByteBuffer buffer) {
+    operationUnitId.toStream(buffer);
+
+    serializeToByteBuffer(buffer);
+  }
+
+  @Override
+  public final int fromStream(final byte[] content, final int offset) {
+    final ByteBuffer buffer = ByteBuffer.wrap(content).order(ByteOrder.nativeOrder());
+    buffer.position(offset);
+
     operationUnitId = new OOperationUnitId();
-    return operationUnitId.fromStream(content, offset);
+    operationUnitId.fromStream(buffer);
+
+    deserializeFromByteBuffer(buffer);
+
+    return buffer.position();
   }
 
   @Override
   public int serializedSize() {
     return OOperationUnitId.SERIALIZED_SIZE;
   }
+
+  protected abstract void serializeToByteBuffer(final ByteBuffer buffer);
+
+  protected abstract void deserializeFromByteBuffer(final ByteBuffer buffer);
 
   @Override
   public boolean equals(final Object o) {

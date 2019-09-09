@@ -2,11 +2,19 @@
 /* JavaCCOptions:MULTI=true,NODE_USES_PARSER=false,VISITOR=true,TRACK_TOKENS=true,NODE_PREFIX=O,NODE_EXTENDS=,NODE_FACTORY=,SUPPORT_CLASS_VISIBILITY_PUBLIC=true */
 package com.orientechnologies.orient.core.sql.parser;
 
+import com.orientechnologies.common.collection.OMultiValue;
+import com.orientechnologies.orient.core.command.OCommandContext;
+import com.orientechnologies.orient.core.sql.executor.OResult;
+import com.orientechnologies.orient.core.sql.executor.OResultInternal;
+
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class OUpdateRemoveItem extends SimpleNode {
 
-  OIdentifier left;
+  OExpression left;
   OExpression right;
 
   public OUpdateRemoveItem(int id) {
@@ -17,17 +25,78 @@ public class OUpdateRemoveItem extends SimpleNode {
     super(p, id);
   }
 
-  /** Accept the visitor. **/
+  /**
+   * Accept the visitor.
+   **/
   public Object jjtAccept(OrientSqlVisitor visitor, Object data) {
     return visitor.visit(this, data);
   }
-
 
   public void toString(Map<Object, Object> params, StringBuilder builder) {
     left.toString(params, builder);
     if (right != null) {
       builder.append(" = ");
       right.toString(params, builder);
+    }
+  }
+
+  public OUpdateRemoveItem copy() {
+    OUpdateRemoveItem result = new OUpdateRemoveItem(-1);
+    result.left = left == null ? null : left.copy();
+    result.right = right == null ? null : right.copy();
+    return result;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OUpdateRemoveItem that = (OUpdateRemoveItem) o;
+
+    if (left != null ? !left.equals(that.left) : that.left != null)
+      return false;
+    if (right != null ? !right.equals(that.right) : that.right != null)
+      return false;
+
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    int result = left != null ? left.hashCode() : 0;
+    result = 31 * result + (right != null ? right.hashCode() : 0);
+    return result;
+  }
+
+  public void applyUpdate(OResultInternal result, OCommandContext ctx) {
+    if (right != null) {
+      Object leftVal = left.execute(result, ctx);
+      Object rightVal = right.execute(result, ctx);
+      if(rightVal instanceof OResult && ((OResult) rightVal).isElement()){
+        rightVal = ((OResult) rightVal).getElement().get();
+      }
+      if(rightVal instanceof Collection && ((Collection) rightVal).stream().allMatch(x->x instanceof OResult && ((OResult) x).isElement())){
+        rightVal = ((Collection) rightVal).stream().map(OResult.class::cast).map(x->((OResult) x).getElement().get()).collect(Collectors.toList());
+      }
+      if (OMultiValue.isMultiValue(leftVal)) {
+        OMultiValue.remove(leftVal, rightVal, false);
+        if (OMultiValue.isMultiValue(rightVal)) {
+          Iterator<Object> iter = OMultiValue.getMultiValueIterator(rightVal);
+          while (iter.hasNext()) {
+            Object item = iter.next();
+            if (item instanceof OResult && ((OResult) item).getIdentity().isPresent()) {
+              OMultiValue.remove(leftVal, ((OResult) item).getIdentity().get(), false);
+            } else {
+              OMultiValue.remove(leftVal, item, false);
+            }
+          }
+        }
+      }
+    } else {
+      left.applyRemove(result, ctx);
     }
   }
 }

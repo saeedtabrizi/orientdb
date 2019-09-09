@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,21 +14,21 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.orientechnologies.orient.core.storage.cache;
 
 /**
- * @author Andrey Lomakin
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 25.04.13
  */
 public class OPageDataVerificationError {
-  public final boolean incorrectMagicNumber;
-  public final boolean incorrectCheckSum;
-  public final long    pageIndex;
-  public final String  fileName;
+  private final boolean incorrectMagicNumber;
+  private final boolean incorrectCheckSum;
+  private final long    pageIndex;
+  private final String  fileName;
 
   public OPageDataVerificationError(boolean incorrectMagicNumber, boolean incorrectCheckSum, long pageIndex, String fileName) {
     this.incorrectMagicNumber = incorrectMagicNumber;

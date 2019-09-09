@@ -1,36 +1,35 @@
 /**
- * Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- * 	http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * For more information: http://www.orientechnologies.com
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS"
+ * BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language
+ * governing permissions and limitations under the License.
+ * <p>
+ * For more information: http://orientdb.com
  */
 package com.orientechnologies.orient.jdbc;
 
 import com.orientechnologies.common.exception.OException;
-import com.orientechnologies.orient.core.command.OCommandRequest;
-import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.exception.OQueryParsingException;
-import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
+import com.orientechnologies.orient.core.sql.executor.OInternalResultSet;
+import com.orientechnologies.orient.core.sql.executor.OResult;
+import com.orientechnologies.orient.core.sql.executor.OResultInternal;
+import com.orientechnologies.orient.core.sql.executor.OResultSet;
 
 import java.sql.*;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+import java.util.Properties;
 
-import static java.util.Collections.emptyList;
+import static java.lang.Boolean.parseBoolean;
 
 /**
  * @author Roberto Franchini (CELI Srl - franchini@celi.it)
@@ -39,19 +38,18 @@ import static java.util.Collections.emptyList;
 public class OrientJdbcStatement implements Statement {
 
   protected final OrientJdbcConnection connection;
-  protected final ODatabaseDocumentTx  database;
-
-  // protected OCommandSQL query;
-  protected OCommandRequest     query;
-  protected List<ODocument>     documents;
-  protected boolean             closed;
-  protected Object              rawResult;
-  protected OrientJdbcResultSet resultSet;
-  protected List<String>        batches;
-
-  protected int resultSetType;
-  protected int resultSetConcurrency;
-  protected int resultSetHoldability;
+  protected final ODatabaseDocument    database;
+  protected final List<String>         batches;
+  protected final int                  resultSetType;
+  protected final int                  resultSetConcurrency;
+  protected final int                  resultSetHoldability;
+  protected final Properties           info;
+  //   protected OCommandSQL               sql;
+  protected       String               sql;
+  //  protected       List<ODocument>      documents;
+  protected       boolean              closed;
+  protected       OResultSet           oResultSet;
+  protected       OrientJdbcResultSet  resultSet;
 
   public OrientJdbcStatement(final OrientJdbcConnection iConnection) {
     this(iConnection, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
@@ -61,9 +59,10 @@ public class OrientJdbcStatement implements Statement {
    * @param iConnection
    * @param resultSetType
    * @param resultSetConcurrency
+   *
    * @throws SQLException
    */
-  public OrientJdbcStatement(OrientJdbcConnection iConnection, int resultSetType, int resultSetConcurrency) throws SQLException {
+  public OrientJdbcStatement(OrientJdbcConnection iConnection, int resultSetType, int resultSetConcurrency) {
     this(iConnection, resultSetType, resultSetConcurrency, resultSetType);
   }
 
@@ -77,31 +76,33 @@ public class OrientJdbcStatement implements Statement {
       int resultSetHoldability) {
     this.connection = iConnection;
     this.database = iConnection.getDatabase();
-    ODatabaseRecordThreadLocal.INSTANCE.set(database);
-    documents = emptyList();
-    batches = new ArrayList<String>();
+    database.activateOnCurrentThread();
+//    documents = emptyList();
+    batches = new ArrayList<>();
     this.resultSetType = resultSetType;
     this.resultSetConcurrency = resultSetConcurrency;
     this.resultSetHoldability = resultSetHoldability;
+    info = connection.getInfo();
   }
 
   @Override
-  public boolean execute(final String sql) throws SQLException {
-    if ("".equals(sql))
+  public boolean execute(final String sqlCommand) throws SQLException {
+
+    if ("".equals(sqlCommand))
       return false;
 
+    sql = mayCleanForSpark(sqlCommand);
+
     if (sql.equalsIgnoreCase("select 1")) {
-      documents = new ArrayList<ODocument>();
-      documents.add(new ODocument().field("1", 1));
+      OResultInternal element = new OResultInternal();
+      element.setProperty("1", 1);
+      OInternalResultSet rs = new OInternalResultSet();
+      rs.add(element);
+      oResultSet = rs;
     } else {
-      query = new OCommandSQL(sql);
       try {
-        rawResult = executeCommand(query);
-        if (rawResult instanceof List<?>) {
-          documents = (List<ODocument>) rawResult;
-        } else {
-          return false;
-        }
+
+        oResultSet = executeCommand(sql);
 
       } catch (OQueryParsingException e) {
         throw new SQLSyntaxErrorException("Error while parsing query", e);
@@ -110,7 +111,8 @@ public class OrientJdbcStatement implements Statement {
 
       }
     }
-    resultSet = new OrientJdbcResultSet(this, documents, resultSetType, resultSetConcurrency, resultSetHoldability);
+
+    resultSet = new OrientJdbcResultSet(this, oResultSet, resultSetType, resultSetConcurrency, resultSetHoldability);
     return true;
 
   }
@@ -122,24 +124,31 @@ public class OrientJdbcStatement implements Statement {
       return null;
   }
 
+  @Override
   public int executeUpdate(final String sql) throws SQLException {
-    query = new OCommandSQL(sql);
-    rawResult = executeCommand(query);
+    try {
+      oResultSet = executeCommand(sql);
 
-    if (rawResult instanceof ODocument)
-      return 1;
-    else if (rawResult instanceof Integer)
-      return (Integer) rawResult;
-    else if (rawResult instanceof Collection)
-      return ((Collection) rawResult).size();
+      Optional<OResult> res = oResultSet.stream().findFirst();
 
-    return 0;
+      if (res.isPresent()) {
+        if (res.get().getProperty("count") != null) {
+          return Math.toIntExact((Long) res.get().getProperty("count"));
+        } else
+          return 1;
+      } else {
+        return 0;
+      }
+    } finally {
+      oResultSet.close();
+    }
+
   }
 
-  protected <RET> RET executeCommand(OCommandRequest query) throws SQLException {
+  protected OResultSet executeCommand(String query) throws SQLException {
 
     try {
-      return database.command(query).execute();
+      return database.command(query);
     } catch (OQueryParsingException e) {
       throw new SQLSyntaxErrorException("Error while parsing command", e);
     } catch (OException e) {
@@ -165,7 +174,6 @@ public class OrientJdbcStatement implements Statement {
   }
 
   public void close() throws SQLException {
-    query = null;
     closed = true;
   }
 
@@ -299,7 +307,7 @@ public class OrientJdbcStatement implements Statement {
 
   public boolean isClosed() throws SQLException {
 
-    return query == null;
+    return closed;
   }
 
   public boolean isPoolable() throws SQLException {
@@ -324,10 +332,10 @@ public class OrientJdbcStatement implements Statement {
       // the following if-then structure makes sense if the query can be a
       // subclass of OCommandSQL.
 
-      if (this.query == null) {
+      if (this.sql == null) {
         return OCommandSQL.class.isAssignableFrom(iface);
       } else {
-        return this.query.getClass().isAssignableFrom(iface);
+        return this.sql.getClass().isAssignableFrom(iface);
       }
     } catch (NullPointerException e) {
       throw new SQLException(e);
@@ -336,7 +344,7 @@ public class OrientJdbcStatement implements Statement {
 
   public <T> T unwrap(Class<T> iface) throws SQLException {
     try {
-      return iface.cast(query);
+      return iface.cast(sql);
     } catch (ClassCastException e) {
       throw new SQLException(e);
     }
@@ -348,6 +356,17 @@ public class OrientJdbcStatement implements Statement {
 
   public boolean isCloseOnCompletion() throws SQLException {
     return false;
+  }
+
+  protected String mayCleanForSpark(String sql) {
+    //SPARK support
+    if (parseBoolean(info.getProperty("spark", "false"))) {
+      if (sql.endsWith("WHERE 1=0")) {
+        sql = sql.replace("WHERE 1=0", " LIMIT 1");
+      }
+      return sql.replace('"', ' ');
+    }
+    return sql;
   }
 
 }

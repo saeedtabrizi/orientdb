@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql.operator;
@@ -25,6 +25,7 @@ import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.query.OQueryRuntimeValueMulti;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.serialization.serializer.record.binary.OBinaryField;
+import com.orientechnologies.orient.core.serialization.serializer.record.binary.ODocumentSerializer;
 import com.orientechnologies.orient.core.serialization.serializer.record.binary.ORecordSerializerBinary;
 import com.orientechnologies.orient.core.sql.filter.OSQLFilterCondition;
 import com.orientechnologies.orient.core.sql.filter.OSQLFilterItemFieldAll;
@@ -32,7 +33,7 @@ import com.orientechnologies.orient.core.sql.filter.OSQLFilterItemFieldAll;
 /**
  * Base equality operator. It's an abstract class able to compare the equality between two values.
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public abstract class OQueryOperatorEquality extends OQueryOperator {
@@ -54,10 +55,11 @@ public abstract class OQueryOperatorEquality extends OQueryOperator {
   protected abstract boolean evaluateExpression(final OIdentifiable iRecord, final OSQLFilterCondition iCondition,
       final Object iLeft, final Object iRight, OCommandContext iContext);
 
-  public boolean evaluate(final OBinaryField iFirstField, final OBinaryField iSecondField, final OCommandContext iContext) {
-    final Object left = ORecordSerializerBinary.INSTANCE.getCurrentSerializer().deserializeValue(iFirstField.bytes,
+  public boolean evaluate(final OBinaryField iFirstField, final OBinaryField iSecondField, 
+                          final OCommandContext iContext, final ODocumentSerializer serializer) {     
+    final Object left = serializer.deserializeValue(iFirstField.bytes,
         iFirstField.type, null);
-    final Object right = ORecordSerializerBinary.INSTANCE.getCurrentSerializer().deserializeValue(iSecondField.bytes,
+    final Object right = serializer.deserializeValue(iSecondField.bytes,
         iFirstField.type, null);
 
     return evaluateExpression(null, null, left, right, iContext);
@@ -65,11 +67,11 @@ public abstract class OQueryOperatorEquality extends OQueryOperator {
 
   @Override
   public Object evaluateRecord(final OIdentifiable iRecord, ODocument iCurrentResult, final OSQLFilterCondition iCondition,
-      final Object iLeft, final Object iRight, OCommandContext iContext) {
+      final Object iLeft, final Object iRight, OCommandContext iContext, final ODocumentSerializer serializer) {
 
     if (iLeft instanceof OBinaryField && iRight instanceof OBinaryField)
       // BINARY COMPARISON
-      return evaluate((OBinaryField) iLeft, (OBinaryField) iRight, iContext);
+      return evaluate((OBinaryField) iLeft, (OBinaryField) iRight, iContext, serializer);
     else if (iLeft instanceof OQueryRuntimeValueMulti) {
       // LEFT = MULTI
       final OQueryRuntimeValueMulti left = (OQueryRuntimeValueMulti) iLeft;

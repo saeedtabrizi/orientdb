@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,11 +14,13 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.cache;
 
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.hook.ORecordHookAbstract;
 import com.orientechnologies.orient.core.record.ORecord;
@@ -26,16 +28,21 @@ import com.orientechnologies.orient.core.record.ORecord;
 /**
  * Hook that takes care to invalidate query cache as soon any change happen on database.
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OCommandCacheHook extends ORecordHookAbstract {
 
-  private final OCommandCache       cmdCache;
-  private final ODatabaseDocumentTx database;
+  private final OCommandCache     cmdCache;
+  private final ODatabaseDocument database;
 
-  public OCommandCacheHook(final ODatabaseDocumentTx iDatabase) {
+  public OCommandCacheHook(final ODatabaseDocumentInternal iDatabase) {
     database = iDatabase;
     cmdCache = iDatabase.getMetadata().getCommandCache().isEnabled() ? iDatabase.getMetadata().getCommandCache() : null;
+  }
+
+  @Override
+  public SCOPE[] getScopes() {
+    return new SCOPE[] { SCOPE.CREATE, SCOPE.UPDATE, SCOPE.DELETE };
   }
 
   @Override

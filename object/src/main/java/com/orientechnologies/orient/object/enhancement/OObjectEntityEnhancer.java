@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2012 Luca Molino (molino.luca--AT--gmail.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * @author luca.molino
+ * @author Luca Molino (molino.luca--at--gmail.com)
  * 
  */
 public class OObjectEntityEnhancer {
@@ -79,8 +79,8 @@ public class OObjectEntityEnhancer {
   public <T> T getProxiedInstance(final Class<T> iClass, Object iEnclosingInstance, final ODocument doc, final ProxyObject parent,
       Object... iArgs) {
     if (iClass == null) {
-      throw new OSerializationException("Type " + doc.getClassName()
-          + " cannot be serialized because is not part of registered entities. To fix this error register this class");
+      throw new OSerializationException("Type '" + doc.getClassName()
+          + "' cannot be serialized because is not part of registered entities. To fix this error register this class");
     }
     final Class<T> c;
     boolean isInnerClass = OObjectEntitySerializer.getEnclosingClass(iClass) != null;
@@ -94,7 +94,7 @@ public class OObjectEntityEnhancer {
       } else {
         f.setFilter(defaultMethodFilter);
       }
-      c = f.createClass();
+      c = (Class<T>) f.createClass();
     }
     MethodHandler mi = new OObjectProxyMethodHandler(doc);
     ((OObjectProxyMethodHandler) mi).setParentObject(parent);
@@ -138,7 +138,7 @@ public class OObjectEntityEnhancer {
         }
         if (constructor != null) {
           newEntity = (T) constructor.newInstance(iArgs);
-          initDocument(iClass, newEntity, doc, (ODatabaseObject) ODatabaseRecordThreadLocal.INSTANCE.get().getDatabaseOwner());
+          initDocument(iClass, newEntity, doc, (ODatabaseObject) ODatabaseRecordThreadLocal.instance().get().getDatabaseOwner());
         } else {
           if (iEnclosingInstance != null)
             newEntity = createInstanceNoParameters(c, iEnclosingInstance);
@@ -270,7 +270,7 @@ public class OObjectEntityEnhancer {
       try {
         instanceToReturn = iProxiedClass.newInstance();
       } catch (InstantiationException e) {
-        OLogManager.instance().error(this, "Cannot create an instance of the enclosing class '%s'", iOriginalClass);
+        OLogManager.instance().error(this, "Cannot create an instance of the enclosing class '%s'", e, iOriginalClass);
         throw e;
       }
     }

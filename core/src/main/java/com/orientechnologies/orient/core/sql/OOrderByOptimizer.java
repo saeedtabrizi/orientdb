@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 
@@ -48,8 +48,8 @@ public class OOrderByOptimizer {
       if (!firstOrder.equals(pair.getValue()))
         return false;
 
-      final String orderFieldName = orderedFields.get(i).getKey().toLowerCase();
-      final String indexFieldName = fields.get(i).toLowerCase();
+      final String orderFieldName = orderedFields.get(i).getKey();
+      final String indexFieldName = fields.get(i);
 
       if (!orderFieldName.equals(indexFieldName))
         return false;
@@ -82,8 +82,8 @@ public class OOrderByOptimizer {
 
     //check that all the "equals" clauses are a prefix for the index
     for (int i = 0; i < endIndex; i++) {
-      final String equalsFieldName = equalsFilterFields.get(i).toLowerCase();
-      final String indexFieldName = indexFields.get(i).toLowerCase();
+      final String equalsFieldName = equalsFilterFields.get(i);
+      final String indexFieldName = indexFields.get(i);
       if (!equalsFieldName.equals(indexFieldName))
         return false;
     }
@@ -101,8 +101,8 @@ public class OOrderByOptimizer {
       if (!firstOrder.equals(pair.getValue()))
         return false;
 
-      final String orderFieldName = pair.getKey().toLowerCase();
-      final String indexFieldName = indexFields.get(i).toLowerCase();
+      final String orderFieldName = pair.getKey();
+      final String indexFieldName = indexFields.get(i);
 
       if (!orderFieldName.equals(indexFieldName))
         return false;

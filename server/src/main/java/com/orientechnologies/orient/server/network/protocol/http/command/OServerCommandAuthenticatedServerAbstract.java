@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,31 +14,32 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.network.protocol.http.command;
 
-import java.io.IOException;
-
 import com.orientechnologies.orient.server.config.OServerConfiguration;
 import com.orientechnologies.orient.server.network.protocol.http.OHttpRequest;
 import com.orientechnologies.orient.server.network.protocol.http.OHttpResponse;
+import com.orientechnologies.orient.server.network.protocol.http.OHttpSession;
 import com.orientechnologies.orient.server.network.protocol.http.OHttpUtils;
+
+import java.io.IOException;
 
 /**
  * Server based authenticated commands. Authenticates against the OrientDB server users found in configuration.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public abstract class OServerCommandAuthenticatedServerAbstract extends OServerCommandAbstract {
 
   private static final String SESSIONID_UNAUTHORIZED = "-";
   private static final String SESSIONID_LOGOUT       = "!";
 
-  private final String        resource;
-  protected String            serverUser;
-  protected String            serverPassword;
+  private final String resource;
+  protected     String serverUser;
+  protected     String serverPassword;
 
   protected OServerCommandAuthenticatedServerAbstract(final String iRequiredResource) {
     resource = iRequiredResource;
@@ -50,8 +51,7 @@ public abstract class OServerCommandAuthenticatedServerAbstract extends OServerC
     return authenticate(iRequest, iResponse, true);
   }
 
-  protected boolean authenticate(final OHttpRequest iRequest, final OHttpResponse iResponse, final boolean iAskForAuthentication)
-      throws IOException {
+  protected boolean authenticate(final OHttpRequest iRequest, final OHttpResponse iResponse, final boolean iAskForAuthentication, String resource) throws IOException {
     if (checkGuestAccess()) {
       // GUEST ACCESSES TO THE RESOURCE: OK ALSO WITHOUT AN AUTHENTICATION.
       iResponse.sessionId = null;
@@ -86,6 +86,11 @@ public abstract class OServerCommandAuthenticatedServerAbstract extends OServerC
     return false;
   }
 
+  protected boolean authenticate(final OHttpRequest iRequest, final OHttpResponse iResponse, final boolean iAskForAuthentication)
+      throws IOException {
+    return authenticate(iRequest,iResponse,iAskForAuthentication,resource);
+  }
+
   protected boolean checkGuestAccess() {
     return server.isAllowed(OServerConfiguration.GUEST_USER, resource);
   }
@@ -98,15 +103,40 @@ public abstract class OServerCommandAuthenticatedServerAbstract extends OServerC
     // UNAUTHORIZED
     iRequest.sessionId = SESSIONID_UNAUTHORIZED;
 
-    // Defaults to "WWW-Authenticate: Basic".
-    String header = server.getSecurity().getAuthenticationHeader(null);
+    String header = null;
+    String xRequestedWithHeader = iRequest.getHeader("X-Requested-With");
+    if (xRequestedWithHeader == null || !xRequestedWithHeader.equals("XMLHttpRequest")) {
+      // Defaults to "WWW-Authenticate: Basic" if not an AJAX Request.
+      header = server.getSecurity().getAuthenticationHeader(null);
+    }
 
     if (isJsonResponse(iResponse)) {
       sendJsonError(iResponse, OHttpUtils.STATUS_AUTH_CODE, OHttpUtils.STATUS_AUTH_DESCRIPTION, OHttpUtils.CONTENT_TEXT_PLAIN,
           "401 Unauthorized.", header);
     } else {
-      iResponse.send(OHttpUtils.STATUS_AUTH_CODE, OHttpUtils.STATUS_AUTH_DESCRIPTION, OHttpUtils.CONTENT_TEXT_PLAIN,
-          "401 Unauthorized.", header);
+      iResponse
+          .send(OHttpUtils.STATUS_AUTH_CODE, OHttpUtils.STATUS_AUTH_DESCRIPTION, OHttpUtils.CONTENT_TEXT_PLAIN, "401 Unauthorized.",
+              header);
     }
+  }
+
+  public String getUser(final OHttpRequest iRequest) {
+    OHttpSession session = server.getHttpSessionManager().getSession(iRequest.sessionId);
+    if (session != null) {
+      return session.getUserName();
+    }
+    if (iRequest.authorization != null) {
+      // GET CREDENTIALS
+      final String[] authParts = iRequest.authorization.split(":");
+      if (authParts.length == 2) {
+        return authParts[0];
+      }
+    }
+    return null;
+
+  }
+
+  public String getResource() {
+    return resource;
   }
 }

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -55,18 +55,18 @@ import java.util.Map;
 
 /**
  * Base Graph Element where OrientVertex and OrientEdge classes extends from. Labels are managed as OrientDB classes.
- * 
- * @author Luca Garulli (http://www.orientechnologies.com)
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com) (http://orientdb.com)
  */
 @SuppressWarnings("unchecked")
 public abstract class OrientElement implements Element, OSerializableStream, Externalizable, OIdentifiable {
-  public static final String                   LABEL_FIELD_NAME          = "label";
-  public static final Object                   DEF_ORIGINAL_ID_FIELDNAME = "origId";
-  private static final long                    serialVersionUID          = 1L;
-  protected boolean                            classicDetachMode         = false;
-  protected transient OrientBaseGraph.Settings settings;
-  protected OIdentifiable                      rawElement;
-  private transient OrientBaseGraph            graph;
+  public static final  String                   LABEL_FIELD_NAME          = "label";
+  public static final  Object                   DEF_ORIGINAL_ID_FIELDNAME = "origId";
+  private static final long                     serialVersionUID          = 1L;
+  protected            boolean                  classicDetachMode         = false;
+  protected transient  OrientBaseGraph.Settings settings;
+  protected            OIdentifiable            rawElement;
+  private transient    OrientBaseGraph          graph;
 
   protected OrientElement(final OrientBaseGraph rawGraph, final OIdentifiable iRawElement) {
     if (classicDetachMode)
@@ -91,6 +91,13 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
    * (Blueprints Extension) Returns the element type in form of String between "Vertex" and "Edge".
    */
   public abstract String getElementType();
+
+  /**
+   * (Blueprints Extension) Gets all the properties from a Vertex or Edge in one shot.
+   *
+   * @return a map containing all the properties of the Vertex/Edge.
+   */
+  public abstract Map<String, Object> getProperties();
 
   /**
    * Removes the Element from the Graph. In case the element is a Vertex, all the incoming and outgoing edges are automatically
@@ -134,28 +141,20 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
 
   /**
    * (Blueprints Extension) Sets multiple properties in one shot against Vertices and Edges. This improves performance avoiding to
-   * save the graph element at every property set.<br>
-   * Example:
-   * 
+   * save the graph element at every property set.<br> Example:
+   * <p>
    * <code>
    * vertex.setProperties( "name", "Jill", "age", 33, "city", "Rome", "born", "Victoria, TX" );
    * </code> You can also pass a Map of values as first argument. In this case all the map entries will be set as element
    * properties:
-   * 
+   * <p>
    * <code>
-   * Map<String,Object> props = new HashMap<String,Object>();
-   * props.put("name", "Jill");
-   * props.put("age", 33);
-   * props.put("city", "Rome");
-   * props.put("born", "Victoria, TX");
-   * vertex.setProperties(props);
+   * Map<String,Object> props = new HashMap<String,Object>(); props.put("name", "Jill"); props.put("age", 33); props.put("city",
+   * "Rome"); props.put("born", "Victoria, TX"); vertex.setProperties(props);
    * </code>
-   * 
-   * @param fields
-   *          Odd number of fields to set as repeating pairs of key, value, or if one parameter is received and it's a Map, the Map
-   *          entries are used as field key/value pairs.
-   * @param <T>
-   * @return
+   *
+   * @param fields Odd number of fields to set as repeating pairs of key, value, or if one parameter is received and it's a Map, the
+   *               Map entries are used as field key/value pairs.
    */
   public <T extends OrientElement> T setProperties(final Object... fields) {
     if (checkDeletedInTx())
@@ -167,26 +166,10 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
   }
 
   /**
-   * (Blueprints Extension) Gets all the properties from a Vertex or Edge in one shot.
-   * 
-   * @return a map containing all the properties of the Vertex/Edge.
-   */
-  public Map<String, Object> getProperties() {
-    if (this.rawElement == null)
-      return null;
-    ODocument raw = this.rawElement.getRecord();
-    if (raw == null)
-      return null;
-    return raw.toMap();
-  }
-
-  /**
    * Sets a Property value.
-   * 
-   * @param key
-   *          Property name
-   * @param value
-   *          Property value
+   *
+   * @param key   Property name
+   * @param value Property value
    */
   @Override
   public void setProperty(final String key, final Object value) {
@@ -207,12 +190,9 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
    * Sets a Property value specifying a type. This is useful when you don't have a schema on this property but you want to force the
    * type.
    *
-   * @param key
-   *          Property name
-   * @param value
-   *          Property value
-   * @param iType
-   *          Type to set
+   * @param key   Property name
+   * @param value Property value
+   * @param iType Type to set
    */
   public void setProperty(final String key, final Object value, final OType iType) {
     if (checkDeletedInTx())
@@ -230,9 +210,9 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
 
   /**
    * Removes a Property.
-   * 
-   * @param key
-   *          Property name
+   *
+   * @param key Property name
+   *
    * @return Old value if any
    */
   @Override
@@ -253,9 +233,9 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
 
   /**
    * Returns a Property value.
-   * 
-   * @param key
-   *          Property name
+   *
+   * @param key Property name
+   *
    * @return Property value if any, otherwise NULL.
    */
   @Override
@@ -271,25 +251,32 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
     else if (key.equals("_rid"))
       return (T) rawElement.getIdentity().toString();
 
-    final Object fieldValue = getRecord().field(key);
+    final ODocument record = getRecord();
+    if (record == null)
+      // NO RECORD
+      return null;
+
+    final Object fieldValue = record.field(key);
     if (graph != null && fieldValue instanceof OIdentifiable && !(((OIdentifiable) fieldValue).getRecord() instanceof OBlob)) {
-      ODocument record = ((OIdentifiable) fieldValue).getRecord();
-      if(record!=null){
-        final OClass schemaClass = record.getSchemaClass();
-        if(schemaClass!=null && (schemaClass.isVertexType() || schemaClass.isEdgeType())){
+      ODocument fieldRecord = ((OIdentifiable) fieldValue).getRecord();
+      if (fieldRecord != null) {
+        final OClass schemaClass = fieldRecord.getSchemaClass();
+        if (schemaClass != null && (schemaClass.isVertexType() || schemaClass.isEdgeType())) {
           // CONVERT IT TO VERTEX/EDGE
           return (T) graph.getElement(fieldValue);
         }
       }
       return (T) fieldValue;
-    } else if (!(fieldValue instanceof Map) && OMultiValue.isMultiValue(fieldValue)
-        && OMultiValue.getFirstValue(fieldValue) instanceof OIdentifiable) {
+    } else if (!(fieldValue instanceof Map) && OMultiValue.isMultiValue(fieldValue) && OMultiValue
+        .getFirstValue(fieldValue) instanceof OIdentifiable) {
       final OIdentifiable firstValue = (OIdentifiable) OMultiValue.getFirstValue(fieldValue);
 
       if (firstValue instanceof ODocument) {
         final ODocument document = (ODocument) firstValue;
 
-        if (document.isEmbedded() || ODocumentInternal.getImmutableSchemaClass(document) == null)
+        /// clusterId -2 Is considered a projection so does not have a class but is a not embedded record
+        if (document.getIdentity().getClusterId() != -2 && (document.isEmbedded()
+            || ODocumentInternal.getImmutableSchemaClass(document) == null))
           return (T) fieldValue;
       }
 
@@ -319,9 +306,8 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
   /**
    * (Blueprints Extension) Saves current element to a particular cluster. You don't need to call save() unless you're working
    * against Temporary Vertices.
-   * 
-   * @param iClusterName
-   *          Cluster name or null to use the default "E"
+   *
+   * @param iClusterName Cluster name or null to use the default "E"
    */
   public void save(final String iClusterName) {
     final OrientBaseGraph graph = checkIfAttached();
@@ -335,13 +321,11 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
   }
 
   public int hashCode() {
-    return ((rawElement == null) ? 0 : rawElement.hashCode());
+    return ((rawElement == null) ? toString().hashCode() : rawElement.hashCode());
   }
 
   /**
    * (Blueprints Extension) Serializes the Element as byte[]
-   * 
-   * @throws OSerializationException
    */
   @Override
   public byte[] toStream() throws OSerializationException {
@@ -350,10 +334,8 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
 
   /**
    * (Blueprints Extension) Fills the Element from a byte[]
-   * 
-   * @param stream
-   *          byte array representation of the object
-   * @throws OSerializationException
+   *
+   * @param stream byte array representation of the object
    */
   @Override
   public OSerializableStream fromStream(final byte[] stream) throws OSerializationException {
@@ -376,15 +358,15 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
    * (Blueprints Extension) Locks current Element to prevent concurrent access. If lock is exclusive, then no concurrent threads can
    * read/write it. If the lock is shared, then concurrent threads can only read Element properties, but can't change them. Locks
    * can be freed by calling @unlock or when the current transaction is closed (committed or rollbacked).
-   * 
+   *
+   * @param iExclusive True = Exclusive Lock, False = Shared Lock
+   *
    * @see #lock(boolean)
-   * @param iExclusive
-   *          True = Exclusive Lock, False = Shared Lock
    */
   @Override
   public void lock(final boolean iExclusive) {
-    ODatabaseRecordThreadLocal.INSTANCE.get().getTransaction().lockRecord(this,
-        iExclusive ? OStorage.LOCKING_STRATEGY.EXCLUSIVE_LOCK : OStorage.LOCKING_STRATEGY.SHARED_LOCK);
+    ODatabaseRecordThreadLocal.instance().get().getTransaction()
+        .lockRecord(this, iExclusive ? OStorage.LOCKING_STRATEGY.EXCLUSIVE_LOCK : OStorage.LOCKING_STRATEGY.SHARED_LOCK);
   }
 
   /**
@@ -392,22 +374,22 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
    */
   @Override
   public boolean isLocked() {
-    return ODatabaseRecordThreadLocal.INSTANCE.get().getTransaction().isLockedRecord(this);
+    return ODatabaseRecordThreadLocal.instance().get().getTransaction().isLockedRecord(this);
   }
 
   @Override
   public OStorage.LOCKING_STRATEGY lockingStrategy() {
-    return ODatabaseRecordThreadLocal.INSTANCE.get().getTransaction().lockingStrategy(this);
+    return ODatabaseRecordThreadLocal.instance().get().getTransaction().lockingStrategy(this);
   }
 
   /**
    * (Blueprints Extension) Unlocks previous acquired @lock against the Element.
-   * 
+   *
    * @see #lock(boolean)
    */
   @Override
   public void unlock() {
-    ODatabaseRecordThreadLocal.INSTANCE.get().getTransaction().unlockRecord(this);
+    ODatabaseRecordThreadLocal.instance().get().getTransaction().unlockRecord(this);
   }
 
   /**
@@ -419,13 +401,14 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
       return ORecordId.EMPTY_RECORD_ID;
 
     final ORID rid = rawElement.getIdentity();
-    final OrientBaseGraph graph = getGraph();
-
-    if (!rid.isValid() && graph != null) {
-      // SAVE THE RECORD TO OBTAIN A VALID RID
-      graph.setCurrentGraphInThreadLocal();
-      graph.autoStartTransaction();
-      save();
+    if (!rid.isValid()) {
+      final OrientBaseGraph graph = getGraph();
+      if (graph != null) {
+        // SAVE THE RECORD TO OBTAIN A VALID RID
+        graph.setCurrentGraphInThreadLocal();
+        graph.autoStartTransaction();
+        save();
+      }
     }
     return rid;
   }
@@ -452,11 +435,12 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
 
   /**
    * (Blueprints Extension) Removes the reference to the current graph instance to let working offline. To reattach it use @attach.
-   *
+   * <p>
    * This methods works only in "classic detach/attach mode" when dettachment/attachment is done manually, by default it is done
    * automatically, and currently active graph connection will be used as graph elements owner.
    *
    * @return Current object to allow chained calls.
+   *
    * @see #attach(OrientBaseGraph), #isDetached
    */
   public OrientElement detach() {
@@ -490,15 +474,16 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
   /**
    * (Blueprints Extension) Replaces current graph instance with new one on @detach -ed elements. Use this method to pass elements
    * between graphs or to switch between Tx and NoTx instances.
-   * 
+   * <p>
    * This methods works only in "classic detach/attach mode" when detachment/attachment is done manually, by default it is done
    * automatically, and currently active graph connection will be used as graph elements owner.
-   *
+   * <p>
    * To set "classic detach/attach mode" please set custom database parameter <code>classicDetachMode</code> to <code>true</code>.
-   * 
-   * @param iNewGraph
-   *          The new Graph instance to use.
+   *
+   * @param iNewGraph The new Graph instance to use.
+   *
    * @return Current object to allow chained calls.
+   *
    * @see #detach(), #isDetached
    */
   public OrientElement attach(final OrientBaseGraph iNewGraph) {
@@ -515,13 +500,14 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
 
   /**
    * (Blueprints Extension) Tells if the current element has been @detach ed.
-   *
+   * <p>
    * This methods works only in "classic detach/attach mode" when detachment/attachment is done manually, by default it is done
    * automatically, and currently active graph connection will be used as graph elements owner.
-   * 
+   * <p>
    * To set "classic detach/attach mode" please set custom database parameter <code>classicDetachMode</code> to <code>true</code>.
    *
    * @return True if detached, otherwise false
+   *
    * @see #attach(OrientBaseGraph), #detach
    */
   public boolean isDetached() {
@@ -557,25 +543,24 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
 
   /**
    * (Blueprints Extension) Returns the Graph instance associated to the current element. On @detach ed elements returns NULL.
-   * 
    */
   public OrientBaseGraph getGraph() {
     if (classicDetachMode)
       return graph;
 
-    return OrientBaseGraph.getActiveGraph();
+    OrientBaseGraph result = OrientBaseGraph.getActiveGraph();
+    if (result == null && this.graph != null && !graph.isClosed()) {
+      result = graph;
+    }
+    return result;
   }
 
   /**
    * (Blueprints Extension) Validates an Element property.
-   * 
-   * @param element
-   *          Element instance
-   * @param key
-   *          Property name
-   * @param value
-   *          property value
-   * @throws IllegalArgumentException
+   *
+   * @param element Element instance
+   * @param key     Property name
+   * @param value   property value
    */
   public final void validateProperty(final Element element, final String key, final Object value) throws IllegalArgumentException {
     if (settings.isStandardElementConstraints() && null == value)
@@ -621,9 +606,8 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
   /**
    * Check if a class already exists, otherwise create it at the fly. If a transaction is running commit changes, create the class
    * and begin a new transaction.
-   * 
-   * @param className
-   *          Class's name
+   *
+   * @param className Class's name
    */
   protected String checkForClassInSchema(final String className) {
     if (className == null)
@@ -639,13 +623,11 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
       // CREATE A NEW CLASS AT THE FLY
       try {
         graph.executeOutsideTx(new OCallable<OClass, OrientBaseGraph>() {
-
-          @Override
-          public OClass call(final OrientBaseGraph g) {
-            return schema.createClass(className, schema.getClass(getBaseClassName()));
-
-          }
-        }, "Committing the active transaction to create the new type '", className, "' as subclass of '", getBaseClassName(),
+            @Override
+            public OClass call(final OrientBaseGraph g) {
+              return schema.createClass(className, schema.getClass(getBaseClassName()));
+            }
+          }, "Committing the active transaction to create the new type '", className, "' as subclass of '", getBaseClassName(),
             "'. The transaction will be reopen right after that. To avoid this behavior create the classes outside the transaction");
 
       } catch (OSchemaException e) {
@@ -685,26 +667,19 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
   /**
    * (Blueprints Extension) Sets multiple properties in one shot against Vertices and Edges without saving the element. This
    * improves performance avoiding to save the graph element at every property set. Example:
-   *
+   * <p>
    * <code>
    * vertex.setProperties( "name", "Jill", "age", 33, "city", "Rome", "born", "Victoria, TX" );
    * </code> You can also pass a Map of values as first argument. In this case all the map entries will be set as element
    * properties:
-   *
+   * <p>
    * <code>
-   * Map<String,Object> props = new HashMap<String,Object>();
-   * props.put("name", "Jill");
-   * props.put("age", 33);
-   * props.put("city", "Rome");
-   * props.put("born", "Victoria, TX");
-   * vertex.setProperties(props);
+   * Map<String,Object> props = new HashMap<String,Object>(); props.put("name", "Jill"); props.put("age", 33); props.put("city",
+   * "Rome"); props.put("born", "Victoria, TX"); vertex.setProperties(props);
    * </code>
    *
-   * @param fields
-   *          Odd number of fields to set as repeating pairs of key, value, or if one parameter is received and it's a Map, the Map
-   *          entries are used as field key/value pairs.
-   * @param <T>
-   * @return
+   * @param fields Odd number of fields to set as repeating pairs of key, value, or if one parameter is received and it's a Map, the
+   *               Map entries are used as field key/value pairs.
    */
   protected <T extends OrientElement> T setPropertiesInternal(final Object... fields) {
     OrientBaseGraph graph = getGraph();
@@ -734,8 +709,8 @@ public abstract class OrientElement implements Element, OSerializableStream, Ext
       } else {
         if (fields.length % 2 != 0)
           throw new IllegalArgumentException(
-              "Invalid fields: expecting a pairs of fields as String,Object or a single Map<String,Object>, but found: "
-                  + Arrays.toString(fields));
+              "Invalid fields: expecting a pairs of fields as String,Object or a single Map<String,Object>, but found: " + Arrays
+                  .toString(fields));
 
         // SET THE FIELDS
         for (int i = 0; i < fields.length; i += 2)

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,21 +14,24 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.common.io;
 
+import com.kenai.jffi.Platform;
+import com.orientechnologies.common.jnr.LastErrorException;
+import com.orientechnologies.common.jnr.ONative;
 import com.orientechnologies.common.util.OPatternConst;
 
 import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.Locale;
+import java.util.*;
 
 public class OIOUtils {
   public static final long   SECOND   = 1000;
@@ -38,15 +41,6 @@ public class OIOUtils {
   public static final long   YEAR     = DAY * 365;
   public static final long   WEEK     = DAY * 7;
   public static final String UTF8_BOM = "\uFEFF";
-
-  public static byte[] toStream(Externalizable iSource) throws IOException {
-    final ByteArrayOutputStream stream = new ByteArrayOutputStream();
-    final ObjectOutputStream oos = new ObjectOutputStream(stream);
-    iSource.writeExternal(oos);
-    oos.flush();
-    stream.flush();
-    return stream.toByteArray();
-  }
 
   public static long getTimeAsMillisecs(final Object iSize) {
     if (iSize == null)
@@ -270,7 +264,7 @@ public class OIOUtils {
         for (int j = 0; j < 4 - hex.length(); j++)
           // Prepend zeros because unicode requires 4 digits
           result.append('0');
-        result.append(hex.toLowerCase()); // standard unicode format.
+        result.append(hex.toLowerCase(Locale.ENGLISH)); // standard unicode format.
         // ostr.append(hex.toLowerCase(Locale.ENGLISH));
       }
     }
@@ -287,8 +281,8 @@ public class OIOUtils {
     if (s == null)
       return false;
 
-    return s.length() > 1
-        && (s.charAt(0) == '\'' && s.charAt(s.length() - 1) == '\'' || s.charAt(0) == '"' && s.charAt(s.length() - 1) == '"');
+    return s.length() > 1 && (s.charAt(0) == '\'' && s.charAt(s.length() - 1) == '\''
+        || s.charAt(0) == '"' && s.charAt(s.length() - 1) == '"');
   }
 
   public static String getStringContent(final Object iValue) {
@@ -300,8 +294,8 @@ public class OIOUtils {
     if (s == null)
       return null;
 
-    if (s.length() > 1
-        && (s.charAt(0) == '\'' && s.charAt(s.length() - 1) == '\'' || s.charAt(0) == '"' && s.charAt(s.length() - 1) == '"'))
+    if (s.length() > 1 && (s.charAt(0) == '\'' && s.charAt(s.length() - 1) == '\''
+        || s.charAt(0) == '"' && s.charAt(s.length() - 1) == '"'))
       return s.substring(1, s.length() - 1);
 
     if (s.length() > 1 && (s.charAt(0) == '`' && s.charAt(s.length() - 1) == '`'))
@@ -353,5 +347,137 @@ public class OIOUtils {
       off += n;
       len -= n;
     }
+  }
+
+  public static void readByteBuffer(ByteBuffer buffer, FileChannel channel, long position, boolean throwOnEof) throws IOException {
+    int bytesToRead = buffer.limit();
+
+    int read = 0;
+    while (read < bytesToRead) {
+      buffer.position(read);
+
+      final int r = channel.read(buffer, position + read);
+      if (r < 0)
+        if (throwOnEof)
+          throw new EOFException("End of file is reached");
+        else {
+          buffer.put(new byte[buffer.remaining()]);
+          return;
+        }
+
+      read += r;
+    }
+  }
+
+  public static void readByteBuffer(ByteBuffer buffer, FileChannel channel) throws IOException {
+    int bytesToRead = buffer.limit();
+
+    int read = 0;
+
+    while (read < bytesToRead) {
+      buffer.position(read);
+      final int r = channel.read(buffer);
+
+      if (r < 0)
+        throw new EOFException("End of file is reached");
+
+      read += r;
+    }
+  }
+
+  public static void readByteBuffer(ByteBuffer buffer, int fd) throws IOException {
+    int bytesToRead = buffer.limit();
+
+    int read = 0;
+
+    while (read < bytesToRead) {
+      buffer.position(read);
+
+      final int r;
+
+      try {
+        r = (int) ONative.instance().read(fd, buffer, buffer.remaining());
+      } catch (LastErrorException e) {
+        throw new IOException("Error during reading from file", e);
+      }
+
+      if (r < 0) {
+        throw new EOFException("End of file is reached");
+      }
+
+      read += r;
+    }
+
+    buffer.position(read);
+  }
+
+  public static int writeByteBuffer(ByteBuffer buffer, FileChannel channel, long position) throws IOException {
+    int bytesToWrite = buffer.limit();
+
+    int written = 0;
+    while (written < bytesToWrite) {
+      buffer.position(written);
+
+      written += channel.write(buffer, position + written);
+    }
+
+    return written;
+  }
+
+  public static int calculateBlockSize(String path) {
+    if (Platform.getPlatform().getOS() != Platform.OS.LINUX) {
+      return -1;
+    }
+
+    final int linuxVersion = 0;
+    final int majorRev = 1;
+    final int minorRev = 2;
+
+    List<Integer> versionNumbers = new ArrayList<>();
+    for (String v : System.getProperty("os.version").split("[.\\-]")) {
+      if (v.matches("\\d")) {
+        versionNumbers.add(Integer.parseInt(v));
+      }
+    }
+
+    if (versionNumbers.get(linuxVersion) < 2) {
+      return -1;
+    } else if (versionNumbers.get(linuxVersion) == 2) {
+      if (versionNumbers.get(majorRev) < 4) {
+        return -1;
+      } else if (versionNumbers.get(majorRev) == 4 && versionNumbers.get(minorRev) < 10) {
+        return -1;
+      }
+    }
+
+    final int _PC_REC_XFER_ALIGN = 0x11;
+
+    int fsBlockSize = ONative.instance().pathconf(path, _PC_REC_XFER_ALIGN);
+    int pageSize = ONative.instance().getpagesize();
+    fsBlockSize = lcm(fsBlockSize, pageSize);
+
+    // just being completely paranoid:
+    // (512 is the rule for 2.6+ kernels)
+    fsBlockSize = lcm(fsBlockSize, 512);
+
+    if (fsBlockSize <= 0 || ((fsBlockSize & (fsBlockSize - 1)) != 0)) {
+      return -1;
+    }
+
+    return fsBlockSize;
+  }
+
+  private static int lcm(long x, long y) {
+    long g = x; // will hold gcd
+    long yc = y;
+
+    // get the gcd first
+    while (yc != 0) {
+      long t = g;
+      g = yc;
+      yc = t % yc;
+    }
+
+    return (int) (x * y / g);
   }
 }

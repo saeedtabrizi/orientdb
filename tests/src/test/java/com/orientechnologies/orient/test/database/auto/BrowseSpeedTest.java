@@ -49,7 +49,7 @@ public class BrowseSpeedTest {
       OCluster cluster = db.getStorage().getClusterById(clId);
       final long clusterRecords = cluster.getEntries();
       for (long rid = 0; rid < clusterRecords; ++rid) {
-        final ORawBuffer buffer = cluster.readRecord(rid);
+        final ORawBuffer buffer = cluster.readRecord(rid, true);
         loaded++;
       }
     }
@@ -64,7 +64,7 @@ public class BrowseSpeedTest {
     ODatabaseDocumentTx db = openDatabase();
     final long total = db.countClass(CLASS);
 
-    ORecordIteratorClass iterator = new ORecordIteratorClass(db, db, CLASS, true);
+    ORecordIteratorClass iterator = new ORecordIteratorClass(db, CLASS, true);
 
     long start = System.currentTimeMillis();
 

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2015 Orient Technologies LTD (info(at)orientdb.com)
+ *  *  Copyright 2015 OrientDB LTD (info(at)orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -20,13 +20,12 @@
 package com.orientechnologies.orient.core.sql.parser.operators;
 
 import com.orientechnologies.orient.core.sql.parser.OGtOperator;
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import org.junit.Assert; import org.junit.Test;
 
 import java.math.BigDecimal;
 
 /**
- * @author Luigi Dell'Aquila
+ * @author Luigi Dell'Aquila (l.dellaquila-(at)-orientdb.com)
  */
 public class OGtOperatorTest {
   @Test
@@ -58,11 +57,7 @@ public class OGtOperatorTest {
 
     Assert.assertFalse(op.execute(BigDecimal.ONE, 2));
     Assert.assertFalse(op.execute(BigDecimal.ONE, 1.0001));
-    try {
-      Assert.assertFalse(op.execute(new Object(), new Object()));
-      Assert.fail();
-    } catch (Exception e) {
-      Assert.assertTrue(e instanceof ClassCastException);
-    }
+
+    Assert.assertFalse(op.execute(new Object(), new Object()));
   }
 }

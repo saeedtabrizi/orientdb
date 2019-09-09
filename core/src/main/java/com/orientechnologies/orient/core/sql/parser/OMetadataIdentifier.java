@@ -2,6 +2,9 @@
 /* JavaCCOptions:MULTI=true,NODE_USES_PARSER=false,VISITOR=true,TRACK_TOKENS=true,NODE_PREFIX=O,NODE_EXTENDS=,NODE_FACTORY=,SUPPORT_CLASS_VISIBILITY_PUBLIC=true */
 package com.orientechnologies.orient.core.sql.parser;
 
+import com.orientechnologies.orient.core.sql.executor.OResult;
+import com.orientechnologies.orient.core.sql.executor.OResultInternal;
+
 import java.util.Map;
 
 public class OMetadataIdentifier extends SimpleNode {
@@ -16,7 +19,9 @@ public class OMetadataIdentifier extends SimpleNode {
     super(p, id);
   }
 
-  /** Accept the visitor. **/
+  /**
+   * Accept the visitor.
+   **/
   public Object jjtAccept(OrientSqlVisitor visitor, Object data) {
     return visitor.visit(this, data);
   }
@@ -24,6 +29,46 @@ public class OMetadataIdentifier extends SimpleNode {
   public void toString(Map<Object, Object> params, StringBuilder builder) {
     builder.append("metadata:");
     builder.append(name);
+  }
+
+  public String getName() {
+    return name;
+  }
+
+  public OMetadataIdentifier copy() {
+    OMetadataIdentifier result = new OMetadataIdentifier(-1);
+    result.name = name;
+    return result;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OMetadataIdentifier that = (OMetadataIdentifier) o;
+
+    if (name != null ? !name.equals(that.name) : that.name != null)
+      return false;
+
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    return name != null ? name.hashCode() : 0;
+  }
+
+  public OResult serialize() {
+    OResultInternal result = new OResultInternal();
+    result.setProperty("name", name);
+    return result;
+  }
+
+  public void deserialize(OResult fromResult) {
+    name = fromResult.getProperty("name");
   }
 }
 /* JavaCC - OriginalChecksum=85e179b9505270f0596904070fdf0745 (do not edit this line) */

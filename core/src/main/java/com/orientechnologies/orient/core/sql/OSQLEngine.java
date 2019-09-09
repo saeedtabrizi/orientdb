@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
@@ -29,11 +29,14 @@ import com.orientechnologies.orient.core.collate.OCollateFactory;
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.command.OCommandExecutor;
 import com.orientechnologies.orient.core.command.OCommandExecutorAbstract;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.exception.ODatabaseException;
 import com.orientechnologies.orient.core.id.ORecordId;
+import com.orientechnologies.orient.core.metadata.security.OSecurityResource;
 import com.orientechnologies.orient.core.serialization.serializer.OStringSerializerHelper;
+import com.orientechnologies.orient.core.sql.executor.OResult;
 import com.orientechnologies.orient.core.sql.filter.OSQLFilter;
 import com.orientechnologies.orient.core.sql.filter.OSQLTarget;
 import com.orientechnologies.orient.core.sql.functions.OSQLFunction;
@@ -42,30 +45,66 @@ import com.orientechnologies.orient.core.sql.method.OSQLMethod;
 import com.orientechnologies.orient.core.sql.method.OSQLMethodFactory;
 import com.orientechnologies.orient.core.sql.operator.OQueryOperator;
 import com.orientechnologies.orient.core.sql.operator.OQueryOperatorFactory;
+import com.orientechnologies.orient.core.sql.parser.*;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.util.*;
 
 import static com.orientechnologies.common.util.OClassLoaderHelper.lookupProviderWithOrientClassLoader;
 
 public class OSQLEngine {
 
-  protected static final OSQLEngine               INSTANCE           = new OSQLEngine();
-  private static List<OSQLFunctionFactory>        FUNCTION_FACTORIES = null;
-  private static List<OSQLMethodFactory>          METHOD_FACTORIES   = null;
-  private static List<OCommandExecutorSQLFactory> EXECUTOR_FACTORIES = null;
-  private static List<OQueryOperatorFactory>      OPERATOR_FACTORIES = null;
-  private static List<OCollateFactory>            COLLATE_FACTORIES  = null;
-  private static OQueryOperator[]                 SORTED_OPERATORS   = null;
-  private static ClassLoader                      orientClassLoader  = OSQLEngine.class.getClassLoader();
+  protected static final  OSQLEngine                       INSTANCE           = new OSQLEngine();
+  private static volatile List<OSQLFunctionFactory>        FUNCTION_FACTORIES = null;
+  private static          List<OSQLMethodFactory>          METHOD_FACTORIES   = null;
+  private static          List<OCommandExecutorSQLFactory> EXECUTOR_FACTORIES = null;
+  private static          List<OQueryOperatorFactory>      OPERATOR_FACTORIES = null;
+  private static          List<OCollateFactory>            COLLATE_FACTORIES  = null;
+  private static          OQueryOperator[]                 SORTED_OPERATORS   = null;
+  private static          ClassLoader                      orientClassLoader  = OSQLEngine.class.getClassLoader();
+
+  public static OStatement parse(String query, ODatabaseDocumentInternal db) {
+    return OStatementCache.get(query, db);
+  }
+
+  public static List<OStatement> parseScript(String script, ODatabaseDocumentInternal db) {
+    final InputStream is = new ByteArrayInputStream(script.getBytes());
+    return parseScript(is, db);
+  }
+
+  public static List<OStatement> parseScript(InputStream script, ODatabaseDocumentInternal db) {
+    try {
+      final OrientSql osql = new OrientSql(script);
+      List<OStatement> result = osql.parseScript();
+      return result;
+    } catch (ParseException e) {
+      throw new OCommandSQLParsingException(e, "");
+    }
+  }
+
+  public static OOrBlock parsePredicate(String predicate) throws OCommandSQLParsingException {
+    final InputStream is = new ByteArrayInputStream(predicate.getBytes());
+    try {
+      final OrientSql osql = new OrientSql(is);
+      OOrBlock result = osql.OrBlock();
+      return result;
+    } catch (ParseException e) {
+      throw new OCommandSQLParsingException(e, "");
+    }
+  }
+
+  public static OSecurityResourceSegment parseSecurityResource(String exp) {
+    final InputStream is = new ByteArrayInputStream(exp.getBytes());
+    try {
+      final OrientSql osql = new OrientSql(is);
+      OSecurityResourceSegment result = osql.SecurityResourceSegment();
+      return result;
+    } catch (ParseException e) {
+      throw new OCommandSQLParsingException(e, "");
+    }
+  }
 
   /**
    * internal use only, to sort operators.
@@ -112,30 +151,38 @@ public class OSQLEngine {
   /**
    * @return Iterator of all function factories
    */
-  public static synchronized Iterator<OSQLFunctionFactory> getFunctionFactories() {
+  public static Iterator<OSQLFunctionFactory> getFunctionFactories() {
     if (FUNCTION_FACTORIES == null) {
+      synchronized (INSTANCE) {
+        if (FUNCTION_FACTORIES == null) {
+          final Iterator<OSQLFunctionFactory> ite = lookupProviderWithOrientClassLoader(OSQLFunctionFactory.class,
+              orientClassLoader);
 
-      final Iterator<OSQLFunctionFactory> ite = lookupProviderWithOrientClassLoader(OSQLFunctionFactory.class, orientClassLoader);
-
-      final List<OSQLFunctionFactory> factories = new ArrayList<OSQLFunctionFactory>();
-      while (ite.hasNext()) {
-        factories.add(ite.next());
+          final List<OSQLFunctionFactory> factories = new ArrayList<OSQLFunctionFactory>();
+          while (ite.hasNext()) {
+            factories.add(ite.next());
+          }
+          FUNCTION_FACTORIES = Collections.unmodifiableList(factories);
+        }
       }
-      FUNCTION_FACTORIES = Collections.unmodifiableList(factories);
     }
     return FUNCTION_FACTORIES.iterator();
   }
 
-  public static synchronized Iterator<OSQLMethodFactory> getMethodFactories() {
+  public static Iterator<OSQLMethodFactory> getMethodFactories() {
     if (METHOD_FACTORIES == null) {
+      synchronized (INSTANCE) {
+        if (METHOD_FACTORIES == null) {
 
-      final Iterator<OSQLMethodFactory> ite = lookupProviderWithOrientClassLoader(OSQLMethodFactory.class, orientClassLoader);
+          final Iterator<OSQLMethodFactory> ite = lookupProviderWithOrientClassLoader(OSQLMethodFactory.class, orientClassLoader);
 
-      final List<OSQLMethodFactory> factories = new ArrayList<OSQLMethodFactory>();
-      while (ite.hasNext()) {
-        factories.add(ite.next());
+          final List<OSQLMethodFactory> factories = new ArrayList<OSQLMethodFactory>();
+          while (ite.hasNext()) {
+            factories.add(ite.next());
+          }
+          METHOD_FACTORIES = Collections.unmodifiableList(factories);
+        }
       }
-      METHOD_FACTORIES = Collections.unmodifiableList(factories);
     }
     return METHOD_FACTORIES.iterator();
   }
@@ -143,16 +190,20 @@ public class OSQLEngine {
   /**
    * @return Iterator of all function factories
    */
-  public static synchronized Iterator<OCollateFactory> getCollateFactories() {
+  public static Iterator<OCollateFactory> getCollateFactories() {
     if (COLLATE_FACTORIES == null) {
+      synchronized (INSTANCE) {
+        if (COLLATE_FACTORIES == null) {
 
-      final Iterator<OCollateFactory> ite = lookupProviderWithOrientClassLoader(OCollateFactory.class, orientClassLoader);
+          final Iterator<OCollateFactory> ite = lookupProviderWithOrientClassLoader(OCollateFactory.class, orientClassLoader);
 
-      final List<OCollateFactory> factories = new ArrayList<OCollateFactory>();
-      while (ite.hasNext()) {
-        factories.add(ite.next());
+          final List<OCollateFactory> factories = new ArrayList<OCollateFactory>();
+          while (ite.hasNext()) {
+            factories.add(ite.next());
+          }
+          COLLATE_FACTORIES = Collections.unmodifiableList(factories);
+        }
       }
-      COLLATE_FACTORIES = Collections.unmodifiableList(factories);
     }
     return COLLATE_FACTORIES.iterator();
   }
@@ -160,17 +211,21 @@ public class OSQLEngine {
   /**
    * @return Iterator of all operator factories
    */
-  public static synchronized Iterator<OQueryOperatorFactory> getOperatorFactories() {
+  public static Iterator<OQueryOperatorFactory> getOperatorFactories() {
     if (OPERATOR_FACTORIES == null) {
+      synchronized (INSTANCE) {
+        if (OPERATOR_FACTORIES == null) {
 
-      final Iterator<OQueryOperatorFactory> ite = lookupProviderWithOrientClassLoader(OQueryOperatorFactory.class,
-          orientClassLoader);
+          final Iterator<OQueryOperatorFactory> ite = lookupProviderWithOrientClassLoader(OQueryOperatorFactory.class,
+              orientClassLoader);
 
-      final List<OQueryOperatorFactory> factories = new ArrayList<OQueryOperatorFactory>();
-      while (ite.hasNext()) {
-        factories.add(ite.next());
+          final List<OQueryOperatorFactory> factories = new ArrayList<OQueryOperatorFactory>();
+          while (ite.hasNext()) {
+            factories.add(ite.next());
+          }
+          OPERATOR_FACTORIES = Collections.unmodifiableList(factories);
+        }
       }
-      OPERATOR_FACTORIES = Collections.unmodifiableList(factories);
     }
     return OPERATOR_FACTORIES.iterator();
   }
@@ -178,29 +233,32 @@ public class OSQLEngine {
   /**
    * @return Iterator of all command factories
    */
-  public static synchronized Iterator<OCommandExecutorSQLFactory> getCommandFactories() {
+  public static Iterator<OCommandExecutorSQLFactory> getCommandFactories() {
     if (EXECUTOR_FACTORIES == null) {
+      synchronized (INSTANCE) {
+        if (EXECUTOR_FACTORIES == null) {
 
-      final Iterator<OCommandExecutorSQLFactory> ite = lookupProviderWithOrientClassLoader(OCommandExecutorSQLFactory.class,
-          orientClassLoader);
-      final List<OCommandExecutorSQLFactory> factories = new ArrayList<OCommandExecutorSQLFactory>();
-      while (ite.hasNext()) {
-        try {
-          factories.add(ite.next());
-        } catch (Exception e) {
-          OLogManager.instance().warn(null, "Cannot load OCommandExecutorSQLFactory instance from service registry", e);
+          final Iterator<OCommandExecutorSQLFactory> ite = lookupProviderWithOrientClassLoader(OCommandExecutorSQLFactory.class,
+              orientClassLoader);
+          final List<OCommandExecutorSQLFactory> factories = new ArrayList<OCommandExecutorSQLFactory>();
+          while (ite.hasNext()) {
+            try {
+              factories.add(ite.next());
+            } catch (Exception e) {
+              OLogManager.instance().warn(null, "Cannot load OCommandExecutorSQLFactory instance from service registry", e);
+            }
+          }
+
+          EXECUTOR_FACTORIES = Collections.unmodifiableList(factories);
         }
       }
-
-      EXECUTOR_FACTORIES = Collections.unmodifiableList(factories);
-
     }
     return EXECUTOR_FACTORIES.iterator();
   }
 
   /**
    * Iterates on all factories and append all function names.
-   * 
+   *
    * @return Set of all function names.
    */
   public static Set<String> getFunctionNames() {
@@ -223,7 +281,7 @@ public class OSQLEngine {
 
   /**
    * Iterates on all factories and append all collate names.
-   * 
+   *
    * @return Set of all colate names.
    */
   public static Set<String> getCollateNames() {
@@ -237,7 +295,7 @@ public class OSQLEngine {
 
   /**
    * Iterates on all factories and append all command names.
-   * 
+   *
    * @return Set of all command names.
    */
   public static Set<String> getCommandNames() {
@@ -256,12 +314,12 @@ public class OSQLEngine {
    * re-scan. Thus this method need only be invoked by sophisticated applications which dynamically make new plug-ins available at
    * runtime.
    */
-  public static synchronized void scanForPlugins() {
+  public static void scanForPlugins() {
     // clear cache, will cause a rescan on next getFunctionFactories call
     FUNCTION_FACTORIES = null;
   }
 
-  public static Object foreachRecord(final OCallable<Object, OIdentifiable> iCallable, final Object iCurrent,
+  public static Object foreachRecord(final OCallable<Object, OIdentifiable> iCallable, Object iCurrent,
       final OCommandContext iContext) {
     if (iCurrent == null)
       return null;
@@ -269,6 +327,9 @@ public class OSQLEngine {
     if (!OCommandExecutorAbstract.checkInterruption(iContext))
       return null;
 
+    if (iCurrent instanceof Iterable && !(iCurrent instanceof OIdentifiable)) {
+      iCurrent = ((Iterable) iCurrent).iterator();
+    }
     if (OMultiValue.isMultiValue(iCurrent) || iCurrent instanceof Iterator) {
       final OMultiCollectionIterator<Object> result = new OMultiCollectionIterator<Object>();
       for (Object o : OMultiValue.getMultiValueIterable(iCurrent, false)) {
@@ -283,8 +344,11 @@ public class OSQLEngine {
           result.add(iCallable.call((OIdentifiable) o));
       }
       return result;
-    } else if (iCurrent instanceof OIdentifiable)
+    } else if (iCurrent instanceof OIdentifiable) {
       return iCallable.call((OIdentifiable) iCurrent);
+    } else if (iCurrent instanceof OResult) {
+      return iCallable.call(((OResult) iCurrent).toElement());
+    }
 
     return null;
   }
@@ -294,7 +358,7 @@ public class OSQLEngine {
   }
 
   public static OCollate getCollate(final String name) {
-    for (Iterator<OCollateFactory> iter = getCollateFactories(); iter.hasNext();) {
+    for (Iterator<OCollateFactory> iter = getCollateFactories(); iter.hasNext(); ) {
       OCollateFactory f = iter.next();
       final OCollate c = f.getCollate(name);
       if (c != null)
@@ -317,68 +381,71 @@ public class OSQLEngine {
     return null;
   }
 
-  public synchronized OQueryOperator[] getRecordOperators() {
-    if (SORTED_OPERATORS != null) {
-      return SORTED_OPERATORS;
-    }
-
-    // sort operators, will happen only very few times since we cache the
-    // result
-    final Iterator<OQueryOperatorFactory> ite = getOperatorFactories();
-    final List<OQueryOperator> operators = new ArrayList<OQueryOperator>();
-    while (ite.hasNext()) {
-      final OQueryOperatorFactory factory = ite.next();
-      operators.addAll(factory.getOperators());
-    }
-
-    final List<OQueryOperator> sorted = new ArrayList<OQueryOperator>();
-    final Set<Pair> pairs = new LinkedHashSet<Pair>();
-    for (final OQueryOperator ca : operators) {
-      for (final OQueryOperator cb : operators) {
-        if (ca != cb) {
-          switch (ca.compare(cb)) {
-          case BEFORE:
-            pairs.add(new Pair(ca, cb));
-            break;
-          case AFTER:
-            pairs.add(new Pair(cb, ca));
-            break;
+  public OQueryOperator[] getRecordOperators() {
+    if (SORTED_OPERATORS == null) {
+      synchronized (INSTANCE) {
+        if (SORTED_OPERATORS == null) {
+          // sort operators, will happen only very few times since we cache the
+          // result
+          final Iterator<OQueryOperatorFactory> ite = getOperatorFactories();
+          final List<OQueryOperator> operators = new ArrayList<OQueryOperator>();
+          while (ite.hasNext()) {
+            final OQueryOperatorFactory factory = ite.next();
+            operators.addAll(factory.getOperators());
           }
-          switch (cb.compare(ca)) {
-          case BEFORE:
-            pairs.add(new Pair(cb, ca));
-            break;
-          case AFTER:
-            pairs.add(new Pair(ca, cb));
-            break;
+
+          final List<OQueryOperator> sorted = new ArrayList<OQueryOperator>();
+          final Set<Pair> pairs = new LinkedHashSet<Pair>();
+          for (final OQueryOperator ca : operators) {
+            for (final OQueryOperator cb : operators) {
+              if (ca != cb) {
+                switch (ca.compare(cb)) {
+                case BEFORE:
+                  pairs.add(new Pair(ca, cb));
+                  break;
+                case AFTER:
+                  pairs.add(new Pair(cb, ca));
+                  break;
+                }
+                switch (cb.compare(ca)) {
+                case BEFORE:
+                  pairs.add(new Pair(cb, ca));
+                  break;
+                case AFTER:
+                  pairs.add(new Pair(ca, cb));
+                  break;
+                }
+              }
+            }
           }
+          boolean added;
+          do {
+            added = false;
+            scan:
+            for (final Iterator<OQueryOperator> it = operators.iterator(); it.hasNext(); ) {
+              final OQueryOperator candidate = it.next();
+              for (final Pair pair : pairs) {
+                if (pair.after == candidate) {
+                  continue scan;
+                }
+              }
+              sorted.add(candidate);
+              it.remove();
+              for (final Iterator<Pair> itp = pairs.iterator(); itp.hasNext(); ) {
+                if (itp.next().before == candidate) {
+                  itp.remove();
+                }
+              }
+              added = true;
+            }
+          } while (added);
+          if (!operators.isEmpty()) {
+            throw new ODatabaseException("Invalid sorting. " + OCollections.toString(pairs));
+          }
+          SORTED_OPERATORS = sorted.toArray(new OQueryOperator[sorted.size()]);
         }
       }
     }
-    boolean added;
-    do {
-      added = false;
-      scan: for (final Iterator<OQueryOperator> it = operators.iterator(); it.hasNext();) {
-        final OQueryOperator candidate = it.next();
-        for (final Pair pair : pairs) {
-          if (pair.after == candidate) {
-            continue scan;
-          }
-        }
-        sorted.add(candidate);
-        it.remove();
-        for (final Iterator<Pair> itp = pairs.iterator(); itp.hasNext();) {
-          if (itp.next().before == candidate) {
-            itp.remove();
-          }
-        }
-        added = true;
-      }
-    } while (added);
-    if (!operators.isEmpty()) {
-      throw new ODatabaseException("Invalid sorting. " + OCollections.toString(pairs));
-    }
-    SORTED_OPERATORS = sorted.toArray(new OQueryOperator[sorted.size()]);
     return SORTED_OPERATORS;
   }
 
@@ -405,8 +472,8 @@ public class OSQLEngine {
       }
     }
 
-    throw new OCommandSQLParsingException("No function with name '" + iFunctionName + "', available names are : "
-        + OCollections.toString(getFunctionNames()));
+    throw new OCommandSQLParsingException(
+        "No function with name '" + iFunctionName + "', available names are : " + OCollections.toString(getFunctionNames()));
   }
 
   public void unregisterFunction(String iName) {
@@ -421,9 +488,11 @@ public class OSQLEngine {
     boolean found = names.contains(commandName);
     int pos = -1;
     while (!found) {
-      pos = OStringSerializerHelper.getLowerIndexOf(candidate, pos + 1, " ", "\n", "\r");
+      pos = OStringSerializerHelper.getLowerIndexOf(candidate, pos + 1, " ", "\n", "\r", "\t", "(", "[");
       if (pos > -1) {
         commandName = candidate.substring(0, pos);
+        //remove double spaces
+        commandName = commandName.replaceAll(" +", " ");
         found = names.contains(commandName);
       } else {
         break;
@@ -447,8 +516,8 @@ public class OSQLEngine {
     return new OSQLFilter(iText, iContext, iFilterKeyword);
   }
 
-  public OSQLTarget parseTarget(final String iText, final OCommandContext iContext, final String iFilterKeyword) {
-    return new OSQLTarget(iText, iContext, iFilterKeyword);
+  public OSQLTarget parseTarget(final String iText, final OCommandContext iContext) {
+    return new OSQLTarget(iText, iContext);
   }
 
   public Set<OIdentifiable> parseRIDTarget(final ODatabaseDocument database, String iTarget, final OCommandContext iContext,
@@ -486,12 +555,12 @@ public class OSQLEngine {
       if (iTarget.startsWith("$")) {
         Object r = iContext.getVariable(iTarget);
         if (r instanceof OIdentifiable)
-          ids = Collections.<OIdentifiable> singleton((OIdentifiable) r);
+          ids = Collections.<OIdentifiable>singleton((OIdentifiable) r);
         else
           ids = (Set<OIdentifiable>) OMultiValue.add(new HashSet<OIdentifiable>(OMultiValue.getSize(r)), r);
 
       } else
-        ids = Collections.<OIdentifiable> singleton(new ORecordId(iTarget));
+        ids = Collections.<OIdentifiable>singleton(new ORecordId(iTarget));
 
     }
     return ids;

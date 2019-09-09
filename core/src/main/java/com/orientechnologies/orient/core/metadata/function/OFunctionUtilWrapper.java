@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.metadata.function;
@@ -22,7 +22,7 @@ package com.orientechnologies.orient.core.metadata.function;
 /**
  * Wrapper of function with additional utility methods to help inside functions.
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public class OFunctionUtilWrapper {
@@ -34,14 +34,6 @@ public class OFunctionUtilWrapper {
     if (iValues != null)
       for (Object o : iValues)
         if (o != null && !o.equals("undefined") && !o.equals("null"))
-          return true;
-    return false;
-  }
-
-  public boolean containsArray(final Object[] iArray, final Object value) {
-    if (iArray != null && value != null)
-      for (Object o : iArray)
-        if (o != null && o.equals(value))
           return true;
     return false;
   }

@@ -6,19 +6,24 @@ import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
 
 /**
- * @author Andrey Lomakin <lomakin.andrey@gmail.com>.
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com) <lomakin.andrey@gmail.com>.
  * @since 9/28/2015
  */
 public abstract class OCoreException extends OException {
-  private OErrorCode   errorCode;
+  private OErrorCode errorCode;
 
-  private final String storageURL;
+  private final String dbName;
   private final String componentName;
 
   public OCoreException(final OCoreException exception) {
+    this(exception, null);
+  }
+
+  public OCoreException(final OCoreException exception, OErrorCode errorCode) {
     super(exception);
-    this.storageURL = exception.storageURL;
+    this.dbName = exception.dbName;
     this.componentName = exception.componentName;
+    this.errorCode = errorCode;
   }
 
   public OCoreException(final String message) {
@@ -41,21 +46,26 @@ public abstract class OCoreException extends OException {
       this.componentName = null;
     }
 
-    final ODatabaseDocumentInternal database = ODatabaseRecordThreadLocal.INSTANCE.getIfDefined();
-    if (database != null) {
-      storageURL = database.getURL();
-    } else {
-      storageURL = null;
-    }
+    final ODatabaseRecordThreadLocal instance = ODatabaseRecordThreadLocal.instance();
 
+    if (instance != null) {
+      final ODatabaseDocumentInternal database = instance.getIfDefined();
+      if (database != null) {
+        dbName = database.getName();
+      } else {
+        dbName = null;
+      }
+    } else {
+      dbName = null;
+    }
   }
 
   public OErrorCode getErrorCode() {
     return errorCode;
   }
 
-  public String getStorageURL() {
-    return storageURL;
+  public String getDbName() {
+    return dbName;
   }
 
   public String getComponentName() {
@@ -65,8 +75,8 @@ public abstract class OCoreException extends OException {
   @Override
   public final String getMessage() {
     final StringBuilder builder = new StringBuilder(super.getMessage());
-    if (storageURL != null) {
-      builder.append("\r\n\t").append("Storage URL=\"").append(storageURL).append("\"");
+    if (dbName != null) {
+      builder.append("\r\n\t").append("DB name=\"").append(dbName).append("\"");
     }
     if (componentName != null) {
       builder.append("\r\n\t").append("Component Name=\"").append(componentName).append("\"");

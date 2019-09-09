@@ -1,6 +1,6 @@
 /*
  *
- *  * Copyright 2014 Orient Technologies.
+ *  * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  * Licensed under the Apache License, Version 2.0 (the "License");
  *  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import java.util.Set;
 
 import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.command.script.OScriptManager;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.serialization.serializer.OJSONWriter;
@@ -40,7 +41,7 @@ public class OServerCommandGetSupportedLanguages extends OServerCommandAuthentic
 
     iRequest.data.commandInfo = "Returns the supported languages";
 
-    ODatabaseDocumentTx db = null;
+    ODatabaseDocument db = null;
 
     try {
       db = getProfiledDatabaseInstance(iRequest);
@@ -50,7 +51,7 @@ public class OServerCommandGetSupportedLanguages extends OServerCommandAuthentic
 
       OScriptManager scriptManager = Orient.instance().getScriptManager();
       for (String language : scriptManager.getSupportedLanguages()) {
-        if (scriptManager.getFormatters()!=null && scriptManager.getFormatters().get(language) != null) {
+        if (scriptManager.getFormatters() != null && scriptManager.getFormatters().get(language) != null) {
           languages.add(language);
         }
       }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,22 +15,24 @@
  */
 package com.orientechnologies.orient.test.database.auto;
 
-import java.io.File;
-import java.util.Collection;
-
-import org.testng.Assert;
-import org.testng.annotations.Optional;
-import org.testng.annotations.Parameters;
-import org.testng.annotations.Test;
-
 import com.orientechnologies.orient.core.command.script.OCommandScript;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.metadata.schema.OSchema;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
-import com.orientechnologies.orient.core.storage.impl.local.paginated.OClusterPositionMap;
-import com.orientechnologies.orient.core.storage.impl.local.paginated.OPaginatedCluster;
+import com.orientechnologies.orient.core.storage.cache.local.OWOWCache;
+import com.orientechnologies.orient.core.storage.cluster.OClusterPositionMap;
+import com.orientechnologies.orient.core.storage.cluster.OPaginatedCluster;
+import com.orientechnologies.orient.core.storage.disk.OLocalPaginatedStorage;
+import org.testng.Assert;
+import org.testng.annotations.Optional;
+import org.testng.annotations.Parameters;
+import org.testng.annotations.Test;
+
+import java.io.File;
+import java.util.Collection;
+import java.util.Locale;
 
 @Test(groups = "sql-delete", sequential = true)
 public class SQLCommandsTest extends DocumentDBBaseTest {
@@ -55,8 +57,8 @@ public class SQLCommandsTest extends DocumentDBBaseTest {
     database.command(new OCommandSQL("create property account.knows embeddedmap account")).execute();
 
     Assert.assertEquals(database.getMetadata().getSchema().getClass("account").getProperty("knows").getType(), OType.EMBEDDEDMAP);
-    Assert.assertEquals(database.getMetadata().getSchema().getClass("account").getProperty("knows").getLinkedClass(), database
-        .getMetadata().getSchema().getClass("account"));
+    Assert.assertEquals(database.getMetadata().getSchema().getClass("account").getProperty("knows").getLinkedClass(),
+        database.getMetadata().getSchema().getClass("account"));
   }
 
   @Test(dependsOnMethods = "createLinkedClassProperty")
@@ -98,23 +100,28 @@ public class SQLCommandsTest extends DocumentDBBaseTest {
       return;
 
     Collection<String> names = database.getClusterNames();
-    Assert.assertFalse(names.contains("testClusterRename".toLowerCase()));
+    Assert.assertFalse(names.contains("testClusterRename".toLowerCase(Locale.ENGLISH)));
 
-    database.command(new OCommandSQL("create cluster testClusterRename physical")).execute();
+    database.command(new OCommandSQL("create cluster testClusterRename")).execute();
 
     names = database.getClusterNames();
-    Assert.assertTrue(names.contains("testClusterRename".toLowerCase()));
+    Assert.assertTrue(names.contains("testClusterRename".toLowerCase(Locale.ENGLISH)));
 
     database.command(new OCommandSQL("alter cluster testClusterRename name testClusterRename42")).execute();
     names = database.getClusterNames();
 
-    Assert.assertTrue(names.contains("testClusterRename42".toLowerCase()));
-    Assert.assertFalse(names.contains("testClusterRename".toLowerCase()));
+    Assert.assertTrue(names.contains("testClusterRename42".toLowerCase(Locale.ENGLISH)));
+    Assert.assertFalse(names.contains("testClusterRename".toLowerCase(Locale.ENGLISH)));
 
     if (database.getURL().startsWith("plocal:")) {
       String storagePath = database.getStorage().getConfiguration().getDirectory();
-      File dataFile = new File(storagePath, "testClusterRename42" + OPaginatedCluster.DEF_EXTENSION);
-      File mapFile = new File(storagePath, "testClusterRename42" + OClusterPositionMap.DEF_EXTENSION);
+
+      final OWOWCache wowCache = (OWOWCache) ((OLocalPaginatedStorage) database.getStorage()).getWriteCache();
+
+      File dataFile = new File(storagePath,
+          wowCache.nativeFileNameById(wowCache.fileIdByName("testClusterRename42" + OPaginatedCluster.DEF_EXTENSION)));
+      File mapFile = new File(storagePath,
+          wowCache.nativeFileNameById(wowCache.fileIdByName("testClusterRename42" + OClusterPositionMap.DEF_EXTENSION)));
 
       Assert.assertTrue(dataFile.exists());
       Assert.assertTrue(mapFile.exists());

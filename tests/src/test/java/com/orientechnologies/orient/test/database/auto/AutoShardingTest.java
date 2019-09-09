@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,31 +15,32 @@
  */
 package com.orientechnologies.orient.test.database.auto;
 
+import com.orientechnologies.common.listener.OProgressListener;
+import com.orientechnologies.common.serialization.types.OIntegerSerializer;
+import com.orientechnologies.orient.core.index.OIndex;
+import com.orientechnologies.orient.core.index.OIndexKeyCursor;
+import com.orientechnologies.orient.core.metadata.schema.OClass;
+import com.orientechnologies.orient.core.metadata.schema.OType;
+import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sharding.auto.OAutoShardingClusterSelectionStrategy;
+import com.orientechnologies.orient.core.sql.OCommandSQL;
+import com.orientechnologies.orient.core.storage.index.hashindex.local.OMurmurHash3HashFunction;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Optional;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
-import com.orientechnologies.common.listener.OProgressListener;
-import com.orientechnologies.common.serialization.types.OIntegerSerializer;
-import com.orientechnologies.orient.core.index.OIndex;
-import com.orientechnologies.orient.core.index.hashindex.local.OMurmurHash3HashFunction;
-import com.orientechnologies.orient.core.metadata.schema.OClass;
-import com.orientechnologies.orient.core.metadata.schema.OType;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sharding.auto.OAutoShardingClusterSelectionStrategy;
-import com.orientechnologies.orient.core.sql.OCommandSQL;
-
 /**
- * Tests Auto-Sharding indexes (Since v3.0.0).
+ * Tests Auto-Sharding indexes (Since v2.2.0).
  */
 @Test
 public class AutoShardingTest extends DocumentDBBaseTest {
-  private OClass                         cls;
-  private OIndex<?>                      idx;
-  private final OMurmurHash3HashFunction hashFunction = new OMurmurHash3HashFunction();
-  private int[]                          clusterIds;
+  private static final int                      ITERATIONS   = 500;
+  private              OClass                   cls;
+  private              OIndex<?>                idx;
+  private final        OMurmurHash3HashFunction hashFunction = new OMurmurHash3HashFunction(new OIntegerSerializer());
+  private              int[]                    clusterIds;
 
   @Parameters(value = "url")
   public AutoShardingTest(@Optional String url) {
@@ -50,8 +51,6 @@ public class AutoShardingTest extends DocumentDBBaseTest {
   public void beforeMethod() throws Exception {
     super.beforeMethod();
 
-    hashFunction.setValueSerializer(new OIntegerSerializer());
-
     if (database.getMetadata().getSchema().existsClass("AutoShardingTest"))
       database.getMetadata().getSchema().dropClass("AutoShardingTest");
 
@@ -60,6 +59,7 @@ public class AutoShardingTest extends DocumentDBBaseTest {
 
     idx = cls.createIndex("testAutoSharding", OClass.INDEX_TYPE.NOTUNIQUE.toString(), (OProgressListener) null, (ODocument) null,
         "AUTOSHARDING", new String[] { "id" });
+
     clusterIds = cls.getClusterIds();
   }
 
@@ -71,7 +71,7 @@ public class AutoShardingTest extends DocumentDBBaseTest {
   @Test
   public void testQuery() {
     create();
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < ITERATIONS; ++i) {
       final int selectedClusterId = clusterIds[((int) (Math.abs(hashFunction.hashCode(i)) % clusterIds.length))];
 
       Iterable<ODocument> resultSet = database.command(new OCommandSQL("select from AutoShardingTest where id = ?")).execute(i);
@@ -81,15 +81,63 @@ public class AutoShardingTest extends DocumentDBBaseTest {
     }
   }
 
+  @Test
+  public void testDelete() {
+    create();
+    for (int i = 0; i < ITERATIONS; ++i) {
+      Integer deleted = database.command(new OCommandSQL("delete from AutoShardingTest where id = ?")).execute(i);
+
+      Assert.assertEquals(deleted.intValue(), 2);
+
+      long totExpected = ITERATIONS - (i + 1);
+      Assert.assertEquals(idx.getSize(), totExpected * 2);
+      Assert.assertEquals(idx.getKeySize(), totExpected);
+    }
+
+    Assert.assertEquals(idx.getSize(), 0);
+    Assert.assertEquals(idx.getKeySize(), 0);
+  }
+
+  @Test
+  public void testUpdate() {
+    create();
+    for (int i = 0; i < ITERATIONS; ++i) {
+      Integer updated = database.command(new OCommandSQL("update AutoShardingTest INCREMENT id = " + ITERATIONS + " where id = ?"))
+          .execute(i);
+
+      Assert.assertEquals(updated.intValue(), 2);
+
+      Assert.assertEquals(idx.getSize(), ITERATIONS * 2);
+      Assert.assertEquals(idx.getKeySize(), ITERATIONS);
+    }
+
+    Assert.assertEquals(idx.getSize(), ITERATIONS * 2);
+    Assert.assertEquals(idx.getKeySize(), ITERATIONS);
+  }
+
+  @Test
+  public void testKeyCursor() {
+    create();
+
+    final OIndexKeyCursor cursor = idx.keyCursor();
+
+    Assert.assertNotNull(cursor);
+    int count = 0;
+    for (Object entry = cursor.next(0); entry != null; entry = cursor.next(0)) {
+      count++;
+    }
+    Assert.assertEquals(count, ITERATIONS);
+  }
+
   public void testDrop() {
     Assert.assertTrue(cls.getClusterSelection() instanceof OAutoShardingClusterSelectionStrategy);
-    database.getMetadata().getIndexManager().dropIndex(idx.getName());
+    database.getMetadata().getIndexManagerInternal().dropIndex(database, idx.getName());
     cls = database.getMetadata().getSchema().getClass("AutoShardingTest");
     Assert.assertFalse(cls.getClusterSelection() instanceof OAutoShardingClusterSelectionStrategy);
   }
 
   private void create() {
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < ITERATIONS; ++i) {
       final int selectedClusterId = clusterIds[((int) (Math.abs(hashFunction.hashCode(i)) % clusterIds.length))];
 
       ODocument sqlRecord = database.command(new OCommandSQL("insert into AutoShardingTest (id) values (" + i + ")")).execute();

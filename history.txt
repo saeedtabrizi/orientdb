@@ -27,6 +27,209 @@
 This document contains the last changes of OrientDB Community Edition.
 
 -----------------------------------------------------------------------------------------------------------------------------------
+VERSION 3.1.0 M3 - (July, 2 2019)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-3.1-Release-Notes#310M3---2-july-2019
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 3.1.0 M2 - (October, 5 2018)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-3.1-Release-Notes#310M2---5-october-2018
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 3.1.0 M1 - (September, 24 2018)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-3.1-Release-Notes#310M1---24-september-2018
+
+
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 3.0.3 - (July, 2 2018)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-3.0-Release-Notes#303---2-july-2018
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A3.0.3+is%3Aclosed
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 3.0.2 - (June, 5 2018)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-3.0-Release-Notes#302---5-june-2018
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A3.0.2+is%3Aclosed
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 3.0.1 - (May, 18 2018)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-3.0-Release-Notes#301---18-may-2018
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A3.0.1+is%3Aclosed
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 3.0.0 - (Apr, 9 2018)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-3.0-Release-Notes#300---9-april-2018
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A3.0.0+is%3Aclosed
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 3.0.0RC2 - (Feb, 27 2018)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-3.0-Release-Notes#30-rc2
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A3.0.0-RC2+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.32 - (February, 5 2018)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2232
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.32+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 3.0.0RC1 - (Dec, 18 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-3.0-Release-Notes#30-rc1
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A3.0.0-RC1+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.31 - (December, 12 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2231
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.31+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.30 - (November, 14 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2230
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.30+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.29 - (October, 5 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2229
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.29+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.28 - (September, 26 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2228
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.28+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.27 - (September, 13 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2227
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.27+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.26 - (August, 16 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2226
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.26+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.25 - (August, 2 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2225
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.25+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 3.0.0-M2 - (Jul, 27 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-3.0-Release-Notes#30-m2
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A3.0.0-m2+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.24 - (July, 20 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2224
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.24+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.23 - (July, 7 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2223
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.23+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.22 - (June, 19 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2222
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.22+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.21 - (May, 31 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2221
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.21+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.20 - (May, 11 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2220
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.20+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.19 - (Apr, 26 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2219
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.19+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 3.0.0-M1 - (Apr, 14 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-3.0-Release-Notes#30-m1
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A3.0.0-m1+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.18 - (Apr, 6 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2218
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.18+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.17 - (Feb, 16 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2217
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.17+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.16 - (Feb, 02 2017)
+- Release Notes: https://github.com/orientechnologies/orientdb/wiki/OrientDB-2.2-Release-Notes#2216
+- Issues: https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.16+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.15 - (Jan, 18 2017)
+- Core (28): https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+milestone%3A2.2.15+is%3Acloseda
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.14 - (Dec, 19 2016)
+- Core (32): https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+is%3Aclosed+milestone%3A2.2.14
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.13 - (Nov, 15 2016)
+- Core (34): https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+is%3Aclosed+milestone%3A2.2.13
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.12 - (Oct, 20 2016)
+- Core (18): https://github.com/orientechnologies/orientdb/issues?q=is%3Aissue+is%3Aclosed+milestone%3A2.2.12
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.11 - (Oct, 3 2016)
+- Core (38): https://github.com/orientechnologies/orientdb/issues?q=is%3Aclosed+is%3Aissue+milestone%3A2.2.11
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.10 - (Sep, 15 2016)
+- Core (12): https://github.com/orientechnologies/orientdb/issues?q=is%3Aclosed+is%3Aissue+milestone%3A2.2.10
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.9 - (Sep, 8 2016)
+- Core (15): https://github.com/orientechnologies/orientdb/issues?q=is%3Aclosed+is%3Aissue+milestone%3A2.2.9
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.8 - (Aug, 24 2016)
+- Core (12): https://github.com/orientechnologies/orientdb/issues?q=milestone%3A2.2.8+is%3Aclosed
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.7 - (Aug, 11 2016)
+- Core (16): https://github.com/orientechnologies/orientdb/issues?q=milestone%3A2.2.7+is%3Aclosed
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.6 - (Jul, 27 2016)
+- Core (5): https://github.com/orientechnologies/orientdb/issues?q=milestone%3A2.2.6+is%3Aclosed
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.5 - (Jul, 2- 2016)
+- Core (12): https://github.com/orientechnologies/orientdb/issues?q=milestone%3A2.2.5+is%3Aclosed
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.4 - (Jul, 7 2016)
+- Core (26): https://github.com/orientechnologies/orientdb/issues?q=milestone%3A2.2.4+is%3Aclosed
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.3 - (Jun, 20 2016)
+- Core (7): https://github.com/orientechnologies/orientdb/issues?q=milestone%3A%222.2.2.3%22+is%3Aclosed
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.2 - (Jun, 13 2016)
+- Core (88): https://github.com/orientechnologies/orientdb/issues?q=milestone%3A%222.2.2.2%22+is%3Aclosed
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.0 - (May, 18 2016)
+- Core (35): https://github.com/orientechnologies/orientdb/issues?q=milestone%3A%222.2.0+GA%22+is%3Aclosed
+
+-----------------------------------------------------------------------------------------------------------------------------------
+VERSION 2.2.0-rc1 - (April, 27 2016)
+- Core (17): https://github.com/orientechnologies/orientdb/issues?q=milestone%3A2.2.0-rc1
+
+-----------------------------------------------------------------------------------------------------------------------------------
 VERSION 2.2.0-beta2 - (March, 30 2016)
 - Core (25): https://github.com/orientechnologies/orientdb/issues?q=milestone%3A2.2.0-beta2
 

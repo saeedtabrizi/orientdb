@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2011 Luca Molino (molino.luca--AT--gmail.com *
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -33,7 +33,7 @@ import com.orientechnologies.orient.server.network.protocol.http.multipart.OHttp
 import com.orientechnologies.orient.server.network.protocol.http.multipart.OHttpMultipartRequestCommand;
 
 /**
- * @author luca.molino
+ * @author Luca Molino (molino.luca--at--gmail.com)
  * 
  */
 public class OServerCommandPostUploadSingleFile extends OHttpMultipartRequestCommand<String, ORID> {
@@ -68,7 +68,7 @@ public class OServerCommandPostUploadSingleFile extends OHttpMultipartRequestCom
         writer.endObject();
         writer.flush();
         if (ok) {
-          iResponse.send(OHttpUtils.STATUS_OK_CODE, "OK", OHttpUtils.CONTENT_JSON, buffer.toString(), null);
+          iResponse.send(OHttpUtils.STATUS_OK_CODE, OHttpUtils.STATUS_OK_DESCRIPTION, OHttpUtils.CONTENT_JSON, buffer.toString(), null);
         }
       } finally {
         if (database != null)

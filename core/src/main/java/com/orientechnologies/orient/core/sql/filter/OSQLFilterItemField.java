@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql.filter;
@@ -24,14 +24,18 @@ import com.orientechnologies.common.parser.OBaseParser;
 import com.orientechnologies.common.util.OPair;
 import com.orientechnologies.orient.core.collate.OCollate;
 import com.orientechnologies.orient.core.command.OCommandContext;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
+import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.exception.OCommandExecutionException;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
-import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.metadata.schema.OProperty;
+import com.orientechnologies.orient.core.metadata.security.OPropertyEncryption;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.record.impl.ODocumentInternal;
 import com.orientechnologies.orient.core.serialization.serializer.record.binary.BytesContainer;
 import com.orientechnologies.orient.core.serialization.serializer.record.binary.OBinaryField;
+import com.orientechnologies.orient.core.serialization.serializer.record.binary.ODocumentSerializer;
 import com.orientechnologies.orient.core.serialization.serializer.record.binary.ORecordSerializerBinary;
 import com.orientechnologies.orient.core.sql.method.OSQLMethodRuntime;
 import com.orientechnologies.orient.core.sql.method.misc.OSQLMethodField;
@@ -41,7 +45,7 @@ import java.util.Set;
 /**
  * Represent an object field as value in the query condition.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OSQLFilterItemField extends OSQLFilterItemAbstract {
 
@@ -50,6 +54,7 @@ public class OSQLFilterItemField extends OSQLFilterItemAbstract {
   protected String      name;
   protected OCollate    collate;
   private   boolean     collatePreset = false;
+  private   String      stringValue;
 
   /**
    * Represents filter item as chain of fields. Provide interface to work with this chain like with sequence of field names.
@@ -108,6 +113,11 @@ public class OSQLFilterItemField extends OSQLFilterItemAbstract {
     if (iRecord == null)
       throw new OCommandExecutionException("expression item '" + name + "' cannot be resolved because current record is NULL");
 
+    if (preLoadedFields != null && preLoadedFields.size() == 1) {
+      if ("@rid".equalsIgnoreCase(preLoadedFields.iterator().next()))
+        return iRecord.getIdentity();
+    }
+
     final ODocument doc = (ODocument) iRecord.getRecord();
 
     if (preLoadedFieldsArray == null && preLoadedFields != null && preLoadedFields.size() > 0 && preLoadedFields.size() < 5) {
@@ -120,11 +130,11 @@ public class OSQLFilterItemField extends OSQLFilterItemAbstract {
     if (preLoadedFieldsArray != null && !doc.deserializeFields(preLoadedFieldsArray))
       return null;
 
-    final Object v = doc.rawField(name);
+    final Object v = stringValue == null ? doc.rawField(name) : stringValue;
 
     if (!collatePreset && doc != null) {
       OClass schemaClass = doc.getSchemaClass();
-      if(schemaClass!=null) {
+      if (schemaClass != null) {
         collate = getCollateForField(schemaClass, name);
       }
     }
@@ -140,10 +150,17 @@ public class OSQLFilterItemField extends OSQLFilterItemAbstract {
       // CANNOT USE BINARY FIELDS
       return null;
 
-    final ORecord rec = iRecord.getRecord();
+    final ODocument rec = iRecord.getRecord();
+    OPropertyEncryption encryption = ODocumentInternal.getPropertyEncryption(rec);
+    BytesContainer serialized = new BytesContainer(rec.toStream());
+    byte version = serialized.bytes[serialized.offset++];
+    ODocumentSerializer serializer = ORecordSerializerBinary.INSTANCE.getSerializer(version);
+    ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.instance().get();
 
-    return ORecordSerializerBinary.INSTANCE.getCurrentSerializer().deserializeField(new BytesContainer(rec.toStream()).skip(1),
-        rec instanceof ODocument ? ((ODocument) rec).getSchemaClass() : null, name);
+    //check for embedded objects, they have invalid ID and they are serialized with class name
+    return serializer
+        .deserializeField(serialized, rec instanceof ODocument ? ((ODocument) rec).getSchemaClass() : null, name, rec.isEmbedded(),
+            db.getMetadata().getImmutableSchemaSnapshot(), encryption);
   }
 
   public String getRoot() {
@@ -151,7 +168,21 @@ public class OSQLFilterItemField extends OSQLFilterItemAbstract {
   }
 
   public void setRoot(final OBaseParser iQueryToParse, final String iRoot) {
+    if (isStringLiteral(iRoot)) {
+      this.stringValue = OIOUtils.getStringContent(iRoot);
+    }
+    //TODO support all the basic types
     this.name = OIOUtils.getStringContent(iRoot);
+  }
+
+  private boolean isStringLiteral(String iRoot) {
+    if (iRoot.startsWith("'") && iRoot.endsWith("'")) {
+      return true;
+    }
+    if (iRoot.startsWith("\"") && iRoot.endsWith("\"")) {
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -179,6 +210,7 @@ public class OSQLFilterItemField extends OSQLFilterItemAbstract {
    * Creates {@code FieldChain} in case when filter item can have such representation.
    *
    * @return {@code FieldChain} representation of this filter item.
+   *
    * @throws IllegalStateException if this filter item cannot be represented as {@code FieldChain}.
    */
   public FieldChain getFieldChain() {
@@ -199,7 +231,9 @@ public class OSQLFilterItemField extends OSQLFilterItemAbstract {
 
   /**
    * get the collate of this expression, based on the fully evaluated field chain starting from the passed object.
+   *
    * @param doc the root element (document?) of this field chain
+   *
    * @return the collate, null if no collate is defined
    */
   public OCollate getCollate(Object doc) {

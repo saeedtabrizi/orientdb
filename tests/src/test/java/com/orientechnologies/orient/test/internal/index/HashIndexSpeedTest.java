@@ -1,24 +1,23 @@
 package com.orientechnologies.orient.test.internal.index;
 
-import org.testng.annotations.Test;
-
 import com.orientechnologies.common.test.SpeedTestMonoThread;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.index.OIndex;
 import com.orientechnologies.orient.core.index.OSimpleKeyIndexDefinition;
 import com.orientechnologies.orient.core.metadata.schema.OType;
+import org.testng.annotations.Test;
 
 import java.util.Random;
 
 /**
- * @author Andrey Lomakin
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 30.01.13
  */
 public class HashIndexSpeedTest extends SpeedTestMonoThread {
   private ODatabaseDocumentTx databaseDocumentTx;
   private OIndex              hashIndex;
-  private Random random = new Random();
+  private Random              random = new Random();
 
   public HashIndexSpeedTest() {
     super(5000000);
@@ -39,8 +38,9 @@ public class HashIndexSpeedTest extends SpeedTestMonoThread {
 
     databaseDocumentTx.create();
 
-    hashIndex = databaseDocumentTx.getMetadata().getIndexManager()
-        .createIndex("hashIndex", "UNIQUE_HASH_INDEX", new OSimpleKeyIndexDefinition(-1, OType.STRING), new int[0], null, null);
+    hashIndex = databaseDocumentTx.getMetadata().getIndexManagerInternal()
+        .createIndex(databaseDocumentTx, "hashIndex", "UNIQUE_HASH_INDEX", new OSimpleKeyIndexDefinition(OType.STRING), new int[0],
+            null, null);
   }
 
   @Override

@@ -26,13 +26,9 @@ import com.orientechnologies.common.util.ORawPair;
 import com.orientechnologies.orient.core.exception.OStorageException;
 import com.orientechnologies.orient.core.storage.OIdentifiableStorage;
 import com.orientechnologies.orient.core.storage.OStorage;
-import com.orientechnologies.orient.core.storage.cache.OReadCache;
 import com.orientechnologies.orient.core.storage.cache.OWriteCache;
 import com.orientechnologies.orient.core.storage.cache.local.OWOWCache;
-import com.orientechnologies.orient.core.storage.cache.local.twoq.O2QCache;
 import com.orientechnologies.orient.core.storage.impl.local.OAbstractPaginatedStorage;
-import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.ODiskWriteAheadLog;
-import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OWriteAheadLog;
 
 import javax.management.*;
 import java.lang.management.ManagementFactory;
@@ -46,45 +42,34 @@ import java.util.concurrent.locks.ReentrantLock;
 import static com.orientechnologies.orient.core.storage.impl.local.statistic.OSessionStoragePerformanceStatistic.*;
 
 /**
- * Aggregator of performance statistic for whole storage.
- * Allows to gather performance statistic for single thread or for all threads in storage.
- * <p>
- * In case of gathering statistics for single thread statistic for all period is gathered and average values are provided.
- * If you gather statistic for whole system time series of measurements are provided.
- * <p>
- * You can not measure statistic for whole system and for chosen threads at the same time.
- * <p>
- * To gather statistic for single thread use following workflow:
+ * Aggregator of performance statistic for whole storage. Allows to gather performance statistic for single thread or for all
+ * threads in storage. In case of gathering statistics for single thread statistic for all period is gathered and average values are
+ * provided. If you gather statistic for whole system time series of measurements are provided. You can not measure statistic for
+ * whole system and for chosen threads at the same time. To gather statistic for single thread use following workflow:
  * <ol>
  * <li>Call {@link #startThreadMonitoring()}</li>
  * <li>Execute database commands</li>
  * <li>Call {@link #stopThreadMonitoring()}</li>
  * </ol>
- * <p>
- * Instance of {@link OSessionStoragePerformanceStatistic} returned as result of call of last method will contain all
- * performance data are gathered during storage monitoring.
- * <p>
- * To gather statistic for whole system use following workflow:
+ * Instance of {@link OSessionStoragePerformanceStatistic} returned as result of call of last method will contain all performance
+ * data are gathered during storage monitoring. To gather statistic for whole system use following workflow:
  * <ol>
  * <li>Call {@link #startMonitoring()}</li>
  * <li>During monitoring of storage use getXXX methods to get information about performance numbers</li>
  * <li>At the end of monitoring call {@link #stopMonitoring()}</li>
  * </ol>
- * <p>
- * You may access performance data both after you stopped gathering statistic and during gathering of statistic.
- * You may manipulate by manager directly from Java or from JMX from bean with name which consist of prefix {@link #MBEAN_PREFIX}
- * and storage name.
- * <p>
- * If {@link com.orientechnologies.orient.core.storage.impl.local.paginated.base.ODurableComponent} participates in
- * performance monitoring it has to register itself using method {@link #registerComponent(String)}
+ * You may access performance data both after you stopped gathering statistic and during gathering of statistic. You may manipulate
+ * by manager directly from Java or from JMX from bean with name which consist of prefix {@link #MBEAN_PREFIX} and storage name. If
+ * {@link com.orientechnologies.orient.core.storage.impl.local.paginated.base.ODurableComponent} participates in performance
+ * monitoring it has to register itself using method {@link #registerComponent(String)}
  */
 public class OPerformanceStatisticManager {
   /**
    * Prefix of name of JMX bean.
    */
-  public static final String MBEAN_PREFIX = "com.orientechnologies.orient.core.storage.impl.local.statistic:type=OPerformanceStatisticManagerMXBean";
+  private static final String MBEAN_PREFIX = "com.orientechnologies.orient.core.storage.impl.local.statistic:type=OPerformanceStatisticManagerMXBean";
 
-  /**
+  /*
    * Class consist of three key fields:
    * <p>
    * <ol>
@@ -123,22 +108,17 @@ public class OPerformanceStatisticManager {
   /**
    * Indicates whether gathering of performance data for whole system is switched on/off.
    */
-  private boolean enabled = false;
+  private volatile boolean enabled = false;
 
   /**
    * Indicates whether gathering of performance data for single thread is switched on/off.
    */
-  private final ThreadLocal<Boolean> enabledForCurrentThread = new ThreadLocal<Boolean>() {
-    @Override
-    protected Boolean initialValue() {
-      return false;
-    }
-  };
+  private final ThreadLocal<Boolean> enabledForCurrentThread = ThreadLocal.withInitial(() -> false);
 
   /**
    * Map which bounds performance statistic for currently running threads.
    */
-  private final ConcurrentHashMap<Thread, OSessionStoragePerformanceStatistic> statistics = new ConcurrentHashMap<Thread, OSessionStoragePerformanceStatistic>();
+  private final ConcurrentHashMap<Thread, OSessionStoragePerformanceStatistic> statistics = new ConcurrentHashMap<>();
 
   /**
    * Accumulated statistic for threads which were active during early stages of performance measurement and are died now.
@@ -163,54 +143,45 @@ public class OPerformanceStatisticManager {
   /**
    * List of all components which registered itself as participating in performance monitoring.
    */
-  private final List<String> componentNames = new CopyOnWriteArrayList<String>();
+  private final List<String> componentNames = new CopyOnWriteArrayList<>();
 
   /**
-   * Amount of full checkpoints are done for current storage.
-   * Value is updated on demand if monitoring is switched on.
-   * Supported only for disk based storage.
+   * Amount of full checkpoints are done for current storage. Value is updated on demand if monitoring is switched on. Supported
+   * only for disk based storage.
    */
   private long fullCheckpointCount = -1;
 
   /**
-   * Size of write ahead log in bytes.
-   * Value is updated on demand if monitoring is switched on.
-   * Supported only for disk based storage.
+   * Size of write ahead log in bytes. Value is updated on demand if monitoring is switched on. Supported only for disk based
+   * storage.
    */
   private long walSize = -1;
 
   /**
-   * Amount of times when WAL cache is completely filled in and force flush is needed.
-   * Value is updated on demand if monitoring is switched on.
-   * Supported only for disk based storage.
+   * Amount of times when WAL cache is completely filled in and force flush is needed. Value is updated on demand if monitoring is
+   * switched on. Supported only for disk based storage.
    */
   private long walCacheOverflowCount = -1;
 
   /**
-   * Size of read cache in bytes.
-   * Value is updated on demand if monitoring is switched on.
-   * Supported only for disk based storage.
+   * Size of read cache in bytes. Value is updated on demand if monitoring is switched on. Supported only for disk based storage.
    */
   private long readCacheSize = -1;
 
   /**
-   * Size of write cache in bytes.
-   * Value is updated on demand if monitoring is switched on.
-   * Supported only for disk based storage.
+   * Size of write cache in bytes. Value is updated on demand if monitoring is switched on. Supported only for disk based storage.
    */
   private long writeCacheSize = -1;
 
   /**
-   * Size of part of write cache which is not shared with read cache in bytes.
-   * Value is updated on demand if monitoring is switched on.
-   * Supported only for disk based storage.
+   * Size of part of write cache which is not shared with read cache in bytes. Value is updated on demand if monitoring is switched
+   * on. Supported only for disk based storage.
    */
   private long exclusiveWriteCacheSize = 1;
 
   /**
-   * Amount of times when size of write cache is not enough to keep dirty pages and flush of write cache is forced.
-   * Value is updated on demand if monitoring is switched on.
-   * Supported only for disk based storage.
+   * Amount of times when size of write cache is not enough to keep dirty pages and flush of write cache is forced. Value is updated
+   * on demand if monitoring is switched on. Supported only for disk based storage.
    */
   private long writeCacheOverflowCount = -1;
 
@@ -220,44 +191,24 @@ public class OPerformanceStatisticManager {
   private final OAbstractPaginatedStorage storage;
 
   /**
-   * Flags which indicates whether {@link #wowCache} field is initialized on demand.
-   * We use separate flag because <code>null</code> can be valid value.
+   * Flags which indicates whether {@link #wowCache} field is initialized on demand. We use separate flag because <code>null</code>
+   * can be valid value.
    */
   private volatile boolean   wowCacheInitialized;
   /**
-   * Instance of write cache which belongs to current storage, may be <code>null</code> if it is not
-   * disk based storage.
-   * Initialized on demand.
+   * Instance of write cache which belongs to current storage, may be <code>null</code> if it is not disk based storage. Initialized
+   * on demand.
    */
   private volatile OWOWCache wowCache;
 
-  /**
-   * Flags which indicates whether {@link #readCache} field is initialized on demand.
-   * We use separate flag because <code>null</code> can be valid value.
-   */
-  private volatile boolean  readCacheInitialized;
-  /**
-   * Instance of read cache which belongs to current storage, may be <code>null</code> if it is not
-   * disk based storage.
-   * Initialized on demand.
-   */
-  private volatile O2QCache readCache;
+  private volatile boolean readCacheInitialized;
 
-  /**
-   * Flags which indicates whether {@link #writeAheadLog} field is initialized on demand.
-   * We use separate flag because <code>null</code> can be valid value.
-   */
-  private volatile boolean            writeAheadLogInitialized;
-  /**
-   * Instance of write ahead log which belongs to current storage, may be <code>null</code> if it is not
-   * disk based storage.
-   * Initialized on demand.
-   */
-  private volatile ODiskWriteAheadLog writeAheadLog;
+  private volatile boolean writeAheadLogInitialized;
 
   /**
    * @param intervalBetweenSnapshots Interval between snapshots of performance data for each thread statistic.
    * @param cleanUpInterval          Interval between time series of performance data.
+   *
    * @see OSessionStoragePerformanceStatistic
    */
   public OPerformanceStatisticManager(OAbstractPaginatedStorage storage, long intervalBetweenSnapshots, long cleanUpInterval) {
@@ -285,46 +236,8 @@ public class OPerformanceStatisticManager {
   }
 
   /**
-   * @return Returns current instance of read cache and initializes local reference if such one is not initialized yet.
-   */
-  private O2QCache gerReadCache() {
-    if (readCacheInitialized)
-      return readCache;
-
-    final OReadCache cache = storage.getReadCache();
-    if (cache instanceof O2QCache) {
-      this.readCache = (O2QCache) cache;
-    } else {
-      this.readCache = null;
-    }
-
-    readCacheInitialized = true;
-
-    return readCache;
-  }
-
-  /**
-   * @return Returns current instance of write ahead log and initializes local reference if such one is not initialized yet.
-   */
-  private ODiskWriteAheadLog getWriteAheadLog() {
-    if (writeAheadLogInitialized)
-      return writeAheadLog;
-
-    final OWriteAheadLog writeAheadLog = storage.getWALInstance();
-
-    if (writeAheadLog instanceof ODiskWriteAheadLog)
-      this.writeAheadLog = (ODiskWriteAheadLog) writeAheadLog;
-    else
-      this.writeAheadLog = null;
-
-    writeAheadLogInitialized = true;
-
-    return this.writeAheadLog;
-  }
-
-  /**
-   * Starts performance monitoring only for single thread.
-   * After call of this method you can not start system wide monitoring till call of {@link #stopThreadMonitoring()} is performed.
+   * Starts performance monitoring only for single thread. After call of this method you can not start system wide monitoring till
+   * call of {@link #stopThreadMonitoring()} is performed.
    */
   public void startThreadMonitoring() {
     switchLock.acquireWriteLock();
@@ -355,9 +268,8 @@ public class OPerformanceStatisticManager {
   }
 
   /**
-   * Starts performance monitoring only for whole system.
-   * <p>
-   * After call of this method you can not start monitoring on thread level till call of {@link #stopMonitoring()} is performed.
+   * Starts performance monitoring only for whole system. After call of this method you can not start monitoring on thread level
+   * till call of {@link #stopMonitoring()} is performed.
    */
   public void startMonitoring() {
     switchLock.acquireWriteLock();
@@ -365,10 +277,10 @@ public class OPerformanceStatisticManager {
       if (!statistics.isEmpty() && !enabled)
         throw new IllegalStateException("Monitoring is already started on thread level and can not be started on system level");
 
-      enabled = true;
-
       deadThreadsStatistic = null;
       postMeasurementStatistic = null;
+
+      enabled = true;
     } finally {
       switchLock.releaseWriteLock();
     }
@@ -383,7 +295,7 @@ public class OPerformanceStatisticManager {
       enabled = false;
 
       final PerformanceCountersHolder countersHolder = ComponentType.GENERAL.newCountersHolder();
-      final Map<String, PerformanceCountersHolder> componentCountersHolder = new HashMap<String, PerformanceCountersHolder>();
+      final Map<String, PerformanceCountersHolder> componentCountersHolder = new HashMap<>();
 
       WritCacheCountersHolder writCacheCountersHolder = deadThreadsStatistic.writCacheCountersHolder;
       StorageCountersHolder storageCountersHolder = deadThreadsStatistic.storageCountersHolder;
@@ -416,6 +328,7 @@ public class OPerformanceStatisticManager {
    *
    * @param storageName Name of storage of given manager
    * @param storageId   Id of storage of given manager
+   *
    * @see OStorage#getName()
    * @see OIdentifiableStorage#getId()
    */
@@ -433,13 +346,7 @@ public class OPerformanceStatisticManager {
                   + " or you have several running applications which use OrientDB engine inside", mbeanName.getCanonicalName());
         }
 
-      } catch (MalformedObjectNameException e) {
-        throw OException.wrapException(new OStorageException("Error during registration of profiler MBean"), e);
-      } catch (InstanceAlreadyExistsException e) {
-        throw OException.wrapException(new OStorageException("Error during registration of profiler MBean"), e);
-      } catch (MBeanRegistrationException e) {
-        throw OException.wrapException(new OStorageException("Error during registration of profiler MBean"), e);
-      } catch (NotCompliantMBeanException e) {
+      } catch (MalformedObjectNameException | InstanceAlreadyExistsException | NotCompliantMBeanException | MBeanRegistrationException e) {
         throw OException.wrapException(new OStorageException("Error during registration of profiler MBean"), e);
       }
     }
@@ -454,20 +361,20 @@ public class OPerformanceStatisticManager {
    *
    * @param storageName Name of storage of given manager
    * @param storageId   Id of storage of given manager
+   *
    * @see OStorage#getName()
    * @see OIdentifiableStorage#getId()
    */
   public void unregisterMBean(String storageName, int storageId) {
+    if (storageName == null) {
+      OLogManager.instance().warnNoDb(this, "Can not unregister MBean for performance statistics, storage name is null");
+    }
     if (mbeanIsRegistered.compareAndSet(true, false)) {
       try {
         final MBeanServer server = ManagementFactory.getPlatformMBeanServer();
         final ObjectName mbeanName = new ObjectName(getMBeanName(storageName, storageId));
         server.unregisterMBean(mbeanName);
-      } catch (MalformedObjectNameException e) {
-        throw OException.wrapException(new OStorageException("Error during unregistration of profiler MBean"), e);
-      } catch (InstanceNotFoundException e) {
-        throw OException.wrapException(new OStorageException("Error during unregistration of profiler MBean"), e);
-      } catch (MBeanRegistrationException e) {
+      } catch (MalformedObjectNameException | InstanceNotFoundException | MBeanRegistrationException e) {
         throw OException.wrapException(new OStorageException("Error during unregistration of profiler MBean"), e);
       }
     }
@@ -486,7 +393,7 @@ public class OPerformanceStatisticManager {
    * @return Set of names of components for which performance statistic is gathered.
    */
   public Set<String> getComponentNames() {
-    return new HashSet<String>(componentNames);
+    return new HashSet<>(componentNames);
   }
 
   /**
@@ -494,6 +401,9 @@ public class OPerformanceStatisticManager {
    * <code>null</code> if none of both methods {@link #startMonitoring()} or {@link #startThreadMonitoring()} are called.
    */
   public OSessionStoragePerformanceStatistic getSessionPerformanceStatistic() {
+    if (!enabled && !enabledForCurrentThread.get())
+      return null;
+
     switchLock.acquireReadLock();
     try {
       if (!enabled && !enabledForCurrentThread.get())
@@ -517,11 +427,11 @@ public class OPerformanceStatisticManager {
   }
 
   /**
-   * Average amount of pages which were read from cache for component with given name during single data operation.
-   * <p>
-   * If null value is passed or data for component with passed in name does not exist then <code>-1</code> will be returned.
+   * Average amount of pages which were read from cache for component with given name during single data operation. If null value is
+   * passed or data for component with passed in name does not exist then <code>-1</code> will be returned.
    *
    * @param componentName Name of component data of which should be returned. Name is case sensitive.
+   *
    * @return Average amount of pages which were read from cache for component with given name during single data operation or value
    * which is less than 0, which means that value cannot be calculated.
    */
@@ -577,6 +487,7 @@ public class OPerformanceStatisticManager {
    * system will be returned. If data for component with passed in name does not exist then <code>-1</code> will be returned.
    *
    * @param componentName Name of component data of which should be returned. Name is case sensitive.
+   *
    * @return Percent of cache hits or value which is less than 0, which means that value cannot be calculated.
    */
   public int getCacheHits(String componentName) {
@@ -654,6 +565,7 @@ public class OPerformanceStatisticManager {
    * <code>-1</code> will be returned.
    *
    * @param componentName Name of component data of which should be returned. Name is case sensitive.
+   *
    * @return Read speed of data in pages per second on cache level or value which is less than 0, which means that value cannot be
    * calculated.
    */
@@ -710,6 +622,7 @@ public class OPerformanceStatisticManager {
    * will be returned.
    *
    * @param componentName Name of component data of which should be returned. Name is case sensitive.
+   *
    * @return Read speed of data from file system in pages per second or value which is less than 0, which means that value cannot be
    * calculated.
    */
@@ -766,6 +679,7 @@ public class OPerformanceStatisticManager {
    * <code>-1</code> will be returned.
    *
    * @param componentName Name of component data of which should be returned. Name is case sensitive.
+   *
    * @return Write speed of data in pages per second on cache level or value which is less than 0, which means that value cannot be
    * calculated.
    */
@@ -822,8 +736,7 @@ public class OPerformanceStatisticManager {
   }
 
   /**
-   * @return Amount of time which is spent on each "page flush" operation of write cache or <code>-1</code> if
-   * value is undefined.
+   * @return Amount of time which is spent on each "page flush" operation of write cache or <code>-1</code> if value is undefined.
    */
   public long getWriteCacheFlushOperationsTime() {
     switchLock.acquireReadLock();
@@ -851,8 +764,7 @@ public class OPerformanceStatisticManager {
   }
 
   /**
-   * @return Amount of time which is spent on "fuzzy checkpoint" operation or <code>-1</code> if
-   * value if undefined.
+   * @return Amount of time which is spent on "fuzzy checkpoint" operation or <code>-1</code> if value if undefined.
    */
   public long getWriteCacheFuzzyCheckpointTime() {
     switchLock.acquireReadLock();
@@ -928,20 +840,7 @@ public class OPerformanceStatisticManager {
    * @return Size of read cache in bytes or <code>-1</code> if value is undefined.
    */
   public long getReadCacheSize() {
-    switchLock.acquireReadLock();
-    try {
-      if (enabled) {
-        final O2QCache cache = gerReadCache();
-        if (cache != null)
-          readCacheSize = cache.getUsedMemory();
-
-        return readCacheSize;
-      } else {
-        return readCacheSize;
-      }
-    } finally {
-      switchLock.releaseReadLock();
-    }
+    return -1;
   }
 
   /**
@@ -1010,48 +909,6 @@ public class OPerformanceStatisticManager {
   }
 
   /**
-   * @return Size of WAL in bytes or <code>-1</code> if value is undefined
-   */
-  public long getWALSize() {
-    switchLock.acquireReadLock();
-    try {
-      if (enabled) {
-        final ODiskWriteAheadLog wal = getWriteAheadLog();
-        if (wal != null) {
-          walSize = wal.size();
-        }
-
-        return walSize;
-      } else {
-        return walSize;
-      }
-    } finally {
-      switchLock.releaseReadLock();
-    }
-  }
-
-  /**
-   * @return Amount of times when WAL cache is completely filled in and force flush is needed or <code>-1</code>
-   * if value is undefined
-   */
-  public long getWALCacheOverflowCount() {
-    switchLock.acquireReadLock();
-    try {
-      if (enabled) {
-        final ODiskWriteAheadLog wal = getWriteAheadLog();
-        if (wal != null)
-          walCacheOverflowCount = wal.getCacheOverflowCount();
-
-        return walCacheOverflowCount;
-      } else {
-        return walCacheOverflowCount;
-      }
-    } finally {
-      switchLock.releaseReadLock();
-    }
-  }
-
-  /**
    * @return time which is spent on logging of single record or <code>-1</code> if value is undefined.
    */
   public long getWALLogRecordTime() {
@@ -1080,8 +937,7 @@ public class OPerformanceStatisticManager {
   }
 
   /**
-   * @return Time which is spent on logging of "start atomic operation" record or <code>-1</code> if value is
-   * undefined.
+   * @return Time which is spent on logging of "start atomic operation" record or <code>-1</code> if value is undefined.
    */
   public long getWALStartAOLogRecordTime() {
     switchLock.acquireReadLock();
@@ -1109,8 +965,7 @@ public class OPerformanceStatisticManager {
   }
 
   /**
-   * @return time which is spent on logging of  "stop atomic operation" record or <code>-1</code>
-   * if value is undefined.
+   * @return time which is spent on logging of  "stop atomic operation" record or <code>-1</code> if value is undefined.
    */
   public long getWALStopAOLogRecordTime() {
     switchLock.acquireReadLock();
@@ -1167,8 +1022,8 @@ public class OPerformanceStatisticManager {
   }
 
   /**
-   * Iterates over all live threads and accumulates write performance statics gathered form threads,
-   * also accumulates statistic from dead threads which were alive when when gathering of performance measurements is started.
+   * Iterates over all live threads and accumulates write performance statics gathered form threads, also accumulates statistic from
+   * dead threads which were alive when when gathering of performance measurements is started.
    *
    * @return Aggregated write cache performance statistic
    */
@@ -1180,15 +1035,14 @@ public class OPerformanceStatisticManager {
 
     //To decrease inter thread communication delay we fetch snapshots first
     //and only after that we aggregate data from immutable snapshots
-    final Collection<ORawPair<Thread, PerformanceSnapshot>> snapshots = new ArrayList<ORawPair<Thread, PerformanceSnapshot>>(
-        statistics.size());
+    final Collection<ORawPair<Thread, PerformanceSnapshot>> snapshots = new ArrayList<>(statistics.size());
 
-    final Collection<Thread> threadsToRemove = new ArrayList<Thread>();
+    final Collection<Thread> threadsToRemove = new ArrayList<>();
     for (Map.Entry<Thread, OSessionStoragePerformanceStatistic> entry : statistics.entrySet()) {
       final Thread thread = entry.getKey();
 
       final OSessionStoragePerformanceStatistic statistic = entry.getValue();
-      snapshots.add(new ORawPair<Thread, PerformanceSnapshot>(thread, statistic.getSnapshot()));
+      snapshots.add(new ORawPair<>(thread, statistic.getSnapshot()));
     }
 
     WritCacheCountersHolder holder = null;
@@ -1228,8 +1082,8 @@ public class OPerformanceStatisticManager {
   }
 
   /**
-   * Iterates over all live threads and accumulates storage performance statics gathered form threads,
-   * also accumulates statistic from dead threads which were alive when when gathering of performance measurements is started.
+   * Iterates over all live threads and accumulates storage performance statics gathered form threads, also accumulates statistic
+   * from dead threads which were alive when when gathering of performance measurements is started.
    *
    * @return Aggregated storage performance statistic
    */
@@ -1241,15 +1095,14 @@ public class OPerformanceStatisticManager {
 
     //To decrease inter thread communication delay we fetch snapshots first
     //and only after that we aggregate data from immutable snapshots
-    final Collection<ORawPair<Thread, PerformanceSnapshot>> snapshots = new ArrayList<ORawPair<Thread, PerformanceSnapshot>>(
-        statistics.size());
+    final Collection<ORawPair<Thread, PerformanceSnapshot>> snapshots = new ArrayList<>(statistics.size());
 
-    final Collection<Thread> threadsToRemove = new ArrayList<Thread>();
+    final Collection<Thread> threadsToRemove = new ArrayList<>();
     for (Map.Entry<Thread, OSessionStoragePerformanceStatistic> entry : statistics.entrySet()) {
       final Thread thread = entry.getKey();
 
       final OSessionStoragePerformanceStatistic statistic = entry.getValue();
-      snapshots.add(new ORawPair<Thread, PerformanceSnapshot>(thread, statistic.getSnapshot()));
+      snapshots.add(new ORawPair<>(thread, statistic.getSnapshot()));
     }
 
     StorageCountersHolder holder = null;
@@ -1289,8 +1142,8 @@ public class OPerformanceStatisticManager {
   }
 
   /**
-   * Iterates over all live threads and accumulates write ahead log performance statics gathered form threads,
-   * also accumulates statistic from dead threads which were alive when when gathering of performance measurements is started.
+   * Iterates over all live threads and accumulates write ahead log performance statics gathered form threads, also accumulates
+   * statistic from dead threads which were alive when when gathering of performance measurements is started.
    *
    * @return Aggregated write ahead log performance statistic
    */
@@ -1302,15 +1155,14 @@ public class OPerformanceStatisticManager {
 
     //To decrease inter thread communication delay we fetch snapshots first
     //and only after that we aggregate data from immutable snapshots
-    final Collection<ORawPair<Thread, PerformanceSnapshot>> snapshots = new ArrayList<ORawPair<Thread, PerformanceSnapshot>>(
-        statistics.size());
+    final Collection<ORawPair<Thread, PerformanceSnapshot>> snapshots = new ArrayList<>(statistics.size());
 
-    final Collection<Thread> threadsToRemove = new ArrayList<Thread>();
+    final Collection<Thread> threadsToRemove = new ArrayList<>();
     for (Map.Entry<Thread, OSessionStoragePerformanceStatistic> entry : statistics.entrySet()) {
       final Thread thread = entry.getKey();
 
       final OSessionStoragePerformanceStatistic statistic = entry.getValue();
-      snapshots.add(new ORawPair<Thread, PerformanceSnapshot>(thread, statistic.getSnapshot()));
+      snapshots.add(new ORawPair<>(thread, statistic.getSnapshot()));
     }
 
     WALCountersHolder holder = null;
@@ -1350,8 +1202,8 @@ public class OPerformanceStatisticManager {
   }
 
   /**
-   * Iterates over all live threads and accumulates performance statics gathered form threads on system level,
-   * also accumulates statistic from dead threads which were alive when when gathering of performance measurements is started.
+   * Iterates over all live threads and accumulates performance statics gathered form threads on system level, also accumulates
+   * statistic from dead threads which were alive when when gathering of performance measurements is started.
    *
    * @param countersHolder Holder which is used to accumulate all performance statistic data
    */
@@ -1363,14 +1215,13 @@ public class OPerformanceStatisticManager {
 
     //To decrease inter thread communication delay we fetch snapshots first
     //and only after that we aggregate data from immutable snapshots
-    final Collection<ORawPair<Thread, PerformanceSnapshot>> snapshots = new ArrayList<ORawPair<Thread, PerformanceSnapshot>>(
-        statistics.size());
+    final Collection<ORawPair<Thread, PerformanceSnapshot>> snapshots = new ArrayList<>(statistics.size());
 
-    final Collection<Thread> threadsToRemove = new ArrayList<Thread>();
+    final Collection<Thread> threadsToRemove = new ArrayList<>();
     for (Map.Entry<Thread, OSessionStoragePerformanceStatistic> entry : statistics.entrySet()) {
       final Thread thread = entry.getKey();
       final OSessionStoragePerformanceStatistic statistic = entry.getValue();
-      snapshots.add(new ORawPair<Thread, PerformanceSnapshot>(thread, statistic.getSnapshot()));
+      snapshots.add(new ORawPair<>(thread, statistic.getSnapshot()));
     }
 
     for (ORawPair<Thread, PerformanceSnapshot> pair : snapshots) {
@@ -1396,8 +1247,8 @@ public class OPerformanceStatisticManager {
   }
 
   /**
-   * Iterates over all live threads and accumulates performance statics gathered form threads for provided component,
-   * also accumulates statistic from dead threads which were alive when when gathering of performance measurements is started.
+   * Iterates over all live threads and accumulates performance statics gathered form threads for provided component, also
+   * accumulates statistic from dead threads which were alive when when gathering of performance measurements is started.
    *
    * @param componentCountersHolder Holder which is used to accumulate all performance statistic data for given component
    * @param componentName           Name of component
@@ -1410,14 +1261,13 @@ public class OPerformanceStatisticManager {
 
     //To decrease inter thread communication delay we fetch snapshots first
     //and only after that we aggregate data from immutable snapshots
-    final Collection<ORawPair<Thread, PerformanceSnapshot>> snapshots = new ArrayList<ORawPair<Thread, PerformanceSnapshot>>(
-        statistics.size());
+    final Collection<ORawPair<Thread, PerformanceSnapshot>> snapshots = new ArrayList<>(statistics.size());
 
-    final List<Thread> threadsToRemove = new ArrayList<Thread>();
+    final List<Thread> threadsToRemove = new ArrayList<>();
     for (Map.Entry<Thread, OSessionStoragePerformanceStatistic> entry : statistics.entrySet()) {
       final Thread thread = entry.getKey();
       final OSessionStoragePerformanceStatistic statistic = entry.getValue();
-      snapshots.add(new ORawPair<Thread, PerformanceSnapshot>(thread, statistic.getSnapshot()));
+      snapshots.add(new ORawPair<>(thread, statistic.getSnapshot()));
     }
 
     for (ORawPair<Thread, PerformanceSnapshot> pair : snapshots) {
@@ -1457,7 +1307,7 @@ public class OPerformanceStatisticManager {
       //results in #deadThreadsStatistic field to preserve thread safety features
       final ImmutableStatistic oldDS = deadThreadsStatistic;
       final PerformanceCountersHolder countersHolder = ComponentType.GENERAL.newCountersHolder();
-      final Map<String, PerformanceCountersHolder> countersByComponents = new HashMap<String, PerformanceCountersHolder>();
+      final Map<String, PerformanceCountersHolder> countersByComponents = new HashMap<>();
 
       WritCacheCountersHolder writeCacheCountersHolder = null;
       StorageCountersHolder storageCountersHolder = null;

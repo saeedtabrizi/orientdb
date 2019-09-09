@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.serialization.serializer;
@@ -99,6 +99,19 @@ public class OJSONReader {
     return value;
   }
 
+  public String readString(final char[] iUntil, final boolean iInclude, final char[] iJumpChars, final char[] iSkipChars, boolean preserveQuotes)
+      throws IOException, ParseException {
+    if (readNext(iUntil, iInclude, iJumpChars, iSkipChars, preserveQuotes) == null)
+      return null;
+
+    if (!iInclude && value.startsWith("\"")) {
+      return value.substring(1, value.lastIndexOf("\""));
+    }
+
+    return value;
+  }
+
+
   public boolean readBoolean(final char[] nextInObject) throws IOException, ParseException {
     return Boolean.parseBoolean(readString(nextInObject, false, DEFAULT_JUMP, DEFAULT_JUMP));
   }
@@ -114,6 +127,12 @@ public class OJSONReader {
   }
 
   public OJSONReader readNext(final char[] iUntil, final boolean iInclude, final char[] iJumpChars, final char[] iSkipChars)
+      throws IOException, ParseException {
+    readNext(iUntil, iInclude, iJumpChars, iSkipChars, true);
+    return this;
+  }
+
+  public OJSONReader readNext(final char[] iUntil, final boolean iInclude, final char[] iJumpChars, final char[] iSkipChars, boolean preserveQuotes)
       throws IOException, ParseException {
     if (!in.ready())
       return this;
@@ -187,7 +206,7 @@ public class OJSONReader {
             }
           }
 
-        if (!skip) {
+        if (!skip && (preserveQuotes || !encodeMode)) {
           lastCharacter = c;
           buffer.append(c);
         }

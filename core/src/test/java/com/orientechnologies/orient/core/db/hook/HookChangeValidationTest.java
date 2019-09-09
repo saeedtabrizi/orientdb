@@ -1,26 +1,24 @@
 package com.orientechnologies.orient.core.db.hook;
 
-import static org.testng.AssertJUnit.assertEquals;
-
-import org.testng.Assert;
-import org.testng.annotations.Test;
-
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.exception.ODatabaseException;
 import com.orientechnologies.orient.core.exception.OValidationException;
 import com.orientechnologies.orient.core.hook.ODocumentHookAbstract;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OSchema;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+import org.junit.Assert;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 public class HookChangeValidationTest {
 
   @Test
   public void testHookCreateChange() {
 
-    ODatabaseDocument db = new ODatabaseDocumentTx("memory:" + HookChangeValidationTest.class.getName());
+    ODatabaseDocument db = new ODatabaseDocumentTx("memory:" + HookChangeValidationTest.class.getSimpleName());
     db.create();
     try {
       OSchema schema = db.getMetadata().getSchema();
@@ -65,7 +63,7 @@ public class HookChangeValidationTest {
   @Test
   public void testHookUpdateChange() {
 
-    ODatabaseDocument db = new ODatabaseDocumentTx("memory:" + HookChangeValidationTest.class.getName());
+    ODatabaseDocument db = new ODatabaseDocumentTx("memory:" + HookChangeValidationTest.class.getSimpleName());
     db.create();
     try {
       OSchema schema = db.getMetadata().getSchema();
@@ -117,7 +115,7 @@ public class HookChangeValidationTest {
   @Test
   public void testHookCreateChangeTx() {
 
-    ODatabaseDocument db = new ODatabaseDocumentTx("memory:" + HookChangeValidationTest.class.getName());
+    ODatabaseDocument db = new ODatabaseDocumentTx("memory:" + HookChangeValidationTest.class.getSimpleName());
     db.create();
     try {
       OSchema schema = db.getMetadata().getSchema();
@@ -164,7 +162,7 @@ public class HookChangeValidationTest {
   @Test
   public void testHookUpdateChangeTx() {
 
-    ODatabaseDocument db = new ODatabaseDocumentTx("memory:" + HookChangeValidationTest.class.getName());
+    ODatabaseDocument db = new ODatabaseDocumentTx("memory:" + HookChangeValidationTest.class.getSimpleName());
     db.create();
     try {
       OSchema schema = db.getMetadata().getSchema();

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *  
  */
 
@@ -23,7 +23,6 @@ package com.orientechnologies.orient.core.intent;
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseInternal;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
-import com.orientechnologies.orient.core.db.object.ODatabaseObject;
 
 /**
  * Disable cache. This is helpful with operation like UPDATE/DELETE of many records.
@@ -44,10 +43,6 @@ public class OIntentNoCache implements OIntent {
     while (ownerDb.getDatabaseOwner() != ownerDb)
       ownerDb = ownerDb.getDatabaseOwner();
 
-    if (ownerDb instanceof ODatabaseObject) {
-      previousRetainObjects = ((ODatabaseObject) ownerDb).isRetainObjects();
-      ((ODatabaseObject) ownerDb).setRetainObjects(false);
-    }
   }
 
   public void end(final ODatabaseDocumentInternal iDatabase) {
@@ -60,8 +55,6 @@ public class OIntentNoCache implements OIntent {
     while (ownerDb.getDatabaseOwner() != ownerDb)
       ownerDb = ownerDb.getDatabaseOwner();
 
-    if (ownerDb instanceof ODatabaseObject)
-      ((ODatabaseObject) ownerDb).setRetainObjects(previousRetainObjects);
   }
 
   @Override

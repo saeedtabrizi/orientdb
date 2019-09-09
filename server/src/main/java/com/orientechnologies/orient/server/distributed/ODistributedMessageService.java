@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2016 Orient Technologies LTD (info(at)orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,22 +14,44 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://www.orientdb.com
  *
  */
 package com.orientechnologies.orient.server.distributed;
 
+import com.orientechnologies.orient.core.record.impl.ODocument;
+
+import java.util.Set;
+
 /**
- * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
- * 
+ * @author Luca Garulli (l.garulli--at--orientdb.com)
  */
 public interface ODistributedMessageService {
-  ODistributedDatabase registerDatabase(String iDatabaseName);
+  ODistributedDatabase registerDatabase(String iDatabaseName, ODistributedConfiguration cfg);
+
+  Set<String> getDatabases();
 
   ODistributedDatabase getDatabase(String iDatabaseName);
 
   ODistributedDatabase unregisterDatabase(String iDatabaseName);
 
-  long dispatchResponseToThread(final ODistributedResponse response);
+  void dispatchResponseToThread(final ODistributedResponse response);
+
+  void updateLatency(String metricName, long sentOn);
+
+  ODocument getLatencies();
+
+  ODocument getMessageStats();
+
+  void updateMessageStats(String message);
+
+  long getReceivedRequests();
+
+  long getProcessedRequests();
+
+  long getCurrentLatency(String server);
+
+  ODistributedResponseManager getResponseManager(ODistributedRequestId reqId);
+
+  void registerRequest(final long id, final ODistributedResponseManager currentResponseMgr);
 }

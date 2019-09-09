@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,51 +15,39 @@
  */
 package com.orientechnologies.orient.test.database.auto;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.util.*;
-
-import com.orientechnologies.orient.core.record.impl.OBlob;
-import org.testng.Assert;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Optional;
-import org.testng.annotations.Parameters;
-import org.testng.annotations.Test;
-
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.db.object.OLazyObjectSetInterface;
-import com.orientechnologies.orient.core.db.record.ORecordLazyList;
-import com.orientechnologies.orient.core.db.record.ORecordLazyMap;
-import com.orientechnologies.orient.core.db.record.ORecordLazySet;
-import com.orientechnologies.orient.core.db.record.OTrackedList;
-import com.orientechnologies.orient.core.db.record.OTrackedMap;
-import com.orientechnologies.orient.core.db.record.OTrackedSet;
+import com.orientechnologies.orient.core.db.record.*;
 import com.orientechnologies.orient.core.exception.ODatabaseException;
 import com.orientechnologies.orient.core.exception.OSerializationException;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.metadata.security.OUser;
+import com.orientechnologies.orient.core.record.impl.OBlob;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.record.impl.ORecordBytes;
 import com.orientechnologies.orient.core.sql.OCommandSQLParsingException;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.orientechnologies.orient.core.tx.OTransaction.TXTYPE;
 import com.orientechnologies.orient.object.db.OObjectDatabasePool;
+import com.orientechnologies.orient.object.db.OObjectDatabaseTx;
 import com.orientechnologies.orient.object.iterator.OObjectIteratorClass;
 import com.orientechnologies.orient.test.domain.base.*;
-import com.orientechnologies.orient.test.domain.business.Account;
-import com.orientechnologies.orient.test.domain.business.Address;
-import com.orientechnologies.orient.test.domain.business.Child;
-import com.orientechnologies.orient.test.domain.business.City;
-import com.orientechnologies.orient.test.domain.business.Country;
+import com.orientechnologies.orient.test.domain.business.*;
 import com.orientechnologies.orient.test.domain.whiz.Profile;
+import org.testng.Assert;
+import org.testng.annotations.*;
+import org.testng.annotations.Optional;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.*;
 
 @Test(groups = { "crud", "object" })
 public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
   protected static final int TOT_RECORDS = 100;
-  protected long             startRecordNumber;
-  private City               rome        = new City(new Country("Italy"), "Rome");
+  protected long startRecordNumber;
+  private City rome = new City(new Country("Italy"), "Rome");
 
   @Parameters(value = "url")
   public CRUDObjectPhysicalTest(@Optional String url) {
@@ -196,7 +184,6 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
     long[] longArray = new long[10];
     double[] doubleArray = new double[10];
     float[] floatArray = new float[10];
-    byte[] byteArray = new byte[10];
     boolean[] booleanArray = new boolean[10];
     Date[] dateArray = new Date[10];
     Calendar cal = Calendar.getInstance();
@@ -212,14 +199,12 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
       longArray[i] = i;
       doubleArray[i] = i;
       floatArray[i] = i;
-      byteArray[i] = (byte) i;
       booleanArray[i] = (i % 2 == 0);
       enumerationArray[i] = (i % 2 == 0) ? EnumTest.ENUM2 : ((i % 3 == 0) ? EnumTest.ENUM3 : EnumTest.ENUM1);
       cal.set(Calendar.DAY_OF_MONTH, (i + 1));
       dateArray[i] = cal.getTime();
     }
     javaObj.setText(textArray);
-    javaObj.setByteSimple(byteArray);
     javaObj.setDateField(dateArray);
     javaObj.setDoubleSimple(doubleArray);
     javaObj.setEnumeration(enumerationArray);
@@ -235,7 +220,6 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
     Assert.assertNotNull(doc.field("longSimple"));
     Assert.assertNotNull(doc.field("doubleSimple"));
     Assert.assertNotNull(doc.field("floatSimple"));
-    Assert.assertNotNull(doc.field("byteSimple"));
     Assert.assertNotNull(doc.field("flagSimple"));
     Assert.assertNotNull(doc.field("dateField"));
 
@@ -252,7 +236,6 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
     Assert.assertNotNull(doc.field("longSimple"));
     Assert.assertNotNull(doc.field("doubleSimple"));
     Assert.assertNotNull(doc.field("floatSimple"));
-    Assert.assertNotNull(doc.field("byteSimple"));
     Assert.assertNotNull(doc.field("flagSimple"));
     Assert.assertNotNull(doc.field("dateField"));
 
@@ -261,7 +244,6 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
     Assert.assertEquals(loadedJavaObj.getLongSimple().length, 10);
     Assert.assertEquals(loadedJavaObj.getDoubleSimple().length, 10);
     Assert.assertEquals(loadedJavaObj.getFloatSimple().length, 10);
-    Assert.assertEquals(loadedJavaObj.getByteSimple().length, 10);
     Assert.assertEquals(loadedJavaObj.getFlagSimple().length, 10);
     Assert.assertEquals(loadedJavaObj.getEnumeration().length, 10);
     Assert.assertEquals(loadedJavaObj.getDateField().length, 10);
@@ -272,7 +254,6 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
       Assert.assertEquals(loadedJavaObj.getLongSimple()[i], i);
       Assert.assertEquals(loadedJavaObj.getDoubleSimple()[i], (double) i);
       Assert.assertEquals(loadedJavaObj.getFloatSimple()[i], (float) i);
-      Assert.assertEquals(loadedJavaObj.getByteSimple()[i], (byte) i);
       Assert.assertEquals(loadedJavaObj.getFlagSimple()[i], (i % 2 == 0));
       EnumTest enumCheck = (i % 2 == 0) ? EnumTest.ENUM2 : ((i % 3 == 0) ? EnumTest.ENUM3 : EnumTest.ENUM1);
       Assert.assertEquals(loadedJavaObj.getEnumeration()[i], enumCheck);
@@ -287,14 +268,12 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
       longArray[i] = j;
       doubleArray[i] = j;
       floatArray[i] = j;
-      byteArray[i] = (byte) j;
       booleanArray[i] = (j % 2 == 0);
       enumerationArray[i] = (j % 2 == 0) ? EnumTest.ENUM2 : ((j % 3 == 0) ? EnumTest.ENUM3 : EnumTest.ENUM1);
       cal.set(Calendar.DAY_OF_MONTH, (j + 1));
       dateArray[i] = cal.getTime();
     }
     loadedJavaObj.setText(textArray);
-    loadedJavaObj.setByteSimple(byteArray);
     loadedJavaObj.setDateField(dateArray);
     loadedJavaObj.setDoubleSimple(doubleArray);
     loadedJavaObj.setEnumeration(enumerationArray);
@@ -310,7 +289,6 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
     Assert.assertNotNull(doc.field("longSimple"));
     Assert.assertNotNull(doc.field("doubleSimple"));
     Assert.assertNotNull(doc.field("floatSimple"));
-    Assert.assertNotNull(doc.field("byteSimple"));
     Assert.assertNotNull(doc.field("flagSimple"));
     Assert.assertNotNull(doc.field("dateField"));
 
@@ -326,7 +304,6 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
     Assert.assertNotNull(doc.field("longSimple"));
     Assert.assertNotNull(doc.field("doubleSimple"));
     Assert.assertNotNull(doc.field("floatSimple"));
-    Assert.assertNotNull(doc.field("byteSimple"));
     Assert.assertNotNull(doc.field("flagSimple"));
     Assert.assertNotNull(doc.field("dateField"));
 
@@ -335,7 +312,6 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
     Assert.assertEquals(loadedJavaObj.getLongSimple().length, 10);
     Assert.assertEquals(loadedJavaObj.getDoubleSimple().length, 10);
     Assert.assertEquals(loadedJavaObj.getFloatSimple().length, 10);
-    Assert.assertEquals(loadedJavaObj.getByteSimple().length, 10);
     Assert.assertEquals(loadedJavaObj.getFlagSimple().length, 10);
     Assert.assertEquals(loadedJavaObj.getEnumeration().length, 10);
     Assert.assertEquals(loadedJavaObj.getDateField().length, 10);
@@ -347,7 +323,6 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
       Assert.assertEquals(loadedJavaObj.getLongSimple()[i], j);
       Assert.assertEquals(loadedJavaObj.getDoubleSimple()[i], (double) j);
       Assert.assertEquals(loadedJavaObj.getFloatSimple()[i], (float) j);
-      Assert.assertEquals(loadedJavaObj.getByteSimple()[i], (byte) j);
       Assert.assertEquals(loadedJavaObj.getFlagSimple()[i], (j % 2 == 0));
       EnumTest enumCheck = (j % 2 == 0) ? EnumTest.ENUM2 : ((j % 3 == 0) ? EnumTest.ENUM3 : EnumTest.ENUM1);
       Assert.assertEquals(loadedJavaObj.getEnumeration()[i], enumCheck);
@@ -367,9 +342,63 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
     Assert.assertTrue(((Collection<?>) doc.field("longSimple")).iterator().next() instanceof Long);
     Assert.assertTrue(((Collection<?>) doc.field("doubleSimple")).iterator().next() instanceof Double);
     Assert.assertTrue(((Collection<?>) doc.field("floatSimple")).iterator().next() instanceof Float);
-    Assert.assertTrue(((Collection<?>) doc.field("byteSimple")).iterator().next() instanceof Byte);
     Assert.assertTrue(((Collection<?>) doc.field("flagSimple")).iterator().next() instanceof Boolean);
     Assert.assertTrue(((Collection<?>) doc.field("dateField")).iterator().next() instanceof Date);
+
+    // TODO - remove this delete to test simple type collections JSON import/export
+    database.delete(id);
+  }
+
+  @Test(dependsOnMethods = "testSimpleTypes")
+  public void testBinaryDataType() {
+
+    JavaBinaryDataTestClass javaObj = database.newInstance(JavaBinaryDataTestClass.class);
+    byte[] bytes = new byte[10];
+    for (int i = 0; i < 10; i++) {
+      bytes[i] = (byte) i;
+    }
+
+    javaObj.setBinaryData(bytes);
+
+    String fieldName = "binaryData";
+    ODocument doc = database.getRecordByUserObject(javaObj, false);
+    Assert.assertNotNull(doc.field(fieldName));
+
+    JavaBinaryDataTestClass savedJavaObj = database.save(javaObj);
+    ORID id = database.getIdentity(savedJavaObj);
+    database.close();
+
+    database = OObjectDatabasePool.global().acquire(url, "admin", "admin");
+    JavaBinaryDataTestClass loadedJavaObj = database.load(id);
+    doc = database.getRecordByUserObject(loadedJavaObj, false);
+    Assert.assertNotNull(doc.field(fieldName));
+
+    Assert.assertEquals(loadedJavaObj.getBinaryData().length, 10);
+    Assert.assertEquals(loadedJavaObj.getBinaryData(), bytes);
+
+    for (int i = 0; i < 10; i++) {
+      int j = i + 10;
+      bytes[i] = (byte) j;
+    }
+    loadedJavaObj.setBinaryData(bytes);
+
+    doc = database.getRecordByUserObject(javaObj, false);
+    Assert.assertNotNull(doc.field(fieldName));
+
+    loadedJavaObj = database.save(loadedJavaObj);
+    database.close();
+
+    database = OObjectDatabasePool.global().acquire(url, "admin", "admin");
+    loadedJavaObj = database.load(id);
+    doc = database.getRecordByUserObject(loadedJavaObj, false);
+    Assert.assertNotNull(doc.field(fieldName));
+
+    Assert.assertEquals(loadedJavaObj.getBinaryData().length, 10);
+    Assert.assertEquals(loadedJavaObj.getBinaryData(), bytes);
+
+    database.close();
+
+    database = OObjectDatabasePool.global().acquire(url, "admin", "admin");
 
     // TODO - remove this delete to test simple type collections JSON import/export
     database.delete(id);
@@ -844,8 +873,9 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
       Child loadedC = it.next();
       Assert.assertTrue(database.getRecordByUserObject(loadedC, false).isEmbedded());
       Assert.assertTrue(loadedC instanceof Child);
-      Assert.assertTrue(loadedC.getName().equals("John") || loadedC.getName().equals("Jack") || loadedC.getName().equals("Bob")
-          || loadedC.getName().equals("Sam") || loadedC.getName().equals("Dean"));
+      Assert.assertTrue(
+          loadedC.getName().equals("John") || loadedC.getName().equals("Jack") || loadedC.getName().equals("Bob") || loadedC
+              .getName().equals("Sam") || loadedC.getName().equals("Dean"));
     }
   }
 
@@ -897,8 +927,9 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
       Child loadedC = loaded.getEmbeddedChildren().get(key);
       Assert.assertTrue(database.getRecordByUserObject(loadedC, false).isEmbedded());
       Assert.assertTrue(loadedC instanceof Child);
-      Assert.assertTrue(loadedC.getName().equals("John") || loadedC.getName().equals("Jack") || loadedC.getName().equals("Bob")
-          || loadedC.getName().equals("Sam") || loadedC.getName().equals("Dean"));
+      Assert.assertTrue(
+          loadedC.getName().equals("John") || loadedC.getName().equals("Jack") || loadedC.getName().equals("Bob") || loadedC
+              .getName().equals("Sam") || loadedC.getName().equals("Dean"));
     }
   }
 
@@ -1148,8 +1179,8 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
       Assert.assertTrue(reloaded.getChildren().containsKey("The Observer"));
       Assert.assertTrue(reloaded.getChildren().get("The Observer") != null);
       Assert.assertEquals(reloaded.getChildren().get("The Observer").getName(), "The Observer");
-      Assert.assertTrue(database.getIdentity(reloaded.getChildren().get("The Observer")).isPersistent()
-          && database.getIdentity(reloaded.getChildren().get("The Observer")).isValid());
+      Assert.assertTrue(database.getIdentity(reloaded.getChildren().get("The Observer")).isPersistent() && database
+          .getIdentity(reloaded.getChildren().get("The Observer")).isValid());
     }
   }
 
@@ -1213,8 +1244,8 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
       Assert.assertTrue(reloaded.getChildren().containsKey("The Observer"));
       Assert.assertTrue(reloaded.getChildren().get("The Observer") != null);
       Assert.assertEquals(reloaded.getChildren().get("The Observer").getName(), "The Observer");
-      Assert.assertTrue(database.getIdentity(reloaded.getChildren().get("The Observer")).isPersistent()
-          && database.getIdentity(reloaded.getChildren().get("The Observer")).isValid());
+      Assert.assertTrue(database.getIdentity(reloaded.getChildren().get("The Observer")).isPersistent() && database
+          .getIdentity(reloaded.getChildren().get("The Observer")).isValid());
     }
   }
 
@@ -1884,6 +1915,8 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
     ODocument testDocument = new ODocument();
     testDocument.field("testField", "testValue");
 
+    testDocument.save(database.getClusterNameById(database.getDefaultClusterId()));
+
     p.setDocument(testDocument);
 
     OBlob testRecordBytes = new ORecordBytes(
@@ -2102,7 +2135,7 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
   public void testUpdate() {
     int i = 0;
     Account a;
-    for (OObjectIteratorClass<Account> iterator = database.browseClass("Account"); iterator.hasNext();) {
+    for (OObjectIteratorClass<Account> iterator = database.browseClass("Account"); iterator.hasNext(); ) {
       iterator.setFetchPlan("*:1");
       a = iterator.next();
 
@@ -2148,10 +2181,12 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
   public void checkLazyLoadingOff() {
     database.setLazyLoading(false);
     for (Profile obj : database.browseClass(Profile.class).setFetchPlan("*:1")) {
-      Assert.assertTrue(!(obj.getFollowings() instanceof OLazyObjectSetInterface)
-          || ((OLazyObjectSetInterface<Profile>) obj.getFollowings()).isConverted());
-      Assert.assertTrue(!(obj.getFollowers() instanceof OLazyObjectSetInterface)
-          || ((OLazyObjectSetInterface<Profile>) obj.getFollowers()).isConverted());
+      Assert.assertTrue(
+          !(obj.getFollowings() instanceof OLazyObjectSetInterface) || ((OLazyObjectSetInterface<Profile>) obj.getFollowings())
+              .isConverted());
+      Assert.assertTrue(
+          !(obj.getFollowers() instanceof OLazyObjectSetInterface) || ((OLazyObjectSetInterface<Profile>) obj.getFollowers())
+              .isConverted());
       if (obj.getNick().equals("Neo")) {
         Assert.assertEquals(obj.getFollowers().size(), 0);
         Assert.assertEquals(obj.getFollowings().size(), 2);
@@ -2351,8 +2386,8 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
     database.getMetadata().getSchema().reload();
 
     Assert.assertTrue(database.query(new OSQLSynchQuery<Profile>("select from City where country.@class = 'Country'")).size() > 0);
-    Assert.assertEquals(database.query(new OSQLSynchQuery<Profile>("select from City where country.@class = 'Country22'")).size(),
-        0);
+    Assert
+        .assertEquals(database.query(new OSQLSynchQuery<Profile>("select from City where country.@class = 'Country22'")).size(), 0);
 
   }
 
@@ -2463,5 +2498,23 @@ public class CRUDObjectPhysicalTest extends ObjectDBBaseTest {
         .query(new OSQLSynchQuery<Profile>("select from Profile where @rid = ?"), result1.get(0).getId());
 
     Assert.assertTrue(result2.size() != 0);
+  }
+
+  @Test
+  public void queryByIdNewApi() {
+    OObjectDatabaseTx db = new OObjectDatabaseTx("memory:queryByIdNewApi");
+    db.create();
+    try {
+      db.getEntityManager().registerEntityClasses("com.orientechnologies.orient.test.domain.whiz");
+      db.command("insert into Profile set nick = 'foo', name='foo'");
+      List<Profile> result1 = db.objectQuery("select from Profile limit 1");
+
+      Assert.assertEquals(result1.size(), 1);
+      Assert.assertTrue(result1.get(0) instanceof Profile);
+      Profile profile = result1.get(0);
+      Assert.assertEquals(profile.getNick(), "foo");
+    }finally {
+      db.drop();
+    }
   }
 }

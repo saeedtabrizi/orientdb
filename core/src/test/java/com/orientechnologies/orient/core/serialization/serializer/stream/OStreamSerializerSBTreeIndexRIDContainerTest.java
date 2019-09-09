@@ -2,39 +2,38 @@ package com.orientechnologies.orient.core.serialization.serializer.stream;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
-import com.orientechnologies.orient.core.db.record.ridbag.sbtree.OIndexRIDContainer;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OWALChanges;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OWALChangesTree;
-import org.testng.Assert;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import com.orientechnologies.orient.core.storage.ridbag.sbtree.OIndexRIDContainer;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
-@Test
 public class OStreamSerializerSBTreeIndexRIDContainerTest {
   private ODatabaseDocumentTx                      database;
   private OStreamSerializerSBTreeIndexRIDContainer streamSerializerSBTreeIndexRIDContainer;
 
-  @BeforeClass
+  @Before
   public void beforeClass() {
     database = new ODatabaseDocumentTx("memory:" + this.getClass().getSimpleName());
     database.create();
     streamSerializerSBTreeIndexRIDContainer = new OStreamSerializerSBTreeIndexRIDContainer();
   }
 
-  @AfterClass
+  @After
   public void afterClass() {
     database.drop();
   }
 
   public void testSerializeInByteBufferEmbeddedNonDurable() {
-    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", false);
+    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", false, new AtomicLong(0));
 
     indexRIDContainer.setTopThreshold(100);
     for (int i = 0; i < 5; i++) {
@@ -73,7 +72,7 @@ public class OStreamSerializerSBTreeIndexRIDContainerTest {
   }
 
   public void testSerializeInByteBufferEmbeddedDurable() {
-    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", true);
+    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", true, new AtomicLong(0));
 
     indexRIDContainer.setTopThreshold(100);
     for (int i = 0; i < 5; i++) {
@@ -112,7 +111,7 @@ public class OStreamSerializerSBTreeIndexRIDContainerTest {
   }
 
   public void testSerializeInByteBufferNonEmbeddedNonDurable() {
-    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", false);
+    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", false, new AtomicLong(0));
 
     indexRIDContainer.setTopThreshold(1);
     for (int i = 0; i < 5; i++) {
@@ -151,7 +150,7 @@ public class OStreamSerializerSBTreeIndexRIDContainerTest {
   }
 
   public void testSerializeInByteBufferNonEmbeddedDurable() {
-    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", true);
+    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", true, new AtomicLong(0));
 
     indexRIDContainer.setTopThreshold(1);
     for (int i = 0; i < 5; i++) {
@@ -190,7 +189,7 @@ public class OStreamSerializerSBTreeIndexRIDContainerTest {
   }
 
   public void testSerializeWALChangesEmbeddedNonDurable() {
-    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", false);
+    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", false, new AtomicLong(0));
 
     indexRIDContainer.setTopThreshold(100);
     for (int i = 0; i < 5; i++) {
@@ -226,7 +225,7 @@ public class OStreamSerializerSBTreeIndexRIDContainerTest {
   }
 
   public void testSerializeWALChangesEmbeddedDurable() {
-    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", true);
+    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", true, new AtomicLong(0));
 
     indexRIDContainer.setTopThreshold(100);
     for (int i = 0; i < 5; i++) {
@@ -262,7 +261,7 @@ public class OStreamSerializerSBTreeIndexRIDContainerTest {
   }
 
   public void testSerializeWALChangesNonEmbeddedNonDurable() {
-    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", false);
+    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", false, new AtomicLong(0));
 
     indexRIDContainer.setTopThreshold(1);
     for (int i = 0; i < 5; i++) {
@@ -298,7 +297,7 @@ public class OStreamSerializerSBTreeIndexRIDContainerTest {
   }
 
   public void testSerializeWALChangesNonEmbeddedDurable() {
-    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", true);
+    final OIndexRIDContainer indexRIDContainer = new OIndexRIDContainer("test", true, new AtomicLong(0));
 
     indexRIDContainer.setTopThreshold(1);
     for (int i = 0; i < 5; i++) {
@@ -332,6 +331,5 @@ public class OStreamSerializerSBTreeIndexRIDContainerTest {
 
     Assert.assertEquals(newRids, storedRids);
   }
-
 
 }

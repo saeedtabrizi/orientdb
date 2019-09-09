@@ -1,111 +1,64 @@
-#!groovy
-stage 'Source checkout'
-node("openjdk-8-slave") {
+@Library(['piper-lib', 'piper-lib-os']) _
 
-    checkout scm
-    stash name: 'source', excludes: 'target/', includes: '**'
-}
+properties([[$class: 'BuildDiscarderProperty', strategy: [$class: 'LogRotator', numToKeepStr: '4']]]);
+
+node {
 
 
-stage 'Compile on Java7 and run tests on Java8'
-parallel(
-        java8: {
-            node("openjdk-8-slave") {
-                sh "rm -rf *"
-                unstash 'source'
+    stage('build')   {
+        sh "rm -rf *"
+        sh "cp /var/jenkins_home/uploadedContent/settings.xml ."
 
-                def mvnHome = tool 'mvn'
-                sh "${mvnHome}/bin/mvn  --batch-mode -V -U  clean install  -Dmaven.test.failure.ignore=true -Dsurefire.useFile=false"
-                step([$class: 'JUnitResultArchiver', testResults: '**/target/surefire-reports/TEST-*.xml'])
+        executeDocker(
+        dockerImage:'ldellaquila/maven-gradle-node-zulu-openjdk8:1.0.0',
+          dockerWorkspace: '/orientdb-${env.BRANCH_NAME}'
+          ) {
 
-                dir('distribution') {
-                    stash name: 'orientdb-tgz', includes: 'target/orientdb-community-*.tar.gz'
-                }
-            }
-        },
-        java7: {
-            node("openjdk-7-slave") {
-                sh "rm -rf *"
-                unstash 'source'
-                def mvnHome = tool 'mvn'
+          try{
+              sh "rm -rf orientdb-studio"
+              sh "rm -rf orientdb"
 
-                sh "${mvnHome}/bin/mvn --batch-mode -V -U clean compile  -Dmaven.test.failure.ignore=true"
-            }
-        }
-)
+            // needed after the release and tag change, otherwise Studio is not found on Sonatype
+              checkout(
+                    [$class: 'GitSCM', branches: [[name: "develop"]],
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [],
+                    submoduleCfg: [],
+                    extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'orientdb-studio']],
+                    userRemoteConfigs: [[url: 'https://github.com/orientechnologies/orientdb-studio']]])
 
-stage 'Build docker container'
-node("master") {
-    sh "rm -rf *"
-
-    dir("source") {
-        unstash 'source'
-    }
-    unstash 'orientdb-tgz'
-    sh "cp target/orientdb-community-*.tar.gz source/distribution/docker/"
-
-    docker.build("orientdb/orientdb-${env.BRANCH_NAME}:latest", "source/distribution/docker")
-
-}
-
-stage("Run JsClient integration tests")
-node("master") {
-
-    def odbImg = docker.image("orientdb/orientdb-${env.BRANCH_NAME}:latest")
-
-    def jsBuildImg = docker.image("orientdb/jenkins-slave-node-0.10:20160112")
+                checkout(
+                    [$class: 'GitSCM', branches: [[name: env.BRANCH_NAME]],
+                    doGenerateSubmoduleConfigurations: false,
+                    extensions: [],
+                    submoduleCfg: [],
+                    extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'orientdb']],
+                    userRemoteConfigs: [[url: 'https://github.com/orientechnologies/orientdb']]])
 
 
-    odbImg.withRun("-e ORIENTDB_ROOT_PASSWORD=root") { odb ->
-        jsBuildImg.inside("-v /home/orient/.npm:/home/jenkins/.npm:rw -v /home/orient/node_modules:/home/jenkins/node_modules:rw --link=${odb.id}:odb -e ORIENTDB_HOST=odb -e ORIENTDB_BIN_PORT=2424 -e ORIENTDB_HTTP_PORT=2480") {
-            git url: 'https://github.com/orientechnologies/orientjs.git', branch:"${env.BRANCH_NAME}"
-            sh "npm install"
-            sh "npm test"
+              withMaven(globalMavenSettingsFilePath: 'settings.xml') {
+                  sh "cd orientdb-studio && mvn clean install -DskipTests"
+                  sh "cd orientdb && mvn clean deploy"
+
+                  //TODO publish javadoc
+                  //sh "cd orientdb && mvn  javadoc:aggregate"
+                  //sh "cd orientdb && rsync -ra --stats ${WORKSPACE}/target/site/apidocs/ -e ${env.RSYNC_JAVADOC}/${env.BRANCH_NAME}/"
+              }
+
+              try{
+                  build job: "orientdb-gremlin-multibranch/${env.BRANCH_NAME}", wait: false
+                  build job: "orientdb-security-multibranch/${env.BRANCH_NAME}", wait: false
+                  build job: "orientdb-enterprise-multibranch/${env.BRANCH_NAME}", wait: false
+              } catch (ex){
+                  slackSend(color: '#FFAAAA', channel: '#jenkins-failures', message: "Error scheduling downstream builds: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})\n${ex}")
+              }
+
+          }catch(e){
+              slackSend(color: '#FF0000', channel: '#jenkins-failures', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})\n${e}")
+              throw e
+          }
+          slackSend(color: '#00FF00', channel: '#jenkins', message: "SUCCESS: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
         }
     }
 
 }
-
-
-stage 'Run CI profile, crash tests and distributed tests on java8'
-parallel(
-        ci: {
-            timeout(time: 180, unit: 'MINUTES') {
-                node("openjdk-8-slave") {
-                    sh "rm -rf *"
-                    unstash 'source'
-                    def mvnHome = tool 'mvn'
-                    sh "${mvnHome}/bin/mvn  - --batch-mode -V -U -e -Dmaven.test.failure.ignore=true  -Dstorage.diskCache.bufferSize=4096 -Dorientdb.test.env=ci clean package -Dsurefire.useFile=false"
-                    step([$class: 'JUnitResultArchiver', testResults: '**/target/surefire-reports/TEST-*.xml'])
-                }
-            }
-        },
-        crash: {
-            timeout(time: 60, unit: 'MINUTES') {
-                node("openjdk-8-slave") {
-                    sh "rm -rf *"
-                    unstash 'source'
-                    def mvnHome = tool 'mvn'
-                    dir('server') {
-                        sh "${mvnHome}/bin/mvn   --batch-mode -V -U -e -Dmaven.test.failure.ignore=true  clean test-compile failsafe:integration-test -Dsurefire.useFile=false"
-                        step([$class: 'JUnitResultArchiver', testResults: '**/target/surefire-reports/TEST-*.xml'])
-                    }
-                }
-            }
-        },
-        distributed: {
-            timeout(time: 60, unit: 'MINUTES') {
-                node("openjdk-8-slave") {
-                    sh "rm -rf *"
-                    unstash 'source'
-                    def mvnHome = tool 'mvn'
-                    dir('distributed') {
-                        sh "${mvnHome}/bin/mvn  --batch-mode -V -U -e -Dmaven.test.failure.ignore=true  clean package  -Dsurefire.useFile=false"
-                        step([$class: 'JUnitResultArchiver', testResults: '**/target/surefire-reports/TEST-*.xml'])
-                    }
-                }
-            }
-        }
-)
-
-

@@ -1,19 +1,25 @@
 package com.orientechnologies.orient.object.db;
 
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import com.orientechnologies.orient.core.sql.parser.OInteger;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 /**
  * Created by Anders Heintz on 20/06/15.
  */
 public class OObjectLazyListTest {
   private OObjectDatabaseTx databaseTx;
+  private int               count;
 
-  @BeforeClass protected void setUp() throws Exception {
+  @Before
+  public void setUp() throws Exception {
     databaseTx = new OObjectDatabaseTx("memory:OObjectEnumLazyListTest");
     databaseTx.create();
 
@@ -22,12 +28,14 @@ public class OObjectLazyListTest {
 
   }
 
-  @AfterClass protected void tearDown() {
+  @After
+  public void tearDown() {
 
     databaseTx.drop();
   }
 
-  @Test public void positionTest() {
+  @Test
+  public void positionTest() {
     EntityObjectWithList listObject = getTestObject();
 
     listObject = databaseTx.save(listObject);
@@ -42,7 +50,33 @@ public class OObjectLazyListTest {
     listObject = databaseTx.save(listObject);
 
     assert (listObject.getEntityObjects().get(0).getFieldValue().equals("NewObject"));
-    assert (listObject.getEntityObjects().get(listObject.getEntityObjects().size()-1).getFieldValue().equals("NewObject2"));
+    assert (listObject.getEntityObjects().get(listObject.getEntityObjects().size() - 1).getFieldValue().equals("NewObject2"));
+    listObject.getEntityObjects().stream().forEach((entityObject) -> {
+      assertNotNull(entityObject);
+    });
+  }
+
+  @Test
+  public void stream() {
+    EntityObjectWithList listObject = getTestObject();
+
+    listObject = databaseTx.save(listObject);
+
+    EntityObject newObject = new EntityObject();
+    newObject.setFieldValue("NewObject");
+    EntityObject newObject2 = new EntityObject();
+    newObject2.setFieldValue("NewObject2");
+    listObject.getEntityObjects().add(0, newObject);
+    listObject.getEntityObjects().add(listObject.getEntityObjects().size(), newObject2);
+
+    listObject = databaseTx.save(listObject);
+    count = 0;
+    listObject.getEntityObjects().stream().forEach((entityObject) -> {
+      assertNotNull(entityObject);
+      count++;
+    });
+
+    assertEquals(listObject.getEntityObjects().size(), count);
   }
 
   private EntityObjectWithList getTestObject() {
@@ -69,10 +103,10 @@ public class OObjectLazyListTest {
   }
 
   private static class EntityObjectWithList {
+    private List<EntityObject> entityObjects = new ArrayList<EntityObject>();
+
     public EntityObjectWithList() {
     }
-
-    private List<EntityObject> entityObjects = new ArrayList<EntityObject>();
 
     public List<EntityObject> getEntityObjects() {
       return entityObjects;
@@ -84,10 +118,10 @@ public class OObjectLazyListTest {
   }
 
   private static class EntityObject {
+    private String fieldValue = null;
+
     public EntityObject() {
     }
-
-    private String fieldValue = null;
 
     public String getFieldValue() {
       return fieldValue;

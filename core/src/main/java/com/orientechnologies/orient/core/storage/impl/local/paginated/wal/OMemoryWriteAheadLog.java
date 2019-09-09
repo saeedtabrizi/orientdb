@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,32 +14,35 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.orientechnologies.orient.core.storage.impl.local.paginated.wal;
 
-import com.orientechnologies.orient.core.storage.impl.local.OFullCheckpointRequestListener;
+import com.orientechnologies.orient.core.storage.impl.local.OCheckpointRequestListener;
+import com.orientechnologies.orient.core.storage.impl.local.OLowDiskSpaceListener;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.atomicoperations.OAtomicOperationMetadata;
+import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.cas.OWriteableWALRecord;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
- * @author Andrey Lomakin (a.lomakin-at-orientechnologies.com)
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 6/25/14
  */
 public class OMemoryWriteAheadLog extends OAbstractWriteAheadLog {
   @Override
-  public OLogSequenceNumber begin() throws IOException {
+  public OLogSequenceNumber begin() {
     throw new UnsupportedOperationException("Operation not supported for in memory storage.");
   }
 
   @Override
   public OLogSequenceNumber end() {
-    throw new UnsupportedOperationException("Operation not supported for in memory storage.");
+    return new OLogSequenceNumber(-1,-1);
   }
 
   @Override
@@ -58,13 +61,10 @@ public class OMemoryWriteAheadLog extends OAbstractWriteAheadLog {
   }
 
   @Override
-  public OLogSequenceNumber log(OWALRecord record) throws IOException {
+  public OLogSequenceNumber log(OWriteableWALRecord record) throws IOException {
     return new OLogSequenceNumber(Long.MAX_VALUE, Long.MAX_VALUE);
   }
 
-  @Override
-  public void truncate() throws IOException {
-  }
 
   @Override
   public void close() throws IOException {
@@ -79,17 +79,12 @@ public class OMemoryWriteAheadLog extends OAbstractWriteAheadLog {
   }
 
   @Override
-  public void delete(boolean flush) throws IOException {
+  public List<OWriteableWALRecord> read(OLogSequenceNumber lsn, int limit) throws IOException {
     throw new UnsupportedOperationException("Operation not supported for in memory storage.");
   }
 
   @Override
-  public OWALRecord read(OLogSequenceNumber lsn) throws IOException {
-    throw new UnsupportedOperationException("Operation not supported for in memory storage.");
-  }
-
-  @Override
-  public OLogSequenceNumber next(OLogSequenceNumber lsn) throws IOException {
+  public List<OWriteableWALRecord> next(OLogSequenceNumber lsn, int limit) throws IOException {
     throw new UnsupportedOperationException("Operation not supported for in memory storage.");
   }
 
@@ -99,15 +94,16 @@ public class OMemoryWriteAheadLog extends OAbstractWriteAheadLog {
   }
 
   @Override
-  public void cutTill(OLogSequenceNumber lsn) throws IOException {
+  public boolean cutTill(OLogSequenceNumber lsn) throws IOException {
+    return false;
   }
 
   @Override
-  public void addFullCheckpointListener(OFullCheckpointRequestListener listener) {
+  public void addFullCheckpointListener(OCheckpointRequestListener listener) {
   }
 
   @Override
-  public void removeFullCheckpointListener(OFullCheckpointRequestListener listener) {
+  public void removeFullCheckpointListener(OCheckpointRequestListener listener) {
   }
 
   @Override
@@ -115,7 +111,13 @@ public class OMemoryWriteAheadLog extends OAbstractWriteAheadLog {
   }
 
   @Override
-  public void preventCutTill(OLogSequenceNumber lsn) throws IOException {
+  public void addCutTillLimit(OLogSequenceNumber lsn) {
+
+  }
+
+  @Override
+  public void removeCutTillLimit(OLogSequenceNumber lsn) {
+
   }
 
   @Override
@@ -124,11 +126,40 @@ public class OMemoryWriteAheadLog extends OAbstractWriteAheadLog {
   }
 
   @Override
+  public long[] nonActiveSegments() {
+    return new long[0];
+  }
+
+  @Override
   public long activeSegment() {
     return 0;
   }
 
   @Override
-  public void newSegment() throws IOException {
+  public void addLowDiskSpaceListener(OLowDiskSpaceListener listener) {
+  }
+
+  @Override
+  public void removeLowDiskSpaceListener(OLowDiskSpaceListener listener) {
+  }
+
+  @Override
+  public OLogSequenceNumber begin(long segmentId) {
+    throw new UnsupportedOperationException("Operation not supported for in memory storage.");
+  }
+
+  @Override
+  public boolean cutAllSegmentsSmallerThan(long segmentId) {
+    return false;
+  }
+
+  @Override
+  public void addEventAt(OLogSequenceNumber lsn, Runnable event) {
+    event.run();
+  }
+
+  @Override
+  public boolean appendNewSegment() {
+    return false;
   }
 }

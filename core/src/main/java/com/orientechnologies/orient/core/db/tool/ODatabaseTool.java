@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,28 +14,28 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.db.tool;
 
-import java.util.Collections;
-import java.util.List;
-
 import com.orientechnologies.common.io.OIOUtils;
 import com.orientechnologies.orient.core.command.OCommandOutputListener;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.serialization.serializer.OStringSerializerHelper;
+
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Base class for tools related to databases.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public abstract class ODatabaseTool implements Runnable {
-  protected OCommandOutputListener output;
-  protected ODatabaseDocumentTx    database;
-  protected boolean verbose = false;
+  protected OCommandOutputListener    output;
+  protected ODatabaseDocumentInternal database;
+  protected boolean                   verbose = false;
 
   protected abstract void parseSetting(final String option, final List<String> items);
 
@@ -67,8 +67,8 @@ public abstract class ODatabaseTool implements Runnable {
     return this;
   }
 
-  public ODatabaseTool setDatabase(final ODatabaseDocumentTx iDatabase) {
-    database = iDatabase;
+  public ODatabaseTool setDatabase(final ODatabaseDocumentInternal database) {
+    this.database = database;
     return this;
   }
 

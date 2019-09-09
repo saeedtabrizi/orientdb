@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 Orient Technologies.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  * Copyright 2012 Geomatys.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -19,22 +19,19 @@ package com.orientechnologies.common.console;
 import com.orientechnologies.common.console.annotation.ConsoleCommand;
 
 /**
- * Commun interface for addtitional console commands.
- * Instances of this class are discovered throught serviceLoaders.
- * It should be declared in file : 
- * META-INF/services/com.orientechnologies.common.console.OConsoleCommandCollection
- * 
- * This interface is empty, all wanted commands are expected to be annoted with
- * {@link ConsoleCommand}.
- * 
+ * Commun interface for addtitional console commands. Instances of this class are discovered throught serviceLoaders. It should be
+ * declared in file : META-INF/services/com.orientechnologies.common.console.OConsoleCommandCollection
+ * <p>
+ * This interface is empty, all wanted commands are expected to be annoted with {@link ConsoleCommand}.
+ *
  * @author Johann Sorel (Geomatys)
  */
 public abstract class OConsoleCommandCollection {
-    
-    protected OConsoleApplication context;
-    
-    void setContext(OConsoleApplication context){
-        this.context = context;
-    }
-    
+
+  protected OConsoleApplication context;
+
+  void setContext(OConsoleApplication context) {
+    this.context = context;
+  }
+
 }

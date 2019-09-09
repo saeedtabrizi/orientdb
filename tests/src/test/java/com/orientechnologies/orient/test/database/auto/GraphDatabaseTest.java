@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,6 +82,7 @@ public class GraphDatabaseTest extends DocumentDBBaseTest {
       Assert.assertTrue(v.getSchemaClass().isSubClassOf(vehicleClass));
     }
 
+    database.commit();
     database.shutdown();
 
     database = new OrientGraph(url);
@@ -106,6 +107,7 @@ public class GraphDatabaseTest extends DocumentDBBaseTest {
         edge2 = database.getVertex(v).getEdges(Direction.IN).iterator().next();
       }
     }
+    database.commit();
 
     Assert.assertEquals(edge1, edge2);
   }
@@ -320,17 +322,21 @@ public class GraphDatabaseTest extends DocumentDBBaseTest {
         return iArgument.getRawGraph().getMetadata().getSchema().createClass("NonVertex");
       }
     });
-    Vertex vertex = database.addVertex(null, "name", "vertexWithEmbedded");
+    Vertex vertex = database.addVertex("class:V", "name", "vertexWithEmbedded");
     ODocument doc = new ODocument();
     doc.field("foo", "bar");
+    doc.save(database.getRawGraph().getClusterNameById(database.getRawGraph().getDefaultClusterId()));
+
+
     vertex.setProperty("emb1", doc);
 
+
     ODocument doc2 = new ODocument("V");
-    doc2.field("foo", "bar");
+    doc2.field("foo", "bar1");
     vertex.setProperty("emb2", doc2);
 
     ODocument doc3 = new ODocument("NonVertex");
-    doc3.field("foo", "bar");
+    doc3.field("foo", "bar2");
     vertex.setProperty("emb3", doc3);
 
     Object res1 = vertex.getProperty("emb1");

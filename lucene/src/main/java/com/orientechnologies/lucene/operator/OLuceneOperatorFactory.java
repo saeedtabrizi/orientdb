@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Orient Technologies.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,23 +19,22 @@ package com.orientechnologies.lucene.operator;
 import com.orientechnologies.orient.core.sql.operator.OQueryOperator;
 import com.orientechnologies.orient.core.sql.operator.OQueryOperatorFactory;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
 public class OLuceneOperatorFactory implements OQueryOperatorFactory {
 
-  public static final Set<OQueryOperator> OPERATORS;
+  private final Set<OQueryOperator> operators;
 
-  static {
-    final Set<OQueryOperator> operators = new HashSet<OQueryOperator>();
+  public OLuceneOperatorFactory() {
+    operators = new HashSet<OQueryOperator>();
 
     operators.add(new OLuceneTextOperator());
-    OPERATORS = Collections.unmodifiableSet(operators);
+
   }
 
   @Override
   public Set<OQueryOperator> getOperators() {
-    return OPERATORS;
+    return operators;
   }
 }

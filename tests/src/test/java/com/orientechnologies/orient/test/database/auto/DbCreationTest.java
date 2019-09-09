@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +16,18 @@
 package com.orientechnologies.orient.test.database.auto;
 
 import com.orientechnologies.orient.client.db.ODatabaseHelper;
-import com.orientechnologies.orient.client.remote.OEngineRemote;
 import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
+import com.orientechnologies.orient.core.db.ODatabase;
 import com.orientechnologies.orient.core.db.OPartitionedDatabasePool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.exception.ODatabaseException;
 import com.orientechnologies.orient.core.exception.OStorageException;
+import com.orientechnologies.orient.core.exception.OStorageExistsException;
 import com.orientechnologies.orient.core.metadata.security.ORole;
-import com.orientechnologies.orient.core.metadata.security.OSecurityNull;
+import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.orientechnologies.orient.object.db.OObjectDatabaseTx;
 import com.tinkerpop.blueprints.impls.orient.OrientGraphFactory;
@@ -33,6 +35,7 @@ import com.tinkerpop.blueprints.impls.orient.OrientGraphNoTx;
 import org.testng.Assert;
 import org.testng.annotations.*;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Locale;
 
@@ -58,6 +61,7 @@ public class DbCreationTest extends ObjectDBBaseTest {
   @AfterClass
   @Override
   public void afterClass() throws Exception {
+    pool.close();
   }
 
   @BeforeMethod
@@ -70,31 +74,13 @@ public class DbCreationTest extends ObjectDBBaseTest {
   public void afterMethod() throws Exception {
   }
 
-  public void testDbCreationNoSecurity() throws IOException {
-    if (!url.startsWith(OEngineRemote.NAME)) {
-      ODatabaseDocument db = new ODatabaseDocumentTx(url);
-      db.setProperty("security", OSecurityNull.class);
-
-      ODatabaseHelper.dropDatabase(db, "server", getStorageType());
-      ODatabaseHelper.createDatabase(db, url, getStorageType());
-      ODatabaseHelper.dropDatabase(db, "server", getStorageType());
-
-      database = new OObjectDatabaseTx(url);
-      database.setProperty("security", OSecurityNull.class);
-
-      ODatabaseHelper.dropDatabase(database, "server", getStorageType());
-      ODatabaseHelper.createDatabase(database, url, getStorageType());
-      ODatabaseHelper.dropDatabase(database, "server", getStorageType());
-    }
-  }
-
   @AfterMethod
   public void tearDown() {
     if (url.contains("remote:"))
       ODatabaseDocumentPool.global().close();
   }
 
-  @Test(dependsOnMethods = { "testDbCreationNoSecurity" })
+  @Test
   public void testDbCreationDefault() throws IOException {
     if (ODatabaseHelper.existsDatabase(url))
       ODatabaseHelper.dropDatabase(new OObjectDatabaseTx(url), url, getStorageType());
@@ -133,9 +119,15 @@ public class DbCreationTest extends ObjectDBBaseTest {
   public void testChangeLocale() throws IOException {
     database = new OObjectDatabaseTx(url);
     database.open("admin", "admin");
-    database.getStorage().getConfiguration().setLocaleLanguage(Locale.ENGLISH.getLanguage());
-    database.getStorage().getConfiguration().setLocaleCountry(Locale.ENGLISH.getCountry());
-    database.getStorage().getConfiguration().update();
+    database.command(new OCommandSQL(" ALTER DATABASE LOCALELANGUAGE  ?")).execute(Locale.GERMANY.getLanguage());
+    database.command(new OCommandSQL(" ALTER DATABASE LOCALECOUNTRY  ?")).execute(Locale.GERMANY.getCountry());
+    database.reload();
+    Assert.assertEquals(database.get(ODatabase.ATTRIBUTES.LOCALELANGUAGE), Locale.GERMANY.getLanguage());
+    Assert.assertEquals(database.get(ODatabase.ATTRIBUTES.LOCALECOUNTRY), Locale.GERMANY.getCountry());
+    database.set(ODatabase.ATTRIBUTES.LOCALECOUNTRY, Locale.ENGLISH.getCountry());
+    database.set(ODatabase.ATTRIBUTES.LOCALELANGUAGE, Locale.ENGLISH.getLanguage());
+    Assert.assertEquals(database.get(ODatabase.ATTRIBUTES.LOCALECOUNTRY), Locale.ENGLISH.getCountry());
+    Assert.assertEquals(database.get(ODatabase.ATTRIBUTES.LOCALELANGUAGE), Locale.ENGLISH.getLanguage());
     database.close();
   }
 
@@ -202,6 +194,9 @@ public class DbCreationTest extends ObjectDBBaseTest {
 
     ODatabaseHelper.createDatabase(db, url, getStorageType());
 
+    if (pool != null) {
+      pool.close();
+    }
     pool = new OPartitionedDatabasePool(url, "admin", "admin");
 
     // Get connection from pool
@@ -224,7 +219,9 @@ public class DbCreationTest extends ObjectDBBaseTest {
       ODatabaseHelper.createDatabase(db, url, getStorageType());
       db.close();
     }
-
+    if (pool != null) {
+      pool.close();
+    }
     pool = new OPartitionedDatabasePool(url, "admin", "admin");
 
     for (int i = 0; i < 500; i++) {
@@ -284,6 +281,33 @@ public class DbCreationTest extends ObjectDBBaseTest {
     OrientGraphNoTx db = factory.getNoTx();
     db.drop();
     OGlobalConfiguration.STORAGE_COMPRESSION_METHOD.setValue(OGlobalConfiguration.STORAGE_COMPRESSION_METHOD.getValue());
+  }
+
+  public void testDbIsNotRemovedOnSecondTry() {
+    final String buildDirectory = new File(System.getProperty("buildDirectory", ".")).getAbsolutePath();
+    final String dbPath = buildDirectory + File.separator + this.getClass().getSimpleName() + "Remove";
+    final String dburl = "plocal:" + dbPath;
+
+    ODatabaseDocumentTx db = new ODatabaseDocumentTx(dburl);
+    db.create();
+    db.close();
+
+    Assert.assertTrue(new File(dbPath).exists());
+
+    final ODatabaseDocumentTx dbTwo = new ODatabaseDocumentTx(dburl);
+    try {
+      dbTwo.create();
+      Assert.fail();
+    } catch (ODatabaseException e) {
+      //ignore all is correct
+    }
+
+    Assert.assertTrue(new File(dbPath).exists());
+
+    db = new ODatabaseDocumentTx(dburl);
+
+    db.open("admin", "admin");
+    db.drop();
   }
 
   public void testDbOutOfPath() throws IOException {

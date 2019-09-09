@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +16,13 @@
 package com.orientechnologies.orient.test.database.auto;
 
 import com.orientechnologies.common.concur.ONeedRetryException;
-import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.tx.OTransaction.TXTYPE;
-import com.orientechnologies.orient.enterprise.channel.binary.OResponseProcessingException;
+import org.junit.Ignore;
 import org.testng.Assert;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Optional;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
@@ -39,9 +36,9 @@ public class ConcurrentUpdatesTest extends DocumentDBBaseTest {
   private final static int PESSIMISTIC_CYCLES = 100;
   private final static int THREADS            = 10;
 
-  private final AtomicLong counter            = new AtomicLong();
-  private final AtomicLong totalRetries       = new AtomicLong();
-  private boolean          mvccEnabled;
+  private final AtomicLong counter      = new AtomicLong();
+  private final AtomicLong totalRetries = new AtomicLong();
+  private boolean mvccEnabled;
 
   @Parameters(value = "url")
   public ConcurrentUpdatesTest(@Optional String url) {
@@ -50,8 +47,8 @@ public class ConcurrentUpdatesTest extends DocumentDBBaseTest {
 
   class OptimisticUpdateField implements Runnable {
 
-    ORID   rid1;
-    ORID   rid2;
+    ORID rid1;
+    ORID rid2;
     String fieldValue = null;
     String threadName;
     String url;
@@ -112,7 +109,7 @@ public class ConcurrentUpdatesTest extends DocumentDBBaseTest {
   }
 
   class PessimisticUpdate implements Runnable {
-    String  fieldValue = null;
+    String fieldValue = null;
     ORID    rid;
     String  threadName;
     boolean lock;
@@ -170,19 +167,6 @@ public class ConcurrentUpdatesTest extends DocumentDBBaseTest {
     }
   }
 
-  @BeforeClass
-  public void init() {
-    mvccEnabled = OGlobalConfiguration.DB_MVCC.getValueAsBoolean();
-
-    if (!mvccEnabled)
-      OGlobalConfiguration.DB_MVCC.setValue(true);
-  }
-
-  @AfterClass
-  public void deinit() {
-    OGlobalConfiguration.DB_MVCC.setValue(mvccEnabled);
-  }
-
   @Test
   public void concurrentOptimisticUpdates() throws Exception {
     counter.set(0);
@@ -192,12 +176,12 @@ public class ConcurrentUpdatesTest extends DocumentDBBaseTest {
 
     ODocument doc1 = database.newInstance();
     doc1.field("INIT", "ok");
-    database.save(doc1);
+    database.save(doc1, database.getClusterNameById(database.getDefaultClusterId()));
     ORID rid1 = doc1.getIdentity();
 
     ODocument doc2 = database.newInstance();
     doc2.field("INIT", "ok");
-    database.save(doc2);
+    database.save(doc2, database.getClusterNameById(database.getDefaultClusterId()));
     ORID rid2 = doc2.getIdentity();
 
     OptimisticUpdateField[] ops = new OptimisticUpdateField[THREADS];
@@ -234,7 +218,7 @@ public class ConcurrentUpdatesTest extends DocumentDBBaseTest {
     database.close();
   }
 
-  @Test
+  @Test(enabled = false)
   public void concurrentPessimisticSQLUpdates() throws Exception {
     sqlUpdate(true);
   }
@@ -252,7 +236,7 @@ public class ConcurrentUpdatesTest extends DocumentDBBaseTest {
 
     ODocument doc1 = database.newInstance();
     doc1.field("total", 0);
-    database.save(doc1);
+    database.save(doc1, database.getClusterNameById(database.getDefaultClusterId()));
     ORID rid1 = doc1.getIdentity();
 
     PessimisticUpdate[] ops = new PessimisticUpdate[THREADS];
@@ -272,7 +256,7 @@ public class ConcurrentUpdatesTest extends DocumentDBBaseTest {
     Assert.assertEquals(counter.get(), PESSIMISTIC_CYCLES * THREADS);
 
     doc1 = database.load(rid1, null, true);
-    Assert.assertEquals(doc1.field("total"), PESSIMISTIC_CYCLES * THREADS);
+    Assert.assertEquals(doc1.<Object>field("total"), PESSIMISTIC_CYCLES * THREADS);
 
     database.close();
 

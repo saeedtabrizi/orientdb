@@ -1,13 +1,12 @@
 package com.orientechnologies.orient.core.sql.parser;
 
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 
-import static org.testng.Assert.fail;
+import static org.junit.Assert.fail;
 
-@Test
 public class OMatchStatementTest {
 
   protected SimpleNode checkRightSyntax(String query) {
@@ -91,7 +90,6 @@ public class OMatchStatementTest {
     query.append("   where: (name = 'foo' and surname = 'bar' or aaa in [1,2,3]), ");
     query.append("   maxDepth: 10 ");
     query.append("} return foo");
-    System.out.println(query);
     checkRightSyntax(query.toString());
   }
 
@@ -104,7 +102,6 @@ public class OMatchStatementTest {
     query.append("   where: (name = 'foo' and surname = 'bar' or aaa in [1,2,3]), ");
     query.append("   maxDepth: 10 ");
     query.append("} return foo");
-    System.out.println(query);
     checkRightSyntax(query.toString());
   }
 
@@ -113,7 +110,6 @@ public class OMatchStatementTest {
     StringBuilder query = new StringBuilder();
     query.append("MATCH {}");
     query.append("  .(out().in(){class:'v'}.both('Foo')){maxDepth: 3}.out() return foo");
-    System.out.println(query);
     checkRightSyntax(query.toString());
   }
 
@@ -122,7 +118,6 @@ public class OMatchStatementTest {
     StringBuilder query = new StringBuilder();
     query.append("MATCH {}");
     query.append("  .(-->{}<--{class:'v'}--){maxDepth: 3}-->{} return foo");
-    System.out.println(query);
     checkRightSyntax(query.toString());
   }
 
@@ -141,7 +136,6 @@ public class OMatchStatementTest {
     query += " {class: 'V', as: foo}-->{class: 'V', as: bar} RETURN foo";
     checkRightSyntax(query);
   }
-
 
   @Test
   public void testWhile() {
@@ -163,16 +157,71 @@ public class OMatchStatementTest {
     checkRightSyntax("MATCH {class: 'V'} RETURN {'name':'foo', 'value': bar}");
   }
 
+  @Test
+  public void testOptional() {
+    checkRightSyntax("MATCH {class: 'V', as: foo}-->{}<-foo-{}-bar-{}-->{as: bar, optional:true} RETURN foo");
+    checkRightSyntax("MATCH {class: 'V', as: foo}-->{}<-foo-{}-bar-{}-->{as: bar, optional:false} RETURN foo");
+  }
 
-  private void printTree(String s) {
-    OrientSql osql = getParserFor(s);
-    try {
-      SimpleNode n = osql.parse();
+  @Test
+  public void testOrderBy() {
+    checkRightSyntax("MATCH {class: 'V', as: foo}-->{} RETURN foo ORDER BY foo");
+    checkRightSyntax("MATCH {class: 'V', as: foo}-->{} RETURN foo ORDER BY foo limit 10");
+  }
 
-    } catch (ParseException e) {
-      e.printStackTrace();
-    }
 
+  @Test
+  public void testNestedProjections() {
+    checkRightSyntax("MATCH {class: 'V', as: foo}-->{} RETURN foo:{name, surname}");
+    checkRightSyntax("MATCH {class: 'V', as: foo}-->{as:bar} RETURN foo:{name, surname} as bloo, bar:{*}");
+  }
+
+  @Test
+  public void testUnwind() {
+    checkRightSyntax("MATCH {class: 'V', as: foo}-->{as:bar} RETURN foo.name, bar.name as x unwind x");
+
+  }
+
+  @Test
+  public void testDepthAlias() {
+    checkRightSyntax("MATCH {class: 'V', as: foo}-->{as:bar, while:($depth < 2), depthAlias: depth} RETURN depth");
+
+  }
+
+  @Test
+  public void testPathAlias() {
+    checkRightSyntax("MATCH {class: 'V', as: foo}-->{as:bar, while:($depth < 2), pathAlias: barPath} RETURN barPath");
+
+  }
+
+  @Test
+  public void testClusterTarget() {
+    checkRightSyntax("MATCH {cluster:v, as: foo} RETURN $elements");
+    checkRightSyntax("MATCH {cluster:12, as: foo} RETURN $elements");
+    checkRightSyntax("MATCH {cluster: v, as: foo} RETURN $elements");
+    checkRightSyntax("MATCH {cluster: `v`, as: foo} RETURN $elements");
+    checkRightSyntax("MATCH {cluster:`v`, as: foo} RETURN $elements");
+    checkRightSyntax("MATCH {cluster: 12, as: foo} RETURN $elements");
+
+    checkWrongSyntax("MATCH {cluster: 12.1, as: foo} RETURN $elements");
+  }
+
+  @Test
+  public void testNot() {
+    checkRightSyntax("MATCH {cluster:v, as: foo}, NOT {as:foo}-->{as:bar} RETURN $elements");
+  }
+
+  @Test
+  public void testSkip() {
+    checkRightSyntax("MATCH {class: 'V', as: foo}-->{as:bar} RETURN foo.name, bar.name skip 10 limit 10");
+  }
+
+  @Test
+  public void testFieldTraversal() {
+    checkRightSyntax("MATCH {class: 'V', as: foo}.toBar{as:bar} RETURN foo.name, bar.name skip 10 limit 10");
+    checkRightSyntax("MATCH {class: 'V', as: foo}.toBar{as:bar}.out(){as:c} RETURN foo.name, bar.name skip 10 limit 10");
+    checkRightSyntax("MATCH {class: 'V', as: foo}.toBar.baz{as:bar} RETURN foo.name, bar.name skip 10 limit 10");
+    checkRightSyntax("MATCH {class: 'V', as: foo}.toBar.out(){as:bar} RETURN foo.name, bar.name skip 10 limit 10");
   }
 
   protected OrientSql getParserFor(String string) {

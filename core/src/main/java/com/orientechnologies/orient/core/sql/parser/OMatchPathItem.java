@@ -4,6 +4,9 @@ package com.orientechnologies.orient.core.sql.parser;
 
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
+import com.orientechnologies.orient.core.metadata.schema.OClass;
+import com.orientechnologies.orient.core.record.ORecord;
+import com.orientechnologies.orient.core.record.impl.ODocument;
 
 import java.util.*;
 
@@ -19,7 +22,9 @@ public class OMatchPathItem extends SimpleNode {
     super(p, id);
   }
 
-  /** Accept the visitor. **/
+  /**
+   * Accept the visitor.
+   **/
   public Object jjtAccept(OrientSqlVisitor visitor, Object data) {
     return visitor.visit(this, data);
   }
@@ -29,6 +34,9 @@ public class OMatchPathItem extends SimpleNode {
       return false;
     }
     if (filter.getMaxDepth() != null) {
+      return false;
+    }
+    if (filter.isOptional()) {
       return false;
     }
     return method.isBidirectional();
@@ -41,16 +49,19 @@ public class OMatchPathItem extends SimpleNode {
     }
   }
 
-  protected Iterable<OIdentifiable> executeTraversal(OMatchStatement.MatchContext matchContext, OCommandContext iCommandContext,
+  public Iterable<OIdentifiable> executeTraversal(OMatchStatement.MatchContext matchContext, OCommandContext iCommandContext,
       OIdentifiable startingPoint, int depth) {
 
     OWhereClause filter = null;
     OWhereClause whileCondition = null;
     Integer maxDepth = null;
+    OClass oClass = null;
     if (this.filter != null) {
       filter = this.filter.getFilter();
       whileCondition = this.filter.getWhileCondition();
       maxDepth = this.filter.getMaxDepth();
+      String className = this.filter.getClassName(iCommandContext);
+      oClass = getDatabase().getMetadata().getSchema().getClass(className);
     }
 
     Set<OIdentifiable> result = new HashSet<OIdentifiable>();
@@ -63,10 +74,11 @@ public class OMatchPathItem extends SimpleNode {
         return queryResult;
       }
 
+
       for (OIdentifiable origin : queryResult) {
         Object previousMatch = iCommandContext.getVariable("$currentMatch");
         iCommandContext.setVariable("$currentMatch", origin);
-        if (filter == null || filter.matchesFilters(origin, iCommandContext)) {
+        if ((oClass==null || matchesClass(origin, oClass)) && (filter == null || filter.matchesFilters(origin, iCommandContext))) {
           result.add(origin);
         }
         iCommandContext.setVariable("$currentMatch", previousMatch);
@@ -75,12 +87,12 @@ public class OMatchPathItem extends SimpleNode {
       iCommandContext.setVariable("$depth", depth);
       Object previousMatch = iCommandContext.getVariable("$currentMatch");
       iCommandContext.setVariable("$currentMatch", startingPoint);
-      if (filter == null || filter.matchesFilters(startingPoint, iCommandContext)) {
+      if ((oClass==null || matchesClass(startingPoint, oClass)) && (filter == null || filter.matchesFilters(startingPoint, iCommandContext))) {
         result.add(startingPoint);
       }
 
-      if ((maxDepth == null || depth < maxDepth)
-          && (whileCondition == null || whileCondition.matchesFilters(startingPoint, iCommandContext))) {
+      if ((maxDepth == null || depth < maxDepth) && (whileCondition == null || whileCondition
+          .matchesFilters(startingPoint, iCommandContext))) {
 
         Iterable<OIdentifiable> queryResult = traversePatternEdge(matchContext, startingPoint, iCommandContext);
 
@@ -101,21 +113,88 @@ public class OMatchPathItem extends SimpleNode {
     return result;
   }
 
+  private boolean matchesClass(OIdentifiable identifiable, OClass oClass) {
+    if (identifiable == null) {
+      return false;
+    }
+    ORecord record = identifiable.getRecord();
+    if (record == null) {
+      return false;
+    }
+    if (record instanceof ODocument) {
+      return ((ODocument) record).getSchemaClass().isSubClassOf(oClass);
+    }
+    return false;
+  }
+
+
   protected Iterable<OIdentifiable> traversePatternEdge(OMatchStatement.MatchContext matchContext, OIdentifiable startingPoint,
       OCommandContext iCommandContext) {
 
     Iterable possibleResults = null;
-    if(filter!=null) {
+    if (filter != null) {
       OIdentifiable matchedNode = matchContext.matched.get(filter.getAlias());
       if (matchedNode != null) {
         possibleResults = Collections.singleton(matchedNode);
+      } else if (matchContext.matched.containsKey(filter.getAlias())) {
+        possibleResults = Collections.emptySet();//optional node, the matched element is a null value
       } else {
         possibleResults = matchContext.candidates == null ? null : matchContext.candidates.get(filter.getAlias());
       }
     }
 
     Object qR = this.method.execute(startingPoint, possibleResults, iCommandContext);
-    return (qR instanceof Iterable) ? (Iterable) qR : Collections.singleton(qR);
+    return (qR instanceof Iterable && !(qR instanceof ODocument)) ? (Iterable) qR : Collections.singleton((OIdentifiable) qR);
+  }
+
+  @Override public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OMatchPathItem that = (OMatchPathItem) o;
+
+    if (method != null ? !method.equals(that.method) : that.method != null)
+      return false;
+    if (filter != null ? !filter.equals(that.filter) : that.filter != null)
+      return false;
+
+    return true;
+  }
+
+  @Override public int hashCode() {
+    int result = method != null ? method.hashCode() : 0;
+    result = 31 * result + (filter != null ? filter.hashCode() : 0);
+    return result;
+  }
+
+  @Override public OMatchPathItem copy() {
+    OMatchPathItem result = null;
+    try {
+      result = getClass().getConstructor(Integer.TYPE).newInstance(-1);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+    result.method = method == null ? null : method.copy();
+    result.filter = filter == null ? null : filter.copy();
+    return result;
+  }
+
+  public OMethodCall getMethod() {
+    return method;
+  }
+
+  public void setMethod(OMethodCall method) {
+    this.method = method;
+  }
+
+  public OMatchFilter getFilter() {
+    return filter;
+  }
+
+  public void setFilter(OMatchFilter filter) {
+    this.filter = filter;
   }
 }
 /* JavaCC - OriginalChecksum=ffe8e0ffde583d7b21c9084eff6a8944 (do not edit this line) */

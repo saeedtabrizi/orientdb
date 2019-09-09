@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,16 +14,10 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.graph.sql;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import com.orientechnologies.common.util.OPair;
 import com.orientechnologies.orient.core.command.OCommandDistributedReplicateRequest;
@@ -42,10 +36,12 @@ import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientVertex;
 import com.tinkerpop.blueprints.impls.orient.OrientVertexType;
 
+import java.util.*;
+
 /**
  * SQL CREATE VERTEX command.
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OCommandExecutorSQLCreateVertex extends OCommandExecutorSQLSetAware implements OCommandDistributedReplicateRequest {
   public static final String          NAME = "CREATE VERTEX";
@@ -86,23 +82,32 @@ public class OCommandExecutorSQLCreateVertex extends OCommandExecutorSQLSetAware
         } else if (temp.equals(KEYWORD_CONTENT)) {
           parseContent();
 
-        } else if (className == null && temp.length() > 0)
+        } else if (className == null && temp.length() > 0) {
           className = temp;
+          if (className == null)
+            // ASSIGN DEFAULT CLASS
+            className = OrientVertexType.CLASS_NAME;
+
+          // GET/CHECK CLASS NAME
+          clazz = ((OMetadataInternal) database.getMetadata()).getImmutableSchemaSnapshot().getClass(className);
+          if (clazz == null)
+            throw new OCommandSQLParsingException("Class '" + className + "' was not found");
+        }
 
         temp = parserOptionalWord(true);
         if (parserIsEnded())
           break;
       }
 
-      if (className == null)
+      if (className == null) {
         // ASSIGN DEFAULT CLASS
         className = OrientVertexType.CLASS_NAME;
 
-      // GET/CHECK CLASS NAME
-      clazz = ((OMetadataInternal) database.getMetadata()).getImmutableSchemaSnapshot().getClass(className);
-      if (clazz == null)
-        throw new OCommandSQLParsingException("Class '" + className + "' was not found");
-
+        // GET/CHECK CLASS NAME
+        clazz = ((OMetadataInternal) database.getMetadata()).getImmutableSchemaSnapshot().getClass(className);
+        if (clazz == null)
+          throw new OCommandSQLParsingException("Class '" + className + "' was not found");
+      }
     } finally {
       textRequest.setText(originalQuery);
     }

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,15 +14,15 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.distributed.task;
 
 import com.orientechnologies.orient.core.Orient;
+import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.exception.ORecordNotFoundException;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.index.OIndex;
@@ -33,44 +33,38 @@ import com.orientechnologies.orient.core.storage.ORawBuffer;
 import com.orientechnologies.orient.core.storage.OStorageOperationResult;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OLogSequenceNumber;
 import com.orientechnologies.orient.server.OServer;
-import com.orientechnologies.orient.server.distributed.ODistributedConfiguration;
-import com.orientechnologies.orient.server.distributed.ODistributedDatabase;
-import com.orientechnologies.orient.server.distributed.ODistributedRequestId;
-import com.orientechnologies.orient.server.distributed.ODistributedServerManager;
+import com.orientechnologies.orient.server.distributed.*;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
 import java.util.Set;
 
 /**
  * Distributed create record task used for synchronization.
  *
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public abstract class OAbstractRecordReplicatedTask extends OAbstractReplicatedTask {
-  protected ORecordId          rid;
-  protected int                version;
-  protected int                partitionKey = -1;
-  protected boolean            lockRecords  = true;
-  protected OLogSequenceNumber lastLSN;
+  protected ORecordId rid;
+  protected int       version;
+  protected int     partitionKey = -1;
+  protected boolean lockRecords  = true;
 
-  protected transient ORecord  previousRecord;
+  protected transient ORecord previousRecord;
 
-  public OAbstractRecordReplicatedTask() {
+  public OAbstractRecordReplicatedTask init(final ORecord record) {
+    init((ORecordId) record.getIdentity(), record.getVersion());
+    return this;
   }
 
-  protected OAbstractRecordReplicatedTask(final ORecord record) {
-    this((ORecordId) record.getIdentity(), record.getVersion());
-  }
-
-  protected OAbstractRecordReplicatedTask(final ORecordId iRid, final int iVersion) {
+  public OAbstractRecordReplicatedTask init(final ORecordId iRid, final int iVersion) {
     this.rid = iRid;
     this.version = iVersion;
 
-    final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.INSTANCE.getIfDefined();
+    final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.instance().getIfDefined();
     if (db != null) {
-      final OClass clazz = db.getMetadata().getSchema().getClassByClusterId(rid.clusterId);
+      final OClass clazz = db.getMetadata().getSchema().getClassByClusterId(rid.getClusterId());
       if (clazz != null) {
         final Set<OIndex<?>> indexes = clazz.getIndexes();
         if (indexes != null && !indexes.isEmpty()) {
@@ -81,22 +75,30 @@ public abstract class OAbstractRecordReplicatedTask extends OAbstractReplicatedT
         }
       }
     }
+    return this;
   }
 
   public abstract Object executeRecordTask(ODistributedRequestId requestId, OServer iServer, ODistributedServerManager iManager,
-      ODatabaseDocumentTx database) throws Exception;
+      ODatabaseDocumentInternal database) throws Exception;
 
   public abstract ORecord getRecord();
 
   @Override
   public final Object execute(final ODistributedRequestId requestId, final OServer iServer,
-      final ODistributedServerManager iManager, final ODatabaseDocumentTx database) throws Exception {
+      final ODistributedServerManager iManager, final ODatabaseDocumentInternal database) throws Exception {
 
     final ODistributedDatabase ddb = iManager.getMessageService().getDatabase(database.getName());
-    if (lockRecords)
+
+    ORecordId rid2Lock = rid;
+    if (!rid.isPersistent())
+      // CREATE A COPY TO MAINTAIN THE LOCK ON THE CLUSTER AVOIDING THE RID IS TRANSFORMED IN PERSISTENT. THIS ALLOWS TO HAVE
+      // PARALLEL TX BECAUSE NEW RID LOCKS THE ENTIRE CLUSTER.
+      rid2Lock = new ORecordId(rid.getClusterId(), -1l);
+
+    if (lockRecords) {
       // TRY LOCKING RECORD
-      if (!ddb.lockRecord(rid, requestId))
-        throw new ODistributedRecordLockedException(rid);
+      ddb.lockRecord(rid2Lock, requestId, OGlobalConfiguration.DISTRIBUTED_CRUD_TASK_SYNCH_TIMEOUT.getValueAsLong() / 2);
+    }
 
     try {
 
@@ -105,13 +107,13 @@ public abstract class OAbstractRecordReplicatedTask extends OAbstractReplicatedT
     } finally {
       if (lockRecords)
         // UNLOCK THE SINGLE OPERATION. IN TX WAIT FOR THE 2-PHASE COMMIT/ROLLBACK/FIX MESSAGE
-        ddb.unlockRecord(rid, requestId);
+        ddb.unlockRecord(rid2Lock, requestId);
     }
   }
 
   @Override
-  public int getPartitionKey() {
-    return partitionKey > -1 ? partitionKey : rid.clusterId;
+  public int[] getPartitionKey() {
+    return new int[] { partitionKey > -1 ? partitionKey : rid.getClusterId() };
   }
 
   @Override
@@ -127,21 +129,21 @@ public abstract class OAbstractRecordReplicatedTask extends OAbstractReplicatedT
     return version;
   }
 
-  protected boolean checkForClusterAvailability(final String localNode, final ODistributedConfiguration cfg) {
-    final String clusterName = ODatabaseRecordThreadLocal.INSTANCE.get().getClusterNameById(rid.clusterId);
-    return cfg.hasCluster(localNode, clusterName);
+  public boolean checkForClusterAvailability(final String localNode, final ODistributedConfiguration cfg) {
+    final String clusterName = ODatabaseRecordThreadLocal.instance().get().getClusterNameById(rid.getClusterId());
+    return cfg.isServerContainingCluster(localNode, clusterName);
   }
 
   public ORecord prepareUndoOperation() {
     if (previousRecord == null) {
       // READ DIRECTLY FROM THE UNDERLYING STORAGE
-      final OStorageOperationResult<ORawBuffer> loaded = ODatabaseRecordThreadLocal.INSTANCE.get().getStorage().getUnderlying()
-          .readRecord(rid, null, true, null);
+      final OStorageOperationResult<ORawBuffer> loaded = ODatabaseRecordThreadLocal.instance().get().getStorage().getUnderlying()
+          .readRecord(rid, null, true, false, null);
 
       if (loaded == null || loaded.getResult() == null)
         return null;
 
-      previousRecord = Orient.instance().getRecordFactoryManager().newInstance(loaded.getResult().recordType);
+      previousRecord = Orient.instance().getRecordFactoryManager().newInstance(loaded.getResult().recordType, rid.getClusterId(), ODatabaseRecordThreadLocal.instance().getIfDefined());
       ORecordInternal.fill(previousRecord, rid, loaded.getResult().version, loaded.getResult().getBuffer(), false);
     }
     return previousRecord;
@@ -153,29 +155,22 @@ public abstract class OAbstractRecordReplicatedTask extends OAbstractReplicatedT
       throw new ORecordNotFoundException(rid);
   }
 
-  public OLogSequenceNumber getLastLSN() {
-    return lastLSN;
-  }
-
-  public void setLastLSN(final OLogSequenceNumber lastLSN) {
-    this.lastLSN = lastLSN;
-  }
-
   @Override
-  public void writeExternal(final ObjectOutput out) throws IOException {
-    out.writeUTF(rid.toString());
+  public void toStream(final DataOutput out) throws IOException {
+    rid.toStream(out);
     out.writeInt(version);
     out.writeInt(partitionKey);
     if (lastLSN != null) {
       out.writeBoolean(true);
-      lastLSN.writeExternal(out);
+      lastLSN.toStream(out);
     } else
       out.writeBoolean(false);
   }
 
   @Override
-  public void readExternal(final ObjectInput in) throws IOException, ClassNotFoundException {
-    rid = new ORecordId(in.readUTF());
+  public void fromStream(final DataInput in, final ORemoteTaskFactory factory) throws IOException {
+    rid = new ORecordId();
+    rid.fromStream(in);
     version = in.readInt();
     partitionKey = in.readInt();
     final boolean hasLastLSN = in.readBoolean();
@@ -187,8 +182,7 @@ public abstract class OAbstractRecordReplicatedTask extends OAbstractReplicatedT
     this.lockRecords = lockRecords;
   }
 
-  @Override
-  public String getPayload() {
-    return "rid=" + rid + " v=" + version;
+  public void setLastLSN(final OLogSequenceNumber lastLSN) {
+    this.lastLSN = lastLSN;
   }
 }

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -23,6 +23,7 @@ package com.orientechnologies.orient.core.encryption;
 import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.encryption.impl.OAESEncryption;
+import com.orientechnologies.orient.core.encryption.impl.OAESGCMEncryption;
 import com.orientechnologies.orient.core.encryption.impl.ODESEncryption;
 import com.orientechnologies.orient.core.encryption.impl.ONothingEncryption;
 import com.orientechnologies.orient.core.exception.OSecurityException;
@@ -34,7 +35,7 @@ import java.util.Set;
 /**
  * Factory of encryption algorithms.
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OEncryptionFactory {
   public static final OEncryptionFactory                  INSTANCE  = new OEncryptionFactory();
@@ -49,6 +50,7 @@ public class OEncryptionFactory {
     register(ONothingEncryption.class);
     register(ODESEncryption.class);
     register(OAESEncryption.class);
+    register(OAESGCMEncryption.class);
   }
 
   public OEncryption getEncryption(final String name, final String iOptions) {

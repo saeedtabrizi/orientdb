@@ -24,7 +24,7 @@ import java.util.zip.ZipOutputStream;
 
 /**
  * Compression implementation that use ZIP algorithm to the maximum level of compression
- * 
+ *
  * @author Luca Garulli
  */
 public class OHighZIPCompression extends OZIPCompression {

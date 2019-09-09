@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.db;
@@ -28,6 +28,7 @@ import com.orientechnologies.orient.core.exception.ODatabaseException;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.intent.OIntent;
 import com.orientechnologies.orient.core.metadata.security.OToken;
+import com.orientechnologies.orient.core.storage.OBasicTransaction;
 import com.orientechnologies.orient.core.storage.ORecordMetadata;
 import com.orientechnologies.orient.core.storage.OStorage;
 
@@ -72,7 +73,12 @@ public abstract class ODatabaseWrapperAbstract<DB extends ODatabaseInternal, T> 
   }
 
   public <THISDB extends ODatabase> THISDB create() {
-    return create(null);
+    return (THISDB) underlying.create();
+  }
+
+  @Override
+  public <THISDB extends ODatabase> THISDB create(String incrementalBackupPath) {
+    return (THISDB) underlying.create(incrementalBackupPath);
   }
 
   public <THISDB extends ODatabase> THISDB create(final Map<OGlobalConfiguration, Object> iInitialSettings) {
@@ -96,13 +102,15 @@ public abstract class ODatabaseWrapperAbstract<DB extends ODatabaseInternal, T> 
   /**
    * Executes a backup of the database. During the backup the database will be frozen in read-only mode.
    *
-   * @param out              OutputStream used to write the backup content. Use a FileOutputStream to make the backup persistent on disk
+   * @param out              OutputStream used to write the backup content. Use a FileOutputStream to make the backup persistent on
+   *                         disk
    * @param options          Backup options as Map<String, Object> object
    * @param callable         Callback to execute when the database is locked
    * @param iListener        Listener called for backup messages
-   * @param compressionLevel ZIP Compression level between 0 (no compression) and 9 (maximum). The bigger is the compression, the smaller will be
-   *                         the final backup content, but will consume more CPU and time to execute
+   * @param compressionLevel ZIP Compression level between 0 (no compression) and 9 (maximum). The bigger is the compression, the
+   *                         smaller will be the final backup content, but will consume more CPU and time to execute
    * @param bufferSize       Buffer size in bytes, the bigger is the buffer, the more efficient will be the compression
+   *
    * @throws IOException
    */
   @Override
@@ -118,6 +126,7 @@ public abstract class ODatabaseWrapperAbstract<DB extends ODatabaseInternal, T> 
    * @param options   Backup options as Map<String, Object> object
    * @param callable  Callback to execute when the database is locked
    * @param iListener Listener called for backup messages
+   *
    * @throws IOException
    * @see ODatabaseImport
    */
@@ -160,6 +169,11 @@ public abstract class ODatabaseWrapperAbstract<DB extends ODatabaseInternal, T> 
     return underlying.getStorage();
   }
 
+  @Override
+  public OBasicTransaction getMicroOrRegularTransaction() {
+    return underlying.getMicroOrRegularTransaction();
+  }
+
   public OLocalRecordCache getLocalCache() {
     return underlying.getLocalCache();
   }
@@ -169,7 +183,7 @@ public abstract class ODatabaseWrapperAbstract<DB extends ODatabaseInternal, T> 
   }
 
   public long countClusterElements(final int iClusterId) {
-    checkOpeness();
+    checkOpenness();
     return underlying.countClusterElements(iClusterId);
   }
 
@@ -178,54 +192,54 @@ public abstract class ODatabaseWrapperAbstract<DB extends ODatabaseInternal, T> 
    */
   @Override
   public void truncateCluster(String clusterName) {
-    checkOpeness();
+    checkOpenness();
     underlying.truncateCluster(clusterName);
   }
 
   public long countClusterElements(final int[] iClusterIds) {
-    checkOpeness();
+    checkOpenness();
     return underlying.countClusterElements(iClusterIds);
   }
 
   public long countClusterElements(final String iClusterName) {
-    checkOpeness();
+    checkOpenness();
     return underlying.countClusterElements(iClusterName);
   }
 
   @Override
   public long countClusterElements(int iClusterId, boolean countTombstones) {
-    checkOpeness();
+    checkOpenness();
     return underlying.countClusterElements(iClusterId, countTombstones);
   }
 
   @Override
   public long countClusterElements(int[] iClusterIds, boolean countTombstones) {
-    checkOpeness();
+    checkOpenness();
     return underlying.countClusterElements(iClusterIds, countTombstones);
   }
 
   public int getClusters() {
-    checkOpeness();
+    checkOpenness();
     return underlying.getClusters();
   }
 
   public boolean existsCluster(String iClusterName) {
-    checkOpeness();
+    checkOpenness();
     return underlying.existsCluster(iClusterName);
   }
 
   public Collection<String> getClusterNames() {
-    checkOpeness();
+    checkOpenness();
     return underlying.getClusterNames();
   }
 
   public int getClusterIdByName(final String iClusterName) {
-    checkOpeness();
+    checkOpenness();
     return underlying.getClusterIdByName(iClusterName);
   }
 
   public String getClusterNameById(final int iClusterId) {
-    checkOpeness();
+    checkOpenness();
     return underlying.getClusterNameById(iClusterId);
   }
 
@@ -237,33 +251,38 @@ public abstract class ODatabaseWrapperAbstract<DB extends ODatabaseInternal, T> 
     return underlying.getClusterRecordSizeByName(iClusterName);
   }
 
-  public int addCluster(String iClusterName, int iRequestedId, Object... iParameters) {
-    checkOpeness();
-    return underlying.addCluster(iClusterName, iRequestedId, iParameters);
+  public int addCluster(String iClusterName, int iRequestedId) {
+    checkOpenness();
+    return underlying.addCluster(iClusterName, iRequestedId);
   }
 
   public int addCluster(final String iClusterName, final Object... iParameters) {
-    checkOpeness();
+    checkOpenness();
     return underlying.addCluster(iClusterName, iParameters);
   }
 
-  public boolean dropCluster(final String iClusterName, final boolean iTruncate) {
+  public boolean dropCluster(final String iClusterName) {
     getLocalCache().freeCluster(getClusterIdByName(iClusterName));
-    return underlying.dropCluster(iClusterName, iTruncate);
+    return underlying.dropCluster(iClusterName);
   }
 
-  public boolean dropCluster(final int iClusterId, final boolean iTruncate) {
+  public boolean dropCluster(final int iClusterId) {
     getLocalCache().freeCluster(iClusterId);
-    return underlying.dropCluster(iClusterId, true);
+    return underlying.dropCluster(iClusterId);
   }
 
   public int getDefaultClusterId() {
-    checkOpeness();
+    checkOpenness();
     return underlying.getDefaultClusterId();
   }
 
   public boolean declareIntent(final OIntent iIntent) {
     return underlying.declareIntent(iIntent);
+  }
+
+  @Override
+  public OIntent getActiveIntent() {
+    return underlying.getActiveIntent();
   }
 
   public <DBTYPE extends ODatabase> DBTYPE getUnderlying() {
@@ -332,23 +351,32 @@ public abstract class ODatabaseWrapperAbstract<DB extends ODatabaseInternal, T> 
     return underlying.getRecordMetadata(rid);
   }
 
+  @Override
   public long getSize() {
     return underlying.getSize();
   }
 
+  @Override
   public void freeze(boolean throwException) {
     underlying.freeze(throwException);
   }
 
+  @Override
   public void freeze() {
     underlying.freeze();
   }
 
+  @Override
+  public boolean isFrozen() {
+    return underlying.isFrozen();
+  }
+
+  @Override
   public void release() {
     underlying.release();
   }
 
-  protected void checkOpeness() {
+  protected void checkOpenness() {
     if (isClosed())
       throw new ODatabaseException("Database '" + getURL() + "' is closed");
   }

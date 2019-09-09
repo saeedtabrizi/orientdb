@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 
@@ -53,13 +53,16 @@ public final class PersistenceXmlUtil {
    */
   public static final String            PERSISTENCE_NS_URI        = "http://java.sun.com/xml/ns/persistence";
 
-  private final static SchemaFactory    schemaFactory             = SchemaFactory.newInstance(W3C_XML_SCHEMA_NS_URI);
-  private final static SAXParserFactory parserFactory             = SAXParserFactory.newInstance();
+  private static final SchemaFactory    schemaFactory             = SchemaFactory.newInstance(W3C_XML_SCHEMA_NS_URI);
+  private static final SAXParserFactory parserFactory             = SAXParserFactory.newInstance();
+
   static {
     parserFactory.setNamespaceAware(true);
   }
+
   /** The persistence xml root */
   public static final String            PERSISTENCE_XML_ROOT      = "META-INF/";
+
   public static final String            PERSISTENCE_XML_BASE_NAME = "persistence.xml";
   /** The persistence XSD location */
   public static final String            PERSISTENCE_XSD_DIR       = PERSISTENCE_XML_ROOT + "persistence/";
@@ -187,54 +190,3 @@ public final class PersistenceXmlUtil {
   }
 }
 
-/**
- * This parser provides a quick mechanism for determining the JPA schema level, and throws an StopSAXParser with the Schema to
- * validate with
- */
-class SchemaLocatingHandler extends DefaultHandler {
-
-  /** The value of the version attribute in the xml */
-  private String schemaVersion = "";
-
-  /**
-   * Create a new SchemaLocatingHandler
-   */
-  public SchemaLocatingHandler() {
-  }
-
-  /**
-   * Fist tag of 'persistence.xml' (<persistence>) have to have 'version' attribute
-   * 
-   * @see org.xml.sax.helpers.DefaultHandler#startElement(java.lang.String, java.lang.String, java.lang.String,
-   *      org.xml.sax.Attributes)
-   */
-  @Override
-  public void startElement(String uri, String localName, String name, Attributes attributes) throws SAXException {
-    PersistenceXml element = PersistenceXml.parse((localName == null || localName.isEmpty()) ? name : localName);
-    schemaVersion = PersistenceXmlUtil.parseSchemaVersion(uri, element, attributes);
-    // found, stop parsing
-    if (schemaVersion != null) {
-      throw new StopSAXParser();
-    }
-
-    // This should never occurs, however check if contain known tag other than TAG_PERSISTENCE
-    if (TAG_PERSISTENCE != element && EnumSet.allOf(PersistenceXml.class).contains(element)) {
-      throw new PersistenceException("Cannot find schema version attribute in <persistence> tag");
-    }
-  }
-
-  /**
-   * @return The version of the JPA schema used
-   */
-  public String getVersion() {
-    return schemaVersion;
-  }
-}
-
-/**
- * A convenience mechanism for finding the schema to validate with
- */
-class StopSAXParser extends SAXException {
-  /** This class is serializable */
-  private static final long serialVersionUID = 6173561761817524327L;
-}

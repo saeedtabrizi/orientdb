@@ -1,10 +1,9 @@
 package com.orientechnologies.orient.core.exception;
 
-import com.orientechnologies.orient.core.index.hashindex.local.OHashTableDirectory;
-import com.orientechnologies.orient.core.storage.impl.local.paginated.base.ODurableComponent;
+import com.orientechnologies.orient.core.storage.index.hashindex.local.v2.OHashTableDirectory;
 
 /**
- * @author Andrey Lomakin <lomakin.andrey@gmail.com>.
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com) <lomakin.andrey@gmail.com>.
  * @since 10/2/2015
  */
 public class OHashTableDirectoryException extends ODurableComponentException {

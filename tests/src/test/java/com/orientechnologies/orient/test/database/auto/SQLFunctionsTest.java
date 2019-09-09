@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,14 +37,7 @@ import org.testng.annotations.Test;
 import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 @Test(groups = "sql-select")
 public class SQLFunctionsTest extends DocumentDBBaseTest {
@@ -130,8 +123,8 @@ public class SQLFunctionsTest extends DocumentDBBaseTest {
     OUser admin = database.getMetadata().getSecurity().getUser("admin");
     OUser reader = database.getMetadata().getSecurity().getUser("reader");
 
-    ORole byPassRestrictedRole = database.getMetadata().getSecurity().createRole("byPassRestrictedRole",
-        ORole.ALLOW_MODES.DENY_ALL_BUT);
+    ORole byPassRestrictedRole = database.getMetadata().getSecurity()
+        .createRole("byPassRestrictedRole", ORole.ALLOW_MODES.DENY_ALL_BUT);
     byPassRestrictedRole.addRule(ORule.ResourceGeneric.BYPASS_RESTRICTED, null, ORole.PERMISSION_READ);
     byPassRestrictedRole.save();
 
@@ -147,28 +140,28 @@ public class SQLFunctionsTest extends DocumentDBBaseTest {
 
     List<ODocument> result = database.query(new OSQLSynchQuery<ODocument>("select count(*) from QueryCountExtendsRestrictedClass"));
     ODocument count = result.get(0);
-    Assert.assertEquals(2L, count.field("count"));
+    Assert.assertEquals(2L, count.<Object>field("count"));
 
     database.close();
     database.open("admin", "admin");
 
     result = database.query(new OSQLSynchQuery<ODocument>("select count(*) from QueryCountExtendsRestrictedClass"));
     count = result.get(0);
-    Assert.assertEquals(2L, count.field("count"));
+    Assert.assertEquals(2L, count.<Object>field("count"));
 
     database.close();
     database.open("reader", "reader");
 
     result = database.query(new OSQLSynchQuery<ODocument>("select count(*) from QueryCountExtendsRestrictedClass"));
     count = result.get(0);
-    Assert.assertEquals(1L, count.field("count"));
+    Assert.assertEquals(1L, count.<Object>field("count"));
 
     database.close();
     database.open("superReader", "superReader");
 
     result = database.query(new OSQLSynchQuery<ODocument>("select count(*) from QueryCountExtendsRestrictedClass"));
     count = result.get(0);
-    Assert.assertEquals(2L, count.field("count"));
+    Assert.assertEquals(2L, count.<Object>field("count"));
   }
 
   @Test
@@ -176,8 +169,8 @@ public class SQLFunctionsTest extends DocumentDBBaseTest {
     OClass indexed = database.getMetadata().getSchema().getOrCreateClass("Indexed");
     indexed.createProperty("key", OType.STRING);
     indexed.createIndex("keyed", OClass.INDEX_TYPE.NOTUNIQUE, "key");
-    database.newInstance("Indexed").field("key", "one").save();
-    database.newInstance("Indexed").field("key", "two").save();
+    database.<ODocument>newInstance("Indexed").field("key", "one").save();
+    database.<ODocument>newInstance("Indexed").field("key", "two").save();
 
     List<ODocument> result = database
         .command(new OSQLSynchQuery<ODocument>("select count(*) as total from Indexed where key > 'one'")).execute();
@@ -446,15 +439,15 @@ public class SQLFunctionsTest extends DocumentDBBaseTest {
   @Test
   public void queryAsLong() {
     long moreThanInteger = 1 + (long) Integer.MAX_VALUE;
-    String sql = "select numberString.asLong() as value from ( select '" + moreThanInteger
-        + "' as numberString from Account ) limit 1";
+    String sql =
+        "select numberString.asLong() as value from ( select '" + moreThanInteger + "' as numberString from Account ) limit 1";
     List<ODocument> result = database.command(new OSQLSynchQuery<ODocument>(sql)).execute();
 
     Assert.assertEquals(result.size(), 1);
     for (ODocument d : result) {
       Assert.assertNotNull(d.field("value"));
       Assert.assertTrue(d.field("value") instanceof Long);
-      Assert.assertEquals(moreThanInteger, d.field("value"));
+      Assert.assertEquals(moreThanInteger, d.<Object>field("value"));
     }
   }
 
@@ -487,8 +480,8 @@ public class SQLFunctionsTest extends DocumentDBBaseTest {
         .command(new OSQLSynchQuery<ODocument>("select first(sequence) from V where sequence is not null")).execute();
 
     Assert.assertEquals(result.size(), 2);
-    Assert.assertEquals(result.get(0).field("first"), 0l);
-    Assert.assertEquals(result.get(1).field("first"), 1l);
+    Assert.assertEquals(result.get(0).<Object>field("first"), 0l);
+    Assert.assertEquals(result.get(1).<Object>field("first"), 1l);
   }
 
   @Test
@@ -505,8 +498,8 @@ public class SQLFunctionsTest extends DocumentDBBaseTest {
         .command(new OSQLSynchQuery<ODocument>("select last(sequence2) from V where sequence2 is not null")).execute();
 
     Assert.assertEquals(result.size(), 2);
-    Assert.assertEquals(result.get(0).field("last"), 99l);
-    Assert.assertEquals(result.get(1).field("last"), 98l);
+    Assert.assertEquals(result.get(0).<Object>field("last"), 99l);
+    Assert.assertEquals(result.get(1).<Object>field("last"), 98l);
 
   }
 

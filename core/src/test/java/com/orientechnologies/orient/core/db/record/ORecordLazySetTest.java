@@ -6,15 +6,14 @@ import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import java.util.Iterator;
 
-import static org.testng.Assert.assertEquals;
-import static org.testng.AssertJUnit.assertFalse;
-import static org.testng.AssertJUnit.assertTrue;
+import static org.junit.Assert.*;
 
 public class ORecordLazySetTest {
 
@@ -26,19 +25,19 @@ public class ORecordLazySetTest {
   private ORID                rid2;
   private ORID                rid3;
 
-  @BeforeClass
+  @Before
   public void before() {
     db = new ODatabaseDocumentTx("memory:" + ORecordLazySet.class.getSimpleName());
     db.create();
-    doc1 = db.save(new ODocument().field("doc1", "doc1"));
+    doc1 = db.save(new ODocument().field("doc1", "doc1"), db.getClusterNameById(db.getDefaultClusterId()));
     rid1 = doc1.getIdentity();
-    doc2 = db.save(new ODocument().field("doc2", "doc2"));
+    doc2 = db.save(new ODocument().field("doc2", "doc2"), db.getClusterNameById(db.getDefaultClusterId()));
     rid2 = doc2.getIdentity();
-    doc3 = db.save(new ODocument().field("doc3", "doc3"));
+    doc3 = db.save(new ODocument().field("doc3", "doc3"), db.getClusterNameById(db.getDefaultClusterId()));
     rid3 = doc3.getIdentity();
   }
 
-  @AfterClass
+  @After
   public void after() {
     db.activateOnCurrentThread();
     db.drop();
@@ -87,7 +86,8 @@ public class ORecordLazySetTest {
     assertEquals(set.size(), 3);
   }
 
-  @Test(enabled = false)
+  @Test
+  @Ignore
   public void testDocumentConvertToLink() {
     ORecordLazySet set = new ORecordLazySet(new ODocument());
     set.add(doc1);

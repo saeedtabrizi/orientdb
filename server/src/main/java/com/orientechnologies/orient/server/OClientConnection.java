@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,15 +14,19 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server;
 
 import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.common.exception.OSystemException;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.client.binary.OBinaryRequestExecutor;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.metadata.security.OToken;
+import com.orientechnologies.orient.core.sql.executor.OExecutionPlan;
+import com.orientechnologies.orient.core.sql.executor.OInternalExecutionPlan;
+import com.orientechnologies.orient.core.sql.executor.OResultSet;
 import com.orientechnologies.orient.enterprise.channel.binary.OChannelBinary;
 import com.orientechnologies.orient.enterprise.channel.binary.OTokenSecurityException;
 import com.orientechnologies.orient.server.config.OServerUserConfiguration;
@@ -30,35 +34,36 @@ import com.orientechnologies.orient.server.network.protocol.ONetworkProtocol;
 import com.orientechnologies.orient.server.network.protocol.ONetworkProtocolData;
 import com.orientechnologies.orient.server.network.protocol.binary.ONetworkProtocolBinary;
 
-import java.io.IOException;
+import java.io.Serializable;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Set;
-import java.util.WeakHashMap;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class OClientConnection {
-  private final int                         id;
-  private final long                        since;
-  private Set<ONetworkProtocol>             protocols = Collections.newSetFromMap(new WeakHashMap<ONetworkProtocol, Boolean>());
-  private volatile ONetworkProtocol         protocol;
-  private volatile ODatabaseDocumentTx      database;
-  private volatile OServerUserConfiguration serverUser;
-  private ONetworkProtocolData              data      = new ONetworkProtocolData();
-  private OClientConnectionStats            stats     = new OClientConnectionStats();
-  private Lock                              lock      = new ReentrantLock();
-  private Boolean                           tokenBased;
-  private byte[]                            tokenBytes;
-  private OToken                            token;
+  private final    int                       id;
+  private final    long                      since;
+  private          Set<ONetworkProtocol>     protocols = Collections.newSetFromMap(new WeakHashMap<ONetworkProtocol, Boolean>());
+  private volatile ONetworkProtocol          protocol;
+  private volatile ODatabaseDocumentInternal database;
+  private volatile OServerUserConfiguration  serverUser;
+  private          ONetworkProtocolData      data      = new ONetworkProtocolData();
+  private          OClientConnectionStats    stats     = new OClientConnectionStats();
+  private          Lock                      lock      = new ReentrantLock();
+  private          Boolean                   tokenBased;
+  private          byte[]                    tokenBytes;
+  private          OToken                    token;
+  private          boolean                   disconnectOnAfter;
+  private          OBinaryRequestExecutor    executor;
 
-  public OClientConnection(final int id, final ONetworkProtocol protocol) throws IOException {
+  public OClientConnection(final int id, final ONetworkProtocol protocol) {
     this.id = id;
     this.protocol = protocol;
     this.protocols.add(protocol);
     this.since = System.currentTimeMillis();
+    this.executor = protocol.executor(this);
   }
 
   public void close() {
@@ -92,17 +97,30 @@ public class OClientConnection {
 
   @Override
   public String toString() {
-    return "OClientConnection [id=" + getId() + ", source="
-        + (getProtocol() != null && getProtocol().getChannel() != null && getProtocol().getChannel().socket != null
-            ? getProtocol().getChannel().socket.getRemoteSocketAddress() : "?")
-        + ", since=" + getSince() + "]";
+    Object address;
+    if (getProtocol() != null && getProtocol().getChannel() != null && getProtocol().getChannel().socket != null) {
+      address = getProtocol().getChannel().socket.getRemoteSocketAddress();
+    } else {
+      address = "?";
+    }
+    return "OClientConnection [id=" + getId() + ", source=" + address + ", since=" + getSince() + "]";
   }
 
   /**
    * Returns the remote network address in the format <ip>:<port>.
    */
   public String getRemoteAddress() {
-    final Socket socket = getProtocol().getChannel().socket;
+    Socket socket = null;
+    if (getProtocol() != null) {
+      socket = getProtocol().getChannel().socket;
+    } else {
+      for (ONetworkProtocol protocol : this.protocols) {
+        socket = protocol.getChannel().socket;
+        if (socket != null)
+          break;
+      }
+    }
+
     if (socket != null) {
       final InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
       return remoteAddress.getAddress().getHostAddress() + ":" + remoteAddress.getPort();
@@ -146,11 +164,12 @@ public class OClientConnection {
       if (!protocols.contains(protocol))
         throw new OTokenSecurityException("No valid session found, provide a token");
     } else {
-      // Active This Optimization but it need a periodic check on session
-      /*
-       * if(tokenBytes != null && tokenBytes.length > 0){ if(tokenBytes.equals(tokenFromNetwork)) //SAME SESSION AND TOKEN DO
-       * NOTHING return; }
-       */
+      // IF the byte from the network are the same of the one i have a don't check them
+      if (tokenBytes != null && tokenBytes.length > 0) {
+        if (Arrays.equals(tokenBytes, tokenFromNetwork)) // SAME SESSION AND TOKEN NO NEED CHECK VALIDITY
+          return;
+      }
+
       OToken token = null;
       try {
         if (tokenFromNetwork != null)
@@ -158,12 +177,15 @@ public class OClientConnection {
       } catch (Exception e) {
         throw OException.wrapException(new OSystemException("Error on token parse"), e);
       }
+
       if (token == null || !token.getIsVerified()) {
         cleanSession();
+        protocol.getServer().getClientConnectionManager().disconnect(this);
         throw new OTokenSecurityException("The token provided is not a valid token, signature does not match");
       }
       if (!handler.validateBinaryToken(token)) {
         cleanSession();
+        protocol.getServer().getClientConnectionManager().disconnect(this);
         throw new OTokenSecurityException("The token provided is expired");
       }
       if (tokenBased == null) {
@@ -184,11 +206,12 @@ public class OClientConnection {
     }
     database = null;
     protocols.clear();
+
   }
 
   public void endOperation() {
     if (database != null)
-      if (!database.isClosed() && database.getLocalCache() != null)
+      if (!database.isClosed() && !database.getTransaction().isActive() && database.getLocalCache() != null)
         database.getLocalCache().clear();
 
     stats.lastCommandExecutionTime = System.currentTimeMillis() - stats.lastCommandReceived;
@@ -198,12 +221,11 @@ public class OClientConnection {
     stats.lastCommandDetail = data.commandDetail;
 
     data.commandDetail = "-";
-
     release();
 
   }
 
-  public void init(OServer server) {
+  public void init(final OServer server) {
     if (database == null) {
       setData(server.getTokenHandler().getProtocolDataFromToken(this, token));
 
@@ -214,9 +236,9 @@ public class OClientConnection {
       final String type = token.getDatabaseType();
       if (db != null && type != null) {
         if (data.serverUser) {
-          setDatabase((ODatabaseDocumentTx) server.openDatabase(type + ":" + db, token.getUserName(), null, data, true));
+          setDatabase(server.openDatabase(db, token.getUserName(), null, data, true));
         } else
-          setDatabase((ODatabaseDocumentTx) server.openDatabase(type + ":" + db, token));
+          setDatabase(server.openDatabase(db, token));
       }
     }
   }
@@ -253,11 +275,11 @@ public class OClientConnection {
     this.protocol = protocol;
   }
 
-  public ODatabaseDocumentTx getDatabase() {
+  public ODatabaseDocumentInternal getDatabase() {
     return database;
   }
 
-  public void setDatabase(ODatabaseDocumentTx database) {
+  public void setDatabase(ODatabaseDocumentInternal database) {
     this.database = database;
   }
 
@@ -287,6 +309,7 @@ public class OClientConnection {
       database.activateOnCurrentThread();
       stats.lastDatabase = database.getName();
       stats.lastUser = database.getUser() != null ? database.getUser().getName() : null;
+      stats.activeQueries = getActiveQueries(database);
     } else {
       stats.lastDatabase = null;
       stats.lastUser = null;
@@ -296,5 +319,49 @@ public class OClientConnection {
     data.commandInfo = "Listening";
     data.commandDetail = "-";
     stats.lastCommandReceived = System.currentTimeMillis();
+  }
+
+  private List<String> getActiveQueries(ODatabaseDocumentInternal database) {
+    try {
+      List<String> result = new ArrayList<>();
+      Map<String, OResultSet> queries = database.getActiveQueries();
+      for (OResultSet oResultSet : queries.values()) {
+        Optional<OExecutionPlan> plan = oResultSet.getExecutionPlan();
+        if (!plan.isPresent()) {
+          continue;
+        }
+        OExecutionPlan p = plan.get();
+        if (p instanceof OInternalExecutionPlan) {
+          String stm = ((OInternalExecutionPlan) p).getStatement();
+          if (stm != null) {
+            result.add(stm);
+          }
+        }
+      }
+      return result;
+    } catch (Exception e) {
+    }
+    return null;
+  }
+
+  public void setDisconnectOnAfter(boolean disconnectOnAfter) {
+    this.disconnectOnAfter = disconnectOnAfter;
+  }
+
+  public boolean isDisconnectOnAfter() {
+    return disconnectOnAfter;
+  }
+
+  public OBinaryRequestExecutor getExecutor() {
+    return executor;
+  }
+
+  public boolean tryAcquireForExpire() {
+    try {
+      return lock.tryLock(1, TimeUnit.SECONDS);
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+    return false;
   }
 }

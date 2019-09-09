@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,27 +14,27 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sharding.auto;
 
 import com.orientechnologies.common.serialization.types.OBinarySerializer;
-import com.orientechnologies.orient.core.index.hashindex.local.OMurmurHash3HashFunction;
+import com.orientechnologies.orient.core.storage.index.hashindex.local.OMurmurHash3HashFunction;
 
 import static java.lang.Math.abs;
 
 /**
  * Auto-sharding strategy implementation that uses Murmur hashing.
  *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * @since 3.0
- * @author Luca Garulli
  */
 public final class OAutoShardingMurmurStrategy implements OAutoShardingStrategy {
-  private OMurmurHash3HashFunction hashFunction = new OMurmurHash3HashFunction<Object>();
+  private OMurmurHash3HashFunction hashFunction;
 
   public OAutoShardingMurmurStrategy(final OBinarySerializer keySerializer) {
-    hashFunction.setValueSerializer(keySerializer);
+    hashFunction = new OMurmurHash3HashFunction<Object>(keySerializer);
   }
 
   public int getPartitionsId(final Object iKey, final int partitionSize) {

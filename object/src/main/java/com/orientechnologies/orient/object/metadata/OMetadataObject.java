@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2013 Luca Molino (molino.luca--AT--gmail.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,10 @@
  */
 package com.orientechnologies.orient.object.metadata;
 
-import java.io.IOException;
-
 import com.orientechnologies.orient.core.cache.OCommandCache;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
+import com.orientechnologies.orient.core.index.OIndexManager;
+import com.orientechnologies.orient.core.index.OIndexManagerAbstract;
 import com.orientechnologies.orient.core.index.OIndexManagerProxy;
 import com.orientechnologies.orient.core.metadata.OMetadata;
 import com.orientechnologies.orient.core.metadata.OMetadataInternal;
@@ -26,20 +27,23 @@ import com.orientechnologies.orient.core.metadata.function.OFunctionLibrary;
 import com.orientechnologies.orient.core.metadata.schema.OImmutableSchema;
 import com.orientechnologies.orient.core.metadata.security.OSecurity;
 import com.orientechnologies.orient.core.metadata.sequence.OSequenceLibrary;
-import com.orientechnologies.orient.core.schedule.OSchedulerListener;
+import com.orientechnologies.orient.core.schedule.OScheduler;
 import com.orientechnologies.orient.object.metadata.schema.OSchemaProxyObject;
 
+import java.io.IOException;
+
 /**
- * @author luca.molino
- * 
+ * @author Luca Molino (molino.luca--at--gmail.com)
  */
 public class OMetadataObject implements OMetadataInternal {
 
-  protected OMetadataInternal  underlying;
-  protected OSchemaProxyObject schema;
+  protected OMetadataInternal         underlying;
+  protected OSchemaProxyObject        schema;
+  private   ODatabaseDocumentInternal database;
 
-  public OMetadataObject(OMetadataInternal iUnderlying) {
+  public OMetadataObject(OMetadataInternal iUnderlying, ODatabaseDocumentInternal database) {
     underlying = iUnderlying;
+    this.database = database;
   }
 
   public OMetadataObject(OMetadataInternal iUnderlying, OSchemaProxyObject iSchema) {
@@ -63,11 +67,13 @@ public class OMetadataObject implements OMetadataInternal {
   }
 
   @Override
+  @Deprecated
   public void load() {
     underlying.load();
   }
 
   @Override
+  @Deprecated
   public void create() throws IOException {
     underlying.create();
   }
@@ -89,9 +95,18 @@ public class OMetadataObject implements OMetadataInternal {
     return underlying.getSecurity();
   }
 
+  /**
+   * {@inheritDoc}
+   */
+  @Deprecated
   @Override
-  public OIndexManagerProxy getIndexManager() {
-    return underlying.getIndexManager();
+  public OIndexManager getIndexManager() {
+    return new OIndexManagerProxy(underlying.getIndexManagerInternal(), database);
+  }
+
+  @Override
+  public OIndexManagerAbstract getIndexManagerInternal() {
+    return underlying.getIndexManagerInternal();
   }
 
   @Override
@@ -105,6 +120,7 @@ public class OMetadataObject implements OMetadataInternal {
   }
 
   @Override
+  @Deprecated
   public void close() {
     underlying.close();
   }
@@ -119,9 +135,9 @@ public class OMetadataObject implements OMetadataInternal {
     return underlying.getSequenceLibrary();
   }
 
-    @Override
-  public OSchedulerListener getSchedulerListener() {
-    return underlying.getSchedulerListener();
+  @Override
+  public OScheduler getScheduler() {
+    return underlying.getScheduler();
   }
 
   public OMetadata getUnderlying() {

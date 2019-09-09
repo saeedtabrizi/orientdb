@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,35 +14,36 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.common.io;
+
+import com.orientechnologies.common.log.OLogManager;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Locale;
 
 public class OFileUtils {
-  public static final int      KILOBYTE = 1024;
-  public static final int      MEGABYTE = 1048576;
-  public static final int      GIGABYTE = 1073741824;
-  public static final long     TERABYTE = 1099511627776L;
+  public static final int  KILOBYTE = 1024;
+  public static final int  MEGABYTE = 1048576;
+  public static final int  GIGABYTE = 1073741824;
+  public static final long TERABYTE = 1099511627776L;
 
   private static final boolean useOldFileAPI;
+
   static {
     boolean oldAPI = false;
 
     try {
       Class.forName("java.nio.file.FileSystemException");
-    } catch (ClassNotFoundException e) {
+    } catch (ClassNotFoundException ignore) {
       oldAPI = true;
     }
 
@@ -60,8 +61,10 @@ public class OFileUtils {
 
     boolean number = true;
     for (int i = size.length() - 1; i >= 0; --i) {
-      if (!Character.isDigit(size.charAt(i))) {
-        number = false;
+      final char c = size.charAt(i);
+      if (!Character.isDigit(c)) {
+        if (i > 0 || (c != '-' && c != '+'))
+          number = false;
         break;
       }
     }
@@ -145,17 +148,37 @@ public class OFileUtils {
       throw new IOException("Invalid file name '" + iFileName + "'");
   }
 
-  public static void deleteRecursively(final File iRootFile) {
-    if (iRootFile.exists()) {
-      if (iRootFile.isDirectory()) {
-        for (File f : iRootFile.listFiles()) {
-          if (f.isFile())
-            f.delete();
-          else
-            deleteRecursively(f);
+  public static void deleteRecursively(final File rootFile) {
+    deleteRecursively(rootFile, false);
+  }
+
+  public static void deleteRecursively(final File rootFile, boolean onlyDirs) {
+    if (!rootFile.exists())
+      return;
+
+    try {
+      Path rootPath = Paths.get(rootFile.getCanonicalPath());
+      Files.walkFileTree(rootPath, new SimpleFileVisitor<Path>() {
+        @Override
+        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+          if (!onlyDirs) {
+            if (file != null && file.toFile() != null && file.toFile().exists()) {
+              file.toFile().delete();
+            }
+          }
+          return FileVisitResult.CONTINUE;
         }
-      }
-      iRootFile.delete();
+
+        @Override
+        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+          if (dir != null && dir.toFile() != null && dir.toFile().exists()) {
+            dir.toFile().delete();
+          }
+          return FileVisitResult.CONTINUE;
+        }
+      });
+    } catch (IOException e) {
+      throw new IllegalStateException(e);
     }
   }
 
@@ -209,4 +232,43 @@ public class OFileUtils {
 
     return OFileUtilsJava7.delete(file);
   }
+
+  /**
+   * Prepares the path for a file creation or replacement. If the file pointed by the path already exists, it will be deleted, a
+   * warning will be emitted to the log in this case. All absent directories along the path will be created.
+   *
+   * @param path      the file path.
+   * @param requester the requester of an operation being performed to produce user-friendly log messages.
+   * @param operation the description of an operation being performed to produce user-friendly log messages. Use descriptions like
+   *                  "exporting", "backing up", etc.
+   */
+  public static void prepareForFileCreationOrReplacement(Path path, Object requester, String operation) throws IOException {
+    if (Files.deleteIfExists(path))
+      OLogManager.instance().warn(requester, "'%s' deleted while %s", path, operation);
+
+    final Path parent = path.getParent();
+    if (parent != null)
+      Files.createDirectories(parent);
+  }
+
+  /**
+   * Tries to move a file from the source to the target atomically. If atomic move is not possible, falls back to regular move.
+   *
+   * @param source    the source to move the file from.
+   * @param target    the target to move the file to.
+   * @param requester the requester of the move being performed to produce user-friendly log messages.
+   *
+   * @see Files#move(Path, Path, CopyOption...)
+   * @see StandardCopyOption#ATOMIC_MOVE
+   */
+  public static void atomicMoveWithFallback(Path source, Path target, Object requester) throws IOException {
+    try {
+      Files.move(source, target, StandardCopyOption.ATOMIC_MOVE);
+    } catch (AtomicMoveNotSupportedException ignore) {
+      OLogManager.instance()
+          .warn(requester, "atomic file move is not possible, falling back to regular move (moving '%s' to '%s')", source, target);
+      Files.move(source, target);
+    }
+  }
+
 }

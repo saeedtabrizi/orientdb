@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 Orient Technologies.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,48 +17,60 @@
 package com.orientechnologies.lucene.engine;
 
 import com.orientechnologies.common.exception.OException;
-import com.orientechnologies.common.io.OIOException;
 import com.orientechnologies.common.log.OLogManager;
-import com.orientechnologies.lucene.OLuceneIndexType;
-import com.orientechnologies.lucene.builder.DocBuilder;
-import com.orientechnologies.lucene.builder.OQueryBuilder;
-import com.orientechnologies.lucene.collections.LuceneResultSet;
-import com.orientechnologies.lucene.collections.LuceneResultSetFactory;
-import com.orientechnologies.lucene.collections.OFullTextCompositeKey;
-import com.orientechnologies.lucene.query.QueryContext;
+import com.orientechnologies.lucene.builder.OLuceneDocumentBuilder;
+import com.orientechnologies.lucene.builder.OLuceneIndexType;
+import com.orientechnologies.lucene.builder.OLuceneQueryBuilder;
+import com.orientechnologies.lucene.collections.OLuceneCompositeKey;
+import com.orientechnologies.lucene.collections.OLuceneIndexCursor;
+import com.orientechnologies.lucene.collections.OLuceneResultSet;
+import com.orientechnologies.lucene.query.OLuceneKeyAndMetadata;
+import com.orientechnologies.lucene.query.OLuceneQueryContext;
 import com.orientechnologies.lucene.tx.OLuceneTxChanges;
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.OContextualRecordId;
+import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.index.*;
+import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.parser.ParseException;
+import com.orientechnologies.orient.core.storage.OStorage;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.highlight.TextFragment;
 import org.apache.lucene.store.Directory;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static com.orientechnologies.lucene.builder.OLuceneQueryBuilder.EMPTY_METADATA;
 
 public class OLuceneFullTextIndexEngine extends OLuceneIndexEngineAbstract {
 
-  protected OLuceneFacetManager facetManager;
-  private   DocBuilder          builder;
-  private   OQueryBuilder       queryBuilder;
+  private OLuceneDocumentBuilder builder;
+  private OLuceneQueryBuilder    queryBuilder;
+  private final AtomicLong bonsayFileId = new AtomicLong(0);
 
-  public OLuceneFullTextIndexEngine(String idxName, DocBuilder builder, OQueryBuilder queryBuilder) {
-    super(idxName);
-    this.builder = builder;
-    this.queryBuilder = queryBuilder;
+  public OLuceneFullTextIndexEngine(OStorage storage, String idxName, int id) {
+    super(id, storage, idxName);
+    builder = new OLuceneDocumentBuilder();
+
   }
 
   @Override
-  public IndexWriter openIndexWriter(Directory directory) throws IOException {
-
-    return createIndexWriter(directory);
+  public void init(String indexName, String indexType, OIndexDefinition indexDefinition, boolean isAutomatic, ODocument metadata) {
+    super.init(indexName, indexType, indexDefinition, isAutomatic, metadata);
+    queryBuilder = new OLuceneQueryBuilder(metadata);
   }
 
   @Override
@@ -66,20 +78,9 @@ public class OLuceneFullTextIndexEngine extends OLuceneIndexEngineAbstract {
 
     OLuceneIndexWriterFactory fc = new OLuceneIndexWriterFactory();
 
-    facetManager = new OLuceneFacetManager(this, metadata);
-
     OLogManager.instance().debug(this, "Creating Lucene index in '%s'...", directory);
 
     return fc.createIndexWriter(directory, metadata, indexAnalyzer());
-  }
-
-  @Override
-  public void delete() {
-    super.delete();
-    if (facetManager != null) {
-      facetManager.delete();
-    }
-
   }
 
   @Override
@@ -88,11 +89,25 @@ public class OLuceneFullTextIndexEngine extends OLuceneIndexEngineAbstract {
   }
 
   @Override
-  public void onRecordAddedToResultSet(QueryContext queryContext, OContextualRecordId recordId, Document ret,
+  public void onRecordAddedToResultSet(OLuceneQueryContext queryContext, OContextualRecordId recordId, Document ret,
       final ScoreDoc score) {
-    recordId.setContext(new HashMap<String, Object>() {
-      {
-        put("score", score.score);
+
+    recordId.setContext(new HashMap<String, Object>() {{
+
+        HashMap<String, TextFragment[]> frag = queryContext.getFragments();
+
+        frag.entrySet().stream().forEach(f -> {
+          TextFragment[] fragments = f.getValue();
+          StringBuilder hlField = new StringBuilder();
+          for (int j = 0; j < fragments.length; j++) {
+            if ((fragments[j] != null) && (fragments[j].getScore() > 0)) {
+              hlField.append(fragments[j].toString());
+            }
+          }
+          put("$" + f.getKey() + "_hl", hlField.toString());
+        });
+
+        put("$score", score.score);
       }
     });
   }
@@ -104,6 +119,16 @@ public class OLuceneFullTextIndexEngine extends OLuceneIndexEngineAbstract {
 
   @Override
   public boolean remove(Object key) {
+    updateLastAccess();
+    openIfClosed();
+    try {
+      Query query = new QueryParser("", queryAnalyzer()).parse((String) key);
+      deleteDocument(query);
+      return true;
+    } catch (org.apache.lucene.queryparser.classic.ParseException e) {
+      OLogManager.instance().error(this, "Lucene parsing exception", e);
+
+    }
     return false;
   }
 
@@ -113,83 +138,29 @@ public class OLuceneFullTextIndexEngine extends OLuceneIndexEngineAbstract {
   }
 
   @Override
+  public void update(Object key, OIndexKeyUpdater<Object> updater) {
+    put(key, updater.update(null, bonsayFileId).getValue());
+  }
+
+  @Override
   public void put(Object key, Object value) {
+
+    updateLastAccess();
+    openIfClosed();
     Collection<OIdentifiable> container = (Collection<OIdentifiable>) value;
+
     for (OIdentifiable oIdentifiable : container) {
-      Document doc = new Document();
-      doc.add(OLuceneIndexType
-          .createField(RID, oIdentifiable.getIdentity().toString(), Field.Store.YES, Field.Index.NOT_ANALYZED_NO_NORMS));
-      int i = 0;
-      if (index.isAutomatic()) {
-        putInAutomaticIndex(key, doc, i);
-      } else {
-        putInManualindex(key, doc);
-      }
 
-      if (facetManager.supportsFacets()) {
-        try {
-          addDocument(facetManager.buildDocument(doc));
-          // FIXME: writer is commited by timer task, why commit this separately?
-          facetManager.commit();
-        } catch (IOException e) {
-          OLogManager.instance().error(this, "Error while updating facets", e);
-        }
-      } else {
-        addDocument(doc);
-      }
+      Document doc = buildDocument(key, oIdentifiable);
 
-      if (!index.isAutomatic()) {
-        commit();
-      }
-    }
-  }
-
-  private void putInAutomaticIndex(Object key, Document doc, int i) {
-    for (String f : index.getFields()) {
-
-      Object val = null;
-      if (key instanceof OCompositeKey) {
-        val = ((OCompositeKey) key).getKeys().get(i);
-        i++;
-      } else {
-        val = key;
-      }
-      if (val != null) {
-        if (facetManager.supportsFacets() && facetManager.isFacetField(f)) {
-          doc.add(facetManager.buildFacetField(f, val));
-        } else {
-
-          if (isToStore(f).equals(Field.Store.YES)) {
-            doc.add(OLuceneIndexType.createField(f + STORED, val, Field.Store.YES, Field.Index.NOT_ANALYZED_NO_NORMS));
-          }
-          doc.add(OLuceneIndexType.createField(f, val, Field.Store.NO, Field.Index.ANALYZED));
-        }
-      }
+      addDocument(doc);
 
     }
   }
 
-  private void putInManualindex(Object key, Document doc) {
-    if (key instanceof OCompositeKey) {
-
-      List<Object> keys = ((OCompositeKey) key).getKeys();
-
-      int k = 0;
-      for (Object o : keys) {
-        doc.add(OLuceneIndexType.createField("k" + k, o, Field.Store.NO, Field.Index.ANALYZED));
-        k++;
-      }
-    } else if (key instanceof Collection) {
-      Collection<Object> keys = (Collection<Object>) key;
-
-      int k = 0;
-      for (Object o : keys) {
-        doc.add(OLuceneIndexType.createField("k" + k, o, Field.Store.NO, Field.Index.ANALYZED));
-        k++;
-      }
-    } else {
-      doc.add(OLuceneIndexType.createField("k0", key, Field.Store.NO, Field.Index.ANALYZED));
-    }
+  @Override
+  public boolean validatedPut(Object key, ORID value, Validator<Object, ORID> validator) {
+    throw new UnsupportedOperationException("Validated put is not supported by OLuceneFullTextIndexEngine");
   }
 
   @Override
@@ -205,21 +176,20 @@ public class OLuceneFullTextIndexEngine extends OLuceneIndexEngineAbstract {
   @Override
   public OIndexCursor iterateEntriesBetween(Object rangeFrom, boolean fromInclusive, Object rangeTo, boolean toInclusive,
       boolean ascSortOrder, ValuesTransformer transformer) {
-    return new LuceneIndexCursor((LuceneResultSet) get(rangeFrom), rangeFrom);
+    return new OLuceneIndexCursor((OLuceneResultSet) get(rangeFrom), rangeFrom);
   }
 
-  private Set<OIdentifiable> getResults(Query query, OCommandContext context, Object key, OLuceneTxChanges changes) {
+  private Set<OIdentifiable> getResults(Query query, OCommandContext context, OLuceneTxChanges changes, ODocument metadata) {
 
-    try {
-      IndexSearcher searcher = searcher();
-      QueryContext queryContext = new QueryContext(context, searcher, query).setChanges(changes);
-      if (facetManager.supportsFacets()) {
-        facetManager.addFacetContext(queryContext, key);
-      }
-      return LuceneResultSetFactory.INSTANCE.create(this, queryContext);
-    } catch (IOException e) {
-      throw OIOException.wrapException(new OIndexException("Error reading from Lucene index"), e);
-    }
+    //sort
+
+    final List<SortField> fields = OLuceneIndexEngineUtils.buildSortFields(metadata);
+
+    IndexSearcher searcher = searcher();
+
+    OLuceneQueryContext queryContext = new OLuceneQueryContext(context, searcher, query, fields).withChanges(changes);
+
+    return new OLuceneResultSet(this, queryContext, metadata);
 
   }
 
@@ -235,35 +205,59 @@ public class OLuceneFullTextIndexEngine extends OLuceneIndexEngineAbstract {
   }
 
   @Override
-  public OIndexCursor cursor(ValuesTransformer valuesTransformer) {
-    return null;
-  }
-
-  @Override
-  public OIndexKeyCursor keyCursor() {
-    return new OIndexKeyCursor() {
-      @Override
-      public Object next(int prefetchSize) {
-        return null;
-      }
-    };
-  }
-
-  @Override
   public boolean hasRangeQuerySupport() {
     return false;
   }
 
   @Override
   public Document buildDocument(Object key, OIdentifiable value) {
-    return builder.build(index, key, value, collectionFields, metadata);
+    if (indexDefinition.isAutomatic()) {
+//      builder.newBuild(index, key, value);
+
+      return builder.build(indexDefinition, key, value, collectionFields, metadata);
+    } else {
+      return putInManualindex(key, value);
+    }
+  }
+
+  private Document putInManualindex(Object key, OIdentifiable oIdentifiable) {
+    Document doc = new Document();
+    doc.add(OLuceneIndexType.createField(RID, oIdentifiable.getIdentity().toString(), Field.Store.YES));
+
+    if (key instanceof OCompositeKey) {
+
+      List<Object> keys = ((OCompositeKey) key).getKeys();
+
+      int k = 0;
+      for (Object o : keys) {
+        doc.add(OLuceneIndexType.createField("k" + k, o, Field.Store.YES));
+        k++;
+      }
+    } else if (key instanceof Collection) {
+      Collection<Object> keys = (Collection<Object>) key;
+
+      int k = 0;
+      for (Object o : keys) {
+        doc.add(OLuceneIndexType.createField("k" + k, o, Field.Store.YES));
+        k++;
+      }
+    } else {
+      doc.add(OLuceneIndexType.createField("k0", key, Field.Store.NO));
+    }
+    return doc;
   }
 
   @Override
-  public Query buildQuery(Object query) {
-
+  public Query buildQuery(Object maybeQuery) {
     try {
-      return queryBuilder.query(index, query, queryAnalyzer());
+      if (maybeQuery instanceof String) {
+        return queryBuilder.query(indexDefinition, maybeQuery, EMPTY_METADATA, queryAnalyzer());
+      } else {
+        OLuceneKeyAndMetadata q = (OLuceneKeyAndMetadata) maybeQuery;
+        Query query = queryBuilder.query(indexDefinition, q.key, q.metadata, queryAnalyzer());
+        return query;
+
+      }
     } catch (ParseException e) {
 
       throw OException.wrapException(new OIndexEngineException("Error parsing query"), e);
@@ -271,90 +265,29 @@ public class OLuceneFullTextIndexEngine extends OLuceneIndexEngineAbstract {
   }
 
   @Override
-  public Object getInTx(Object key, OLuceneTxChanges changes) {
+  public Set<OIdentifiable> getInTx(Object key, OLuceneTxChanges changes) {
+    updateLastAccess();
+    openIfClosed();
     try {
-      Query q = queryBuilder.query(index, key, queryAnalyzer());
-      OCommandContext context = null;
-      if (key instanceof OFullTextCompositeKey) {
-        context = ((OFullTextCompositeKey) key).getContext();
+      if (key instanceof OLuceneKeyAndMetadata) {
+        OLuceneKeyAndMetadata q = (OLuceneKeyAndMetadata) key;
+        Query query = queryBuilder.query(indexDefinition, q.key, q.metadata, queryAnalyzer());
+
+        OCommandContext commandContext = q.key.getContext();
+        return getResults(query, commandContext, changes, q.metadata);
+
+      } else {
+        Query query = queryBuilder.query(indexDefinition, key, EMPTY_METADATA, queryAnalyzer());
+
+        OCommandContext commandContext = null;
+        if (key instanceof OLuceneCompositeKey) {
+          commandContext = ((OLuceneCompositeKey) key).getContext();
+        }
+        return getResults(query, commandContext, changes, EMPTY_METADATA);
       }
-      return getResults(q, context, key, changes);
     } catch (ParseException e) {
       throw OException.wrapException(new OIndexEngineException("Error parsing lucene query"), e);
     }
   }
 
-  public class LuceneIndexCursor implements OIndexCursor {
-
-    private final Object          key;
-    private       LuceneResultSet resultSet;
-
-    private Iterator<OIdentifiable> iterator;
-
-    public LuceneIndexCursor(LuceneResultSet resultSet, Object key) {
-      this.resultSet = resultSet;
-      this.iterator = resultSet.iterator();
-      this.key = key;
-    }
-
-    @Override
-    public Map.Entry<Object, OIdentifiable> nextEntry() {
-
-      if (iterator.hasNext()) {
-        final OIdentifiable next = iterator.next();
-        return new Map.Entry<Object, OIdentifiable>() {
-          @Override
-          public Object getKey() {
-            return key;
-          }
-
-          @Override
-          public OIdentifiable getValue() {
-            return next;
-          }
-
-          @Override
-          public OIdentifiable setValue(OIdentifiable value) {
-            return null;
-          }
-        };
-      }
-      return null;
-    }
-
-    @Override
-    public Set<OIdentifiable> toValues() {
-      return null;
-    }
-
-    @Override
-    public Set<Map.Entry<Object, OIdentifiable>> toEntries() {
-      return null;
-    }
-
-    @Override
-    public Set<Object> toKeys() {
-      return null;
-    }
-
-    @Override
-    public void setPrefetchSize(int prefetchSize) {
-
-    }
-
-    @Override
-    public boolean hasNext() {
-      return false;
-    }
-
-    @Override
-    public OIdentifiable next() {
-      return null;
-    }
-
-    @Override
-    public void remove() {
-
-    }
-  }
 }

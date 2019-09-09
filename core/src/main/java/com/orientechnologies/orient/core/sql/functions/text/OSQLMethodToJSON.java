@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Orient Technologies.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  * Copyright 2013 Geomatys.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,15 +21,16 @@ import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.executor.OResult;
 import com.orientechnologies.orient.core.sql.method.misc.OAbstractSQLMethod;
 
 import java.util.Map;
 
 /**
  * Converts a document in JSON string.
- * 
+ *
  * @author Johann Sorel (Geomatys)
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OSQLMethodToJSON extends OAbstractSQLMethod {
 
@@ -52,6 +53,9 @@ public class OSQLMethodToJSON extends OAbstractSQLMethod {
 
     final String format = iParams.length > 0 ? ((String) iParams[0]).replace("\"", "") : null;
 
+    if (iThis instanceof OResult) {
+      iThis = ((OResult) iThis).toElement();
+    }
     if (iThis instanceof ORecord) {
 
       final ORecord record = (ORecord) iThis;
@@ -66,8 +70,13 @@ public class OSQLMethodToJSON extends OAbstractSQLMethod {
 
       StringBuilder builder = new StringBuilder();
       builder.append("[");
+      boolean first = true;
       for (Object o : OMultiValue.getMultiValueIterable(iThis, false)) {
+        if (!first) {
+          builder.append(",");
+        }
         builder.append(execute(o, iCurrentRecord, iContext, ioResult, iParams));
+        first = false;
       }
 
       builder.append("]");

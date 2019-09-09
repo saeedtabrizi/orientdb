@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Orient Technologies.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  * Copyright 2013 Geomatys.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,25 +20,24 @@ import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 
 /**
- *
  * @author Johann Sorel (Geomatys)
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OSQLMethodAsInteger extends OAbstractSQLMethod {
 
-    public static final String NAME = "asinteger";
+  public static final String NAME = "asinteger";
 
-    public OSQLMethodAsInteger() {
-        super(NAME);
-    }
+  public OSQLMethodAsInteger() {
+    super(NAME);
+  }
 
-    @Override
-    public Object execute(Object iThis, OIdentifiable iCurrentRecord, OCommandContext iContext, Object ioResult, Object[] iParams) {
-        if (ioResult instanceof Number) {
-            ioResult = ((Number) ioResult).intValue();
-        } else {
-            ioResult = ioResult != null ? new Integer(ioResult.toString().trim()) : null;
-        }
-        return ioResult;
+  @Override
+  public Object execute(Object iThis, OIdentifiable iCurrentRecord, OCommandContext iContext, Object ioResult, Object[] iParams) {
+    if (ioResult instanceof Number) {
+      ioResult = ((Number) ioResult).intValue();
+    } else {
+      ioResult = ioResult != null ? new Integer(ioResult.toString().trim()) : null;
     }
+    return ioResult;
+  }
 }

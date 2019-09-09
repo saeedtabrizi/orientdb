@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,72 +14,63 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.query.live;
 
 import com.orientechnologies.common.concur.resource.OCloseable;
 import com.orientechnologies.common.log.OLogManager;
-import com.orientechnologies.orient.core.command.OCommandExecutor;
-import com.orientechnologies.orient.core.command.OCommandRequestText;
-import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.ODatabase;
 import com.orientechnologies.orient.core.db.ODatabaseInternal;
-import com.orientechnologies.orient.core.db.ODatabaseListener;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.db.record.ORecordOperation;
-import com.orientechnologies.orient.core.hook.ODocumentHookAbstract;
+import com.orientechnologies.orient.core.exception.ODatabaseException;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static com.orientechnologies.orient.core.config.OGlobalConfiguration.QUERY_LIVE_SUPPORT;
 
 /**
  * Created by luigidellaquila on 16/03/15.
  */
-public class OLiveQueryHook extends ODocumentHookAbstract implements ODatabaseListener {
+public class OLiveQueryHook {
 
-  static class OLiveQueryOps implements OCloseable {
+  public static class OLiveQueryOps implements OCloseable {
 
     protected Map<ODatabaseDocument, List<ORecordOperation>> pendingOps  = new ConcurrentHashMap<ODatabaseDocument, List<ORecordOperation>>();
-    private OLiveQueryQueueThread                            queueThread = new OLiveQueryQueueThread();
-    private Object                                           threadLock  = new Object();
+    private   OLiveQueryQueueThread                          queueThread = new OLiveQueryQueueThread();
+    private   Object                                         threadLock  = new Object();
 
     @Override
     public void close() {
       queueThread.stopExecution();
       try {
         queueThread.join();
-      } catch (InterruptedException e) {
+      } catch (InterruptedException ignore) {
         Thread.currentThread().interrupt();
       }
       pendingOps.clear();
     }
+
+    public OLiveQueryQueueThread getQueueThread() {
+      return queueThread;
+    }
   }
 
-  public OLiveQueryHook(ODatabaseDocumentTx db) {
-    super(db);
-    getOpsReference(db);
-    db.registerListener(this);
-  }
-
-  private static OLiveQueryOps getOpsReference(ODatabaseInternal db) {
-    return (OLiveQueryOps) db.getStorage().getResource("LiveQueryOps", new Callable<Object>() {
-      @Override
-      public Object call() throws Exception {
-        return new OLiveQueryOps();
-      }
-    });
+  public static OLiveQueryOps getOpsReference(ODatabaseInternal db) {
+    return db.getSharedContext().getLiveQueryOps();
   }
 
   public static Integer subscribe(Integer token, OLiveQueryListener iListener, ODatabaseInternal db) {
-    if(Boolean.FALSE.equals(db.getConfiguration().getValue(OGlobalConfiguration.QUERY_LIVE_SUPPORT))) {
-      OLogManager.instance().warn(db,"Live query support is disabled impossible to subscribe a listener, set '%s' to true for enable the live query support", OGlobalConfiguration.QUERY_LIVE_SUPPORT.getKey());
+    if (Boolean.FALSE.equals(db.getConfiguration().getValue(QUERY_LIVE_SUPPORT))) {
+      OLogManager.instance().warn(db,
+          "Live query support is disabled impossible to subscribe a listener, set '%s' to true for enable the live query support",
+          QUERY_LIVE_SUPPORT.getKey());
       return -1;
     }
     OLiveQueryOps ops = getOpsReference(db);
@@ -94,8 +85,10 @@ public class OLiveQueryHook extends ODocumentHookAbstract implements ODatabaseLi
   }
 
   public static void unsubscribe(Integer id, ODatabaseInternal db) {
-    if(Boolean.FALSE.equals(db.getConfiguration().getValue(OGlobalConfiguration.QUERY_LIVE_SUPPORT))) {
-      OLogManager.instance().warn(db, "Live query support is disabled impossible to unsubscribe a listener, set '%s' to true for enable the live query support", OGlobalConfiguration.QUERY_LIVE_SUPPORT.getKey());
+    if (Boolean.FALSE.equals(db.getConfiguration().getValue(QUERY_LIVE_SUPPORT))) {
+      OLogManager.instance().warn(db,
+          "Live query support is disabled impossible to unsubscribe a listener, set '%s' to true for enable the live query support",
+          QUERY_LIVE_SUPPORT.getKey());
       return;
     }
     try {
@@ -104,59 +97,13 @@ public class OLiveQueryHook extends ODocumentHookAbstract implements ODatabaseLi
         ops.queueThread.unsubscribe(id);
       }
     } catch (Exception e) {
-      OLogManager.instance().warn(OLiveQueryHook.class, "Error on unsubscribing client");
+      OLogManager.instance().warn(OLiveQueryHook.class, "Error on unsubscribing client", e);
     }
   }
 
-  @Override
-  public void onCreate(ODatabase iDatabase) {
-
-  }
-
-  @Override
-  public void onDelete(ODatabase iDatabase) {
-    if(Boolean.FALSE.equals(database.getConfiguration().getValue(OGlobalConfiguration.QUERY_LIVE_SUPPORT)))
-      return ;
-    OLiveQueryOps ops = getOpsReference((ODatabaseInternal) iDatabase);
-    synchronized (ops.pendingOps) {
-      ops.pendingOps.remove(iDatabase);
-    }
-  }
-
-  @Override
-  public void onOpen(ODatabase iDatabase) {
-
-  }
-
-  @Override
-  public void onBeforeTxBegin(ODatabase iDatabase) {
-
-  }
-
-  @Override
-  public void onBeforeTxRollback(ODatabase iDatabase) {
-
-  }
-
-  @Override
-  public void onAfterTxRollback(ODatabase iDatabase) {
-    if(Boolean.FALSE.equals(database.getConfiguration().getValue(OGlobalConfiguration.QUERY_LIVE_SUPPORT)))
-      return ;
-    OLiveQueryOps ops = getOpsReference((ODatabaseInternal) iDatabase);
-    synchronized (ops.pendingOps) {
-      ops.pendingOps.remove(iDatabase);
-    }
-  }
-
-  @Override
-  public void onBeforeTxCommit(ODatabase iDatabase) {
-
-  }
-
-  @Override
-  public void onAfterTxCommit(ODatabase iDatabase) {
-    if(Boolean.FALSE.equals(database.getConfiguration().getValue(OGlobalConfiguration.QUERY_LIVE_SUPPORT)))
-      return ;
+  public static void notifyForTxChanges(ODatabase iDatabase) {
+    if (Boolean.FALSE.equals(iDatabase.getConfiguration().getValue(QUERY_LIVE_SUPPORT)))
+      return;
     OLiveQueryOps ops = getOpsReference((ODatabaseInternal) iDatabase);
     List<ORecordOperation> list;
     synchronized (ops.pendingOps) {
@@ -171,56 +118,27 @@ public class OLiveQueryHook extends ODocumentHookAbstract implements ODatabaseLi
     }
   }
 
-  @Override
-  public void onClose(ODatabase iDatabase) {
-    if(Boolean.FALSE.equals(database.getConfiguration().getValue(OGlobalConfiguration.QUERY_LIVE_SUPPORT)))
-      return ;
-    OLiveQueryOps ops = getOpsReference((ODatabaseInternal) iDatabase);
-    synchronized (ops.pendingOps) {
-      ops.pendingOps.remove(iDatabase);
+  public static void removePendingDatabaseOps(ODatabase iDatabase) {
+    try {
+      if (iDatabase.isClosed() || Boolean.FALSE.equals(iDatabase.getConfiguration().getValue(QUERY_LIVE_SUPPORT)))
+        return;
+      OLiveQueryOps ops = getOpsReference((ODatabaseInternal) iDatabase);
+      synchronized (ops.pendingOps) {
+        ops.pendingOps.remove(iDatabase);
+      }
+    } catch (ODatabaseException ex) {
+      //This catch and log the exception because in some case is suppressing the real exception
+      OLogManager.instance().error(iDatabase, "Error cleaning the live query resources", ex);
     }
   }
 
-  @Override
-  public void onBeforeCommand(OCommandRequestText iCommand, OCommandExecutor executor) {
-
-  }
-
-  @Override
-  public void onAfterCommand(OCommandRequestText iCommand, OCommandExecutor executor, Object result) {
-
-  }
-
-  @Override
-  public void onRecordAfterCreate(ODocument iDocument) {
-    addOp(iDocument, ORecordOperation.CREATED);
-  }
-
-  @Override
-  public void onRecordAfterUpdate(ODocument iDocument) {
-    addOp(iDocument, ORecordOperation.UPDATED);
-  }
-
-  @Override
-  public RESULT onRecordBeforeDelete(ODocument iDocument) {
-    addOp(iDocument, ORecordOperation.DELETED);
-    return RESULT.RECORD_NOT_CHANGED;
-  }
-
-  protected void addOp(ODocument iDocument, byte iType) {
-    if(Boolean.FALSE.equals(database.getConfiguration().getValue(OGlobalConfiguration.QUERY_LIVE_SUPPORT)))
-      return ;
+  public static void addOp(ODocument iDocument, byte iType, ODatabaseDocument database) {
+    if (Boolean.FALSE.equals(database.getConfiguration().getValue(QUERY_LIVE_SUPPORT)))
+      return;
     ODatabaseDocument db = database;
     OLiveQueryOps ops = getOpsReference((ODatabaseInternal) db);
-    if(!ops.queueThread.hasListeners())
+    if (!ops.queueThread.hasListeners())
       return;
-    if (db.getTransaction() == null || !db.getTransaction().isActive()) {
-
-      // TODO synchronize
-      ORecordOperation op = new ORecordOperation(iDocument.copy(), iType);
-      ops.queueThread.enqueue(op);
-      return;
-    }
     ORecordOperation result = new ORecordOperation(iDocument, iType);
     synchronized (ops.pendingOps) {
       List<ORecordOperation> list = ops.pendingOps.get(db);
@@ -232,13 +150,4 @@ public class OLiveQueryHook extends ODocumentHookAbstract implements ODatabaseLi
     }
   }
 
-  @Override
-  public boolean onCorruptionRepairDatabase(ODatabase iDatabase, String iReason, String iWhatWillbeFixed) {
-    return false;
-  }
-
-  @Override
-  public DISTRIBUTED_EXECUTION_MODE getDistributedExecutionMode() {
-    return DISTRIBUTED_EXECUTION_MODE.BOTH;
-  }
 }

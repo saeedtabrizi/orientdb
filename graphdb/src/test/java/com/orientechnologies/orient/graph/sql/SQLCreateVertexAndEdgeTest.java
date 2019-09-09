@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,11 @@ package com.orientechnologies.orient.graph.sql;
 
 import java.util.List;
 
+import com.orientechnologies.orient.core.command.OCommandManager;
+import com.orientechnologies.orient.core.command.script.OCommandExecutorScript;
 import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
@@ -48,6 +51,11 @@ public class SQLCreateVertexAndEdgeTest {
       database.open("admin", "admin");
     else
       database.create();
+  }
+
+  @Before
+  public void before(){
+    OCommandManager.instance().registerExecutor(OCommandScript.class, OCommandExecutorScript.class);
   }
 
   @After
@@ -103,7 +111,7 @@ public class SQLCreateVertexAndEdgeTest {
     Assert.assertEquals(e3.getClassName(), OrientEdgeType.CLASS_NAME);
     Assert.assertEquals(e3.field("out"), v1);
     Assert.assertEquals(e3.field("in"), v4);
-    Assert.assertEquals(e3.field("weight"), 3);
+    Assert.assertEquals(e3.<Object>field("weight"), 3);
 
     edges = database.command(
         new OCommandSQL("create edge E1 from " + v2.getIdentity() + " to " + v3.getIdentity() + " set weight = 10")).execute();
@@ -112,7 +120,7 @@ public class SQLCreateVertexAndEdgeTest {
     Assert.assertEquals(e4.getClassName(), "E1");
     Assert.assertEquals(e4.field("out"), v2);
     Assert.assertEquals(e4.field("in"), v3);
-    Assert.assertEquals(e4.field("weight"), 10);
+    Assert.assertEquals(e4.<Object>field("weight"), 10);
 
     edges = database
         .command(

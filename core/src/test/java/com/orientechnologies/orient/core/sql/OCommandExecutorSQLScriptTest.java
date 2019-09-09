@@ -3,26 +3,30 @@ package com.orientechnologies.orient.core.sql;
 import com.orientechnologies.orient.core.command.script.OCommandScript;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.executor.OResultSet;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import org.testng.Assert;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import org.junit.*;
 
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-@Test
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class OCommandExecutorSQLScriptTest {
   private static String DB_STORAGE = "memory";
   private static String DB_NAME    = "OCommandExecutorSQLScriptTest";
+  public ODatabaseDocumentTx db;
 
-  ODatabaseDocumentTx db;
+  @After
+  public void after() throws Exception {
+    if (db.isClosed()) {
+      db.open("admin", "admin");
+    }
+    db.drop();
 
-  @BeforeClass
-  public void beforeClass() throws Exception {
+  }
+
+  @Before
+  public void before() throws Exception {
     db = new ODatabaseDocumentTx(DB_STORAGE + ":" + DB_NAME);
     db.create();
 
@@ -32,16 +36,7 @@ public class OCommandExecutorSQLScriptTest {
     db.command(new OCommandSQL("insert into foo (name, bar) values ('b', 2)")).execute();
     db.command(new OCommandSQL("insert into foo (name, bar) values ('c', 3)")).execute();
 
-  }
-
-  @AfterClass
-  public void afterClass() throws Exception {
-    if (db.isClosed()) {
-      db.open("admin", "admin");
-    }
-    db.command(new OCommandSQL("drop class foo")).execute();
-    db.getMetadata().getSchema().reload();
-    db.close();
+    db.activateOnCurrentThread();
   }
 
   @Test
@@ -87,7 +82,6 @@ public class OCommandExecutorSQLScriptTest {
     result = result.trim();
     Assert.assertTrue(result.startsWith("["));
     Assert.assertTrue(result.endsWith("]"));
-
     new ODocument().fromJSON(result.substring(1, result.length() - 1));
 
   }
@@ -150,7 +144,21 @@ public class OCommandExecutorSQLScriptTest {
     script.append("UPDATE TestCounter INCREMENT weight = $counter[0].count RETURN AfTER @this;\n");
     List<ODocument> qResult = db.command(new OCommandScript("sql", script.toString())).execute();
 
-    Assert.assertEquals(qResult.get(0).field("weight"), 4l);
+    assertThat(qResult.get(0).<Long>field("weight")).isEqualTo(4L);
+  }
+
+  @Test
+  @Ignore
+  public void testIncrementAndLetNewApi() throws Exception {
+
+    StringBuilder script = new StringBuilder();
+    script.append("CREATE CLASS TestCounter;\n");
+    script.append("INSERT INTO TestCounter set weight = 3;\n");
+    script.append("LET counter = SELECT count(*) FROM TestCounter;\n");
+    script.append("UPDATE TestCounter INCREMENT weight = $counter[0].count RETURN AfTER @this;\n");
+    OResultSet qResult = db.execute("sql", script.toString());
+
+    assertThat(qResult.next().getElement().get().<Long>getProperty("weight")).isEqualTo(4L);
   }
 
   @Test
@@ -191,6 +199,7 @@ public class OCommandExecutorSQLScriptTest {
     Assert.assertNotNull(qResult);
     Assert.assertEquals(qResult, "OK");
   }
+
   @Test
   public void testNestedIf2() throws Exception {
     StringBuilder script = new StringBuilder();
@@ -286,7 +295,7 @@ public class OCommandExecutorSQLScriptTest {
     script.append("let $b = select \"foo \\\"; bar\" as one\n");
     Object qResult = db.command(new OCommandScript("sql", script.toString())).execute();
   }
-  
+
   @Test
   public void testQuotedRegex() {
     //issue #4996 (simplified)
@@ -299,6 +308,44 @@ public class OCommandExecutorSQLScriptTest {
     Assert.assertEquals(result.size(), 1);
     ODocument doc = result.get(0);
     Assert.assertEquals(doc.field("regexp"), "'';");
+  }
+
+  @Test
+  public void testParameters1() {
+    String className = "testParameters1";
+    db.createVertexClass(className);
+    String script = "BEGIN;" + "LET $a = CREATE VERTEX " + className + " SET name = :name;" + "LET $b = CREATE VERTEX " + className
+        + " SET name = :_name2;" + "LET $edge = CREATE EDGE E from $a to $b;" + "COMMIT;" + "RETURN $edge;";
+
+    HashMap<String, Object> map = new HashMap<>();
+    map.put("name", "bozo");
+    map.put("_name2", "bozi");
+
+    OResultSet rs = db.execute("sql", script, map);
+    rs.close();
+
+    rs = db.query("SELECT FROM " + className + " WHERE name = ?", "bozo");
+
+    Assert.assertTrue(rs.hasNext());
+    rs.next();
+    rs.close();
+  }
+
+  @Test
+  public void testPositionalParameters() {
+    String className = "testPositionalParameters";
+    db.createVertexClass(className);
+    String script = "BEGIN;" + "LET $a = CREATE VERTEX " + className + " SET name = ?;" + "LET $b = CREATE VERTEX " + className
+        + " SET name = ?;" + "LET $edge = CREATE EDGE E from $a to $b;" + "COMMIT;" + "RETURN $edge;";
+
+    OResultSet rs = db.execute("sql", script, "bozo", "bozi");
+    rs.close();
+
+    rs = db.query("SELECT FROM " + className + " WHERE name = ?", "bozo");
+
+    Assert.assertTrue(rs.hasNext());
+    rs.next();
+    rs.close();
   }
 
 }

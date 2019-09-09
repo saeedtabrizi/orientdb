@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,14 +14,15 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.hook;
 
 import com.orientechnologies.orient.core.db.ODatabase.STATUS;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -29,19 +30,19 @@ import com.orientechnologies.orient.core.record.impl.ODocumentInternal;
 
 /**
  * Hook abstract class that calls separate methods for ODocument records.
- * 
- * @author Luca Garulli
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * @see ORecordHook
  */
 public abstract class ODocumentHookAbstract implements ORecordHook {
-  private String[]            includeClasses;
-  private String[]            excludeClasses;
+  private String[] includeClasses;
+  private String[] excludeClasses;
 
   protected ODatabaseDocument database;
 
   @Deprecated
   public ODocumentHookAbstract() {
-    this.database = ODatabaseRecordThreadLocal.INSTANCE.get();
+    this.database = ODatabaseRecordThreadLocal.instance().get();
   }
 
   public ODocumentHookAbstract(ODatabaseDocument database) {
@@ -54,9 +55,9 @@ public abstract class ODocumentHookAbstract implements ORecordHook {
 
   /**
    * It's called just before to create the new document.
-   * 
-   * @param iDocument
-   *          The document to create
+   *
+   * @param iDocument The document to create
+   *
    * @return True if the document has been modified and a new marshalling is required, otherwise false
    */
   public RESULT onRecordBeforeCreate(final ODocument iDocument) {
@@ -65,36 +66,33 @@ public abstract class ODocumentHookAbstract implements ORecordHook {
 
   /**
    * It's called just after the document is created.
-   * 
-   * @param iDocument
-   *          The document is going to be created
+   *
+   * @param iDocument The document is going to be created
    */
   public void onRecordAfterCreate(final ODocument iDocument) {
   }
 
   /**
    * It's called just after the document creation was failed.
-   * 
-   * @param iDocument
-   *          The document just created
+   *
+   * @param iDocument The document just created
    */
   public void onRecordCreateFailed(final ODocument iDocument) {
   }
 
   /**
    * It's called just after the document creation was replicated on another node.
-   * 
-   * @param iDocument
-   *          The document just created
+   *
+   * @param iDocument The document just created
    */
   public void onRecordCreateReplicated(final ODocument iDocument) {
   }
 
   /**
    * It's called just before to read the document.
-   * 
-   * @param iDocument
-   *          The document to read
+   *
+   * @param iDocument The document to read
+   *
    * @return True if the document has been modified and a new marshalling is required, otherwise false
    */
   public RESULT onRecordBeforeRead(final ODocument iDocument) {
@@ -103,36 +101,33 @@ public abstract class ODocumentHookAbstract implements ORecordHook {
 
   /**
    * It's called just after the document is read.
-   * 
-   * @param iDocument
-   *          The document just read
+   *
+   * @param iDocument The document just read
    */
   public void onRecordAfterRead(final ODocument iDocument) {
   }
 
   /**
    * It's called just after the document read was failed.
-   * 
-   * @param iDocument
-   *          The document just created
+   *
+   * @param iDocument The document just created
    */
   public void onRecordReadFailed(final ODocument iDocument) {
   }
 
   /**
    * It's called just after the document read was replicated on another node.
-   * 
-   * @param iDocument
-   *          The document just created
+   *
+   * @param iDocument The document just created
    */
   public void onRecordReadReplicated(final ODocument iDocument) {
   }
 
   /**
    * It's called just before to update the document.
-   * 
-   * @param iDocument
-   *          The document to update
+   *
+   * @param iDocument The document to update
+   *
    * @return True if the document has been modified and a new marshalling is required, otherwise false
    */
   public RESULT onRecordBeforeUpdate(final ODocument iDocument) {
@@ -141,36 +136,33 @@ public abstract class ODocumentHookAbstract implements ORecordHook {
 
   /**
    * It's called just after the document is updated.
-   * 
-   * @param iDocument
-   *          The document just updated
+   *
+   * @param iDocument The document just updated
    */
   public void onRecordAfterUpdate(final ODocument iDocument) {
   }
 
   /**
    * It's called just after the document updated was failed.
-   * 
-   * @param iDocument
-   *          The document is going to be updated
+   *
+   * @param iDocument The document is going to be updated
    */
   public void onRecordUpdateFailed(final ODocument iDocument) {
   }
 
   /**
    * It's called just after the document updated was replicated.
-   * 
-   * @param iDocument
-   *          The document is going to be updated
+   *
+   * @param iDocument The document is going to be updated
    */
   public void onRecordUpdateReplicated(final ODocument iDocument) {
   }
 
   /**
    * It's called just before to delete the document.
-   * 
-   * @param iDocument
-   *          The document to delete
+   *
+   * @param iDocument The document to delete
+   *
    * @return True if the document has been modified and a new marshalling is required, otherwise false
    */
   public RESULT onRecordBeforeDelete(final ODocument iDocument) {
@@ -179,27 +171,24 @@ public abstract class ODocumentHookAbstract implements ORecordHook {
 
   /**
    * It's called just after the document is deleted.
-   * 
-   * @param iDocument
-   *          The document just deleted
+   *
+   * @param iDocument The document just deleted
    */
   public void onRecordAfterDelete(final ODocument iDocument) {
   }
 
   /**
    * It's called just after the document deletion was failed.
-   * 
-   * @param iDocument
-   *          The document is going to be deleted
+   *
+   * @param iDocument The document is going to be deleted
    */
   public void onRecordDeleteFailed(final ODocument iDocument) {
   }
 
   /**
    * It's called just after the document deletion was replicated.
-   * 
-   * @param iDocument
-   *          The document is going to be deleted
+   *
+   * @param iDocument The document is going to be deleted
    */
   public void onRecordDeleteReplicated(final ODocument iDocument) {
   }
@@ -208,6 +197,9 @@ public abstract class ODocumentHookAbstract implements ORecordHook {
   }
 
   public void onRecordFinalizeCreation(final ODocument document) {
+  }
+
+  public void onRecordFinalizeDeletion(final ODocument document) {
   }
 
   public RESULT onTrigger(final TYPE iType, final ORecord iRecord) {
@@ -291,6 +283,10 @@ public abstract class ODocumentHookAbstract implements ORecordHook {
       onRecordFinalizeUpdate(document);
       break;
 
+    case FINALIZE_DELETION:
+      onRecordFinalizeDeletion(document);
+      break;
+
     default:
       throw new IllegalStateException("Hook method " + iType + " is not managed");
     }
@@ -324,7 +320,7 @@ public abstract class ODocumentHookAbstract implements ORecordHook {
     if (includeClasses == null && excludeClasses == null)
       return true;
 
-    final OClass clazz = ODocumentInternal.getImmutableSchemaClass(iDocument);
+    final OClass clazz = ODocumentInternal.getImmutableSchemaClass((ODatabaseDocumentInternal) database, iDocument);
     if (clazz == null)
       return false;
 

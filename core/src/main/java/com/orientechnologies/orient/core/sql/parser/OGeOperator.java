@@ -3,7 +3,7 @@
 
 /*
   *
-  *  *  Copyright 2015 Orient Technologies LTD (info(at)orientdb.com)
+  *  *  Copyright 2015 OrientDB LTD (info(at)orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -34,13 +34,21 @@ public class OGeOperator extends SimpleNode implements OBinaryCompareOperator {
     super(p, id);
   }
 
-  /** Accept the visitor. **/
+  /**
+   * Accept the visitor.
+   **/
   public Object jjtAccept(OrientSqlVisitor visitor, Object data) {
     return visitor.visit(this, data);
   }
 
   @Override
   public boolean execute(Object iLeft, Object iRight) {
+    if (iLeft == iRight) {
+      return true;
+    }
+    if (iLeft == null || iRight == null) {
+      return false;
+    }
     if (iLeft.getClass() != iRight.getClass() && iLeft instanceof Number && iRight instanceof Number) {
       Number[] couple = OType.castComparableNumber((Number) iLeft, (Number) iRight);
       iLeft = couple[0];
@@ -58,11 +66,29 @@ public class OGeOperator extends SimpleNode implements OBinaryCompareOperator {
     return ">=";
   }
 
-  @Override public boolean supportsBasicCalculation() {
+  @Override
+  public boolean supportsBasicCalculation() {
     return true;
   }
 
+  @Override
+  public OGeOperator copy() {
+    return this;
+  }
 
+  @Override
+  public boolean isRangeOperator() {
+    return true;
+  }
 
+  @Override
+  public boolean equals(Object obj) {
+    return obj != null && obj.getClass().equals(this.getClass());
+  }
+
+  @Override
+  public int hashCode() {
+    return getClass().hashCode();
+  }
 }
 /* JavaCC - OriginalChecksum=960da239569d393eb155f7d8a871e6d5 (do not edit this line) */

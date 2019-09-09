@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,20 +14,18 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.core.type;
 
 import com.orientechnologies.common.io.OIOUtils;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.Externalizable;
 import java.io.IOException;
 import java.io.ObjectInput;
 import java.io.ObjectOutput;
 
-@SuppressFBWarnings({ "EI_EXPOSE_REP2", "EI_EXPOSE_REP" })
 public class OBuffer implements Externalizable {
   public byte[] buffer;
 
@@ -42,10 +40,10 @@ public class OBuffer implements Externalizable {
   }
 
   public void readExternal(final ObjectInput iInput) throws IOException, ClassNotFoundException {
-    final int bufferLenght = iInput.readInt();
-    if (bufferLenght > 0) {
-      buffer = new byte[bufferLenght];
-      for (int pos = 0, bytesReaded = 0; pos < bufferLenght; pos += bytesReaded) {
+    final int bufferLength = iInput.readInt();
+    if (bufferLength > 0) {
+      buffer = new byte[bufferLength];
+      for (int pos = 0, bytesReaded = 0; pos < bufferLength; pos += bytesReaded) {
         bytesReaded = iInput.read(buffer, pos, buffer.length - pos);
       }
     } else
@@ -53,9 +51,9 @@ public class OBuffer implements Externalizable {
   }
 
   public void writeExternal(final ObjectOutput iOutput) throws IOException {
-    final int bufferLenght = buffer != null ? buffer.length : 0;
-    iOutput.writeInt(bufferLenght);
-    if (bufferLenght > 0)
+    final int bufferLength = buffer != null ? buffer.length : 0;
+    iOutput.writeInt(bufferLength);
+    if (bufferLength > 0)
       iOutput.write(buffer);
   }
 
@@ -68,7 +66,6 @@ public class OBuffer implements Externalizable {
     return buffer;
   }
 
-  @SuppressFBWarnings("EI_EXPOSE_REP2")
   public void setBuffer(final byte[] buffer) {
     this.buffer = buffer;
   }

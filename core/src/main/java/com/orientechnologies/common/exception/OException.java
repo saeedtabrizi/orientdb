@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -44,24 +44,4 @@ public abstract class OException extends RuntimeException {
     super(exception.getMessage(), exception.getCause());
   }
 
-  /**
-   * Passing of root exceptions directly is prohibited use {@link #wrapException(OException, Throwable)} instead.
-   */
-  private OException(final Throwable cause) {
-    super(cause);
-  }
-
-  /**
-   * Passing of root exceptions directly is prohibited use {@link #wrapException(OException, Throwable)} instead.
-   */
-  private OException(final String message, final Throwable cause) {
-    super(message, cause);
-  }
-
-  public static Throwable getFirstCause(Throwable iRootException) {
-    while (iRootException.getCause() != null)
-      iRootException = iRootException.getCause();
-
-    return iRootException;
-  }
 }

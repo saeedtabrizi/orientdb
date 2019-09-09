@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.record.impl;
@@ -31,8 +31,6 @@ import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.record.ORecordAbstract;
 import com.orientechnologies.orient.core.serialization.OMemoryStream;
-import com.orientechnologies.orient.core.serialization.serializer.record.ORecordSerializerFactory;
-import com.orientechnologies.orient.core.serialization.serializer.record.ORecordSerializerRaw;
 
 /**
  * The rawest representation of a record. It's schema less. Use this if you need to store Strings or byte[] without matter about the
@@ -46,45 +44,46 @@ public class ORecordBytes extends ORecordAbstract implements OBlob {
   private static final byte[] EMPTY_SOURCE     = new byte[] {};
 
   public ORecordBytes() {
-    setup();
+    setup(ODatabaseRecordThreadLocal.instance().getIfDefined());
   }
 
   public ORecordBytes(final ODatabaseDocumentInternal iDatabase) {
-    setup();
-    ODatabaseRecordThreadLocal.INSTANCE.set(iDatabase);
+    setup(iDatabase);
+    ODatabaseRecordThreadLocal.instance().set(iDatabase);
   }
 
   public ORecordBytes(final ODatabaseDocumentInternal iDatabase, final byte[] iSource) {
     this(iSource);
-    ODatabaseRecordThreadLocal.INSTANCE.set(iDatabase);
+    ODatabaseRecordThreadLocal.instance().set(iDatabase);
   }
 
   public ORecordBytes(final byte[] iSource) {
     super(iSource);
-    _dirty = true;
-    _contentChanged = true;
-    setup();
+    dirty = true;
+    contentChanged = true;
+    setup(ODatabaseRecordThreadLocal.instance().getIfDefined());
   }
 
   public ORecordBytes(final ORID iRecordId) {
-    _recordId = (ORecordId) iRecordId;
-    setup();
+    recordId = (ORecordId) iRecordId;
+    setup(ODatabaseRecordThreadLocal.instance().getIfDefined());
   }
 
   public ORecordBytes reset(final byte[] iSource) {
     reset();
-    _source = iSource;
+    source = iSource;
     return this;
   }
 
+  @Override
   public ORecordBytes copy() {
     return (ORecordBytes) copyTo(new ORecordBytes());
   }
 
   @Override
   public ORecordBytes fromStream(final byte[] iRecordBuffer) {
-    _source = iRecordBuffer;
-    _status = ORecordElement.STATUS.LOADED;
+    source = iRecordBuffer;
+    status = ORecordElement.STATUS.LOADED;
     return this;
   }
 
@@ -96,7 +95,7 @@ public class ORecordBytes extends ORecordAbstract implements OBlob {
 
   @Override
   public byte[] toStream() {
-    return _source;
+    return source;
   }
 
   public byte getRecordType() {
@@ -104,9 +103,8 @@ public class ORecordBytes extends ORecordAbstract implements OBlob {
   }
 
   @Override
-  protected void setup() {
-    super.setup();
-    _recordFormat = ORecordSerializerFactory.instance().getFormat(ORecordSerializerRaw.NAME);
+  protected void setup(ODatabaseDocumentInternal db) {
+    super.setup(db);
   }
 
   /**
@@ -131,12 +129,12 @@ public class ORecordBytes extends ORecordAbstract implements OBlob {
         out.write(buffer, 0, readBytesCount);
       }
       out.flush();
-      _source = out.toByteArray();
+      source = out.toByteArray();
     } finally {
       out.close();
     }
-    _size = _source.length;
-    return _size;
+    size = source.length;
+    return size;
   }
 
   /**
@@ -164,23 +162,23 @@ public class ORecordBytes extends ORecordAbstract implements OBlob {
     }
 
     if (totalBytesCount == 0) {
-      _source = EMPTY_SOURCE;
-      _size = 0;
+      source = EMPTY_SOURCE;
+      size = 0;
     } else if (totalBytesCount == maxSize) {
-      _source = buffer;
-      _size = maxSize;
+      source = buffer;
+      size = maxSize;
     } else {
-      _source = Arrays.copyOf(buffer, totalBytesCount);
-      _size = totalBytesCount;
+      source = Arrays.copyOf(buffer, totalBytesCount);
+      size = totalBytesCount;
     }
-    return _size;
+    return size;
   }
 
   public void toOutputStream(final OutputStream out) throws IOException {
     checkForLoading();
 
-    if (_source.length > 0) {
-      out.write(_source);
+    if (source.length > 0) {
+      out.write(source);
     }
   }
 }

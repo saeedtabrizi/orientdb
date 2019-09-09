@@ -1,6 +1,23 @@
+/**
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * For more information: http://orientdb.com
+ */
 package com.orientechnologies.orient.jdbc;
 
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import org.junit.Test;
@@ -13,7 +30,7 @@ import java.sql.Statement;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class OrientJdbcStatementDMLtest extends OrientJdbcBaseTest {
+public class OrientJdbcStatementDMLtest extends OrientJdbcDbPerMethodTemplateTest {
 
   @Test
   public void shouldInsertANewItem() throws Exception {
@@ -79,7 +96,7 @@ public class OrientJdbcStatementDMLtest extends OrientJdbcBaseTest {
     stmt.close();
 
     // double value test pattern?
-    ODatabaseDocumentTx database = conn.getDatabase();
+    ODatabaseDocument database = conn.getDatabase();
     assertThat(database.getClusterIdByName("account")).isNotNull();
     OClass account = database.getMetadata().getSchema().getClass("Account");
     assertThat(account).isNotNull();
@@ -90,7 +107,7 @@ public class OrientJdbcStatementDMLtest extends OrientJdbcBaseTest {
   }
 
   @Test
-  public void shoulCreateClassWithBatchCommand() throws IOException, SQLException {
+  public void shouldCreateClassWithBatchCommand() throws IOException, SQLException {
 
     Statement stmt = conn.createStatement();
 
@@ -102,7 +119,7 @@ public class OrientJdbcStatementDMLtest extends OrientJdbcBaseTest {
     stmt.close();
 
     // double value test pattern?
-    ODatabaseDocumentTx database = conn.getDatabase();
+    ODatabaseDocument database = conn.getDatabase();
     assertThat(database.getClusterIdByName("account")).isNotNull();
     OClass account = database.getMetadata().getSchema().getClass("Account");
     assertThat(account).isNotNull();

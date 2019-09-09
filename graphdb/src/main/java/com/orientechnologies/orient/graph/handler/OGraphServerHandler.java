@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -24,22 +24,29 @@ import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.command.script.OScriptInjection;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.graph.gremlin.OGremlinHelper;
 import com.orientechnologies.orient.graph.script.OScriptGraphOrientWrapper;
+import com.orientechnologies.orient.graph.server.command.OServerCommandPostCommandGraph;
 import com.orientechnologies.orient.server.OClientConnection;
 import com.orientechnologies.orient.server.OServer;
 import com.orientechnologies.orient.server.config.OServerParameterConfiguration;
+import com.orientechnologies.orient.server.network.OServerNetworkListener;
+import com.orientechnologies.orient.server.network.protocol.http.ONetworkProtocolHttpAbstract;
 import com.orientechnologies.orient.server.plugin.OServerPluginAbstract;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 
 import javax.script.Bindings;
+import javax.script.ScriptEngine;
 
 public class OGraphServerHandler extends OServerPluginAbstract implements OScriptInjection {
-  private boolean enabled      = true;
-  private int     graphPoolMax = OGlobalConfiguration.DB_POOL_MAX.getValueAsInteger();
+  private boolean enabled = true;
+  private int     graphPoolMax;
+  private OServer server;
 
   @Override
-  public void config(OServer oServer, OServerParameterConfiguration[] iParams) {
+  public void config(final OServer server, OServerParameterConfiguration[] iParams) {
+    graphPoolMax = server.getContextConfiguration().getValueAsInteger(OGlobalConfiguration.DB_POOL_MAX);
     for (OServerParameterConfiguration param : iParams) {
       if (param.name.equalsIgnoreCase("enabled")) {
         if (!Boolean.parseBoolean(param.value))
@@ -51,12 +58,14 @@ public class OGraphServerHandler extends OServerPluginAbstract implements OScrip
 
     if (OGremlinHelper.isGremlinAvailable()) {
       enabled = true;
-      OLogManager.instance().info(this, "Installed GREMLIN language v.%s - graph.pool.max=%d", OGremlinHelper.getEngineVersion(),
-          graphPoolMax);
+      OLogManager.instance()
+          .info(this, "Installed GREMLIN language v.%s - graph.pool.max=%d", OGremlinHelper.getEngineVersion(), graphPoolMax);
 
       Orient.instance().getScriptManager().registerInjection(this);
     } else
       enabled = false;
+
+    this.server = server;
   }
 
   @Override
@@ -66,6 +75,10 @@ public class OGraphServerHandler extends OServerPluginAbstract implements OScrip
 
   @Override
   public void startup() {
+    final OServerNetworkListener listener = server.getListenerByProtocol(ONetworkProtocolHttpAbstract.class);
+    if (listener != null)
+      listener.registerStatelessCommand(new OServerCommandPostCommandGraph());
+
     if (!enabled)
       return;
 
@@ -81,16 +94,17 @@ public class OGraphServerHandler extends OServerPluginAbstract implements OScrip
   }
 
   @Override
-  public void bind(Bindings binding) {
+  public void bind(ScriptEngine engine, Bindings binding, ODatabaseDocument database) {
     Object scriptGraph = binding.get("orient");
     if (scriptGraph == null || !(scriptGraph instanceof OScriptGraphOrientWrapper))
       binding.put("orient", new OScriptGraphOrientWrapper());
   }
 
   @Override
-  public void unbind(Bindings binding) {
+  public void unbind(ScriptEngine engine, Bindings binding) {
     binding.put("orient", null);
   }
+
 
   @Override
   public void onAfterClientRequest(OClientConnection connection, byte requestType) {

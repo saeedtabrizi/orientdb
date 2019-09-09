@@ -11,7 +11,7 @@ import com.orientechnologies.orient.core.sql.functions.OSQLFunctionConfigurableA
 /**
  * Returns a sequence by name.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OSQLFunctionSequence extends OSQLFunctionConfigurableAbstract {
   public static final String NAME = "sequence";
@@ -24,12 +24,13 @@ public class OSQLFunctionSequence extends OSQLFunctionConfigurableAbstract {
   public Object execute(Object iThis, OIdentifiable iCurrentRecord, Object iCurrentResult, Object[] iParams,
       OCommandContext iContext) {
     final String seqName;
-    if (configuredParameters[0] instanceof OSQLFilterItem)
+    if (configuredParameters != null && configuredParameters.length > 0
+        && configuredParameters[0] instanceof OSQLFilterItem)//old stuff
       seqName = (String) ((OSQLFilterItem) configuredParameters[0]).getValue(iCurrentRecord, iCurrentResult, iContext);
     else
-      seqName = configuredParameters[0].toString();
+      seqName = "" + iParams[0];
 
-    OSequence result = ODatabaseRecordThreadLocal.INSTANCE.get().getMetadata().getSequenceLibrary().getSequence(seqName);
+    OSequence result = ODatabaseRecordThreadLocal.instance().get().getMetadata().getSequenceLibrary().getSequence(seqName);
     if (result == null) {
       throw new OCommandExecutionException("Sequence not found: " + seqName);
     }

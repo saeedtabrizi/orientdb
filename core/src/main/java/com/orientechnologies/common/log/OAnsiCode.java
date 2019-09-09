@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.common.log;
@@ -23,10 +23,12 @@ import com.orientechnologies.common.parser.OVariableParser;
 import com.orientechnologies.common.parser.OVariableParserListener;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 
+import java.util.Locale;
+
 /**
  * Console ANSI utility class that supports most of the ANSI amenities.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public enum OAnsiCode {
 
@@ -58,7 +60,7 @@ public enum OAnsiCode {
     return code;
   }
 
-  private final static boolean supportsColors;
+  private static final boolean supportsColors;
 
   public static boolean isSupportsColors() {
     return supportsColors;
@@ -99,7 +101,7 @@ public enum OAnsiCode {
 
           final String[] codes = code.split(":");
           for (int i = 0; i < codes.length; ++i)
-            buffer.append(OAnsiCode.valueOf(codes[i].toUpperCase()));
+            buffer.append(OAnsiCode.valueOf(codes[i].toUpperCase(Locale.ENGLISH)));
 
           if (pos > -1) {
             buffer.append(text);

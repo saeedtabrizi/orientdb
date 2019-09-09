@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,20 +14,20 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.config;
 
-import java.io.Serializable;
-
 import com.orientechnologies.common.util.OCommonConst;
+
+import java.io.Serializable;
 
 @SuppressWarnings("serial")
 public class OStorageSegmentConfiguration implements Serializable {
   public transient OStorageConfiguration root;
-  public volatile int                    id;
-  public volatile String                 name;
+  public volatile  int                       id;
+  public volatile  String                    name;
   public volatile String                 maxSize           = "0";
   public volatile String                 fileType          = "mmap";
   public volatile String                 fileStartSize     = "500Kb";
@@ -43,22 +43,6 @@ public class OStorageSegmentConfiguration implements Serializable {
   }
 
   public OStorageSegmentConfiguration() {
-    infoFiles = OCommonConst.EMPTY_FILE_CONFIGURATIONS_ARRAY;
-  }
-
-  public OStorageSegmentConfiguration(final OStorageConfiguration iRoot, final String iSegmentName, final int iId) {
-    root = iRoot;
-    name = iSegmentName;
-    id = iId;
-    infoFiles = OCommonConst.EMPTY_FILE_CONFIGURATIONS_ARRAY;
-  }
-
-  public OStorageSegmentConfiguration(final OStorageConfiguration iRoot, final String iSegmentName, final int iId,
-      final String iDirectory) {
-    root = iRoot;
-    name = iSegmentName;
-    id = iId;
-    location = iDirectory;
     infoFiles = OCommonConst.EMPTY_FILE_CONFIGURATIONS_ARRAY;
   }
 

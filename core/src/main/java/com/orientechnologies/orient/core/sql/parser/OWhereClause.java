@@ -10,13 +10,16 @@ import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.index.*;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OType;
+import com.orientechnologies.orient.core.sql.executor.OResult;
+import com.orientechnologies.orient.core.sql.executor.OResultInternal;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class OWhereClause extends SimpleNode {
   protected OBooleanExpression baseExpression;
 
-  protected List<OAndBlock>    flattened;
+  protected List<OAndBlock> flattened;
 
   public OWhereClause(int id) {
     super(id);
@@ -40,6 +43,13 @@ public class OWhereClause extends SimpleNode {
     return baseExpression.evaluate(currentRecord, ctx);
   }
 
+  public boolean matchesFilters(OResult currentRecord, OCommandContext ctx) {
+    if (baseExpression == null) {
+      return true;
+    }
+    return baseExpression.evaluate(currentRecord, ctx);
+  }
+
   public void toString(Map<Object, Object> params, StringBuilder builder) {
     if (baseExpression == null) {
       return;
@@ -51,8 +61,9 @@ public class OWhereClause extends SimpleNode {
    * estimates how many items of this class will be returned applying this filter
    *
    * @param oClass
+   *
    * @return an estimation of the number of records of this class returned applying this filter, 0 if and only if sure that no
-   *         records are returned
+   * records are returned
    */
   public long estimate(OClass oClass, long threshold, OCommandContext ctx) {
     long count = oClass.count();
@@ -67,22 +78,45 @@ public class OWhereClause extends SimpleNode {
     List<OAndBlock> flattenedConditions = flatten();
     Set<OIndex<?>> indexes = oClass.getIndexes();
     for (OAndBlock condition : flattenedConditions) {
-      Map<String, Object> conditions = getEqualityOperations(condition, ctx);
+
+      List<OBinaryCondition> indexedFunctConditions = condition
+          .getIndexedFunctionConditions(oClass, (ODatabaseDocumentInternal) ctx.getDatabase());
+
       long conditionEstimation = Long.MAX_VALUE;
-      for (OIndex index : indexes) {
-        List<String> indexedFields = index.getDefinition().getFields();
-        int nMatchingKeys = 0;
-        for (String indexedField : indexedFields) {
-          if (conditions.containsKey(indexedField)) {
-            nMatchingKeys++;
-          } else {
-            break;
-          }
-        }
-        if (nMatchingKeys > 0) {
-          long newCount = estimateFromIndex(index, conditions, nMatchingKeys);
+
+      if (indexedFunctConditions != null) {
+        for (OBinaryCondition cond : indexedFunctConditions) {
+          OFromClause from = new OFromClause(-1);
+          OFromItem item = new OFromItem(-1);
+          from.item = item;
+          from.item.setIdentifier(new OIdentifier(oClass.getName()));
+          long newCount = cond.estimateIndexed(from, ctx);
           if (newCount < conditionEstimation) {
             conditionEstimation = newCount;
+          }
+        }
+      } else {
+        Map<String, Object> conditions = getEqualityOperations(condition, ctx);
+
+        for (OIndex index : indexes) {
+          if (index.getType().equals(OClass.INDEX_TYPE.FULLTEXT.name()) || index.getType()
+              .equals(OClass.INDEX_TYPE.FULLTEXT_HASH_INDEX.name())) {
+            continue;
+          }
+          List<String> indexedFields = index.getDefinition().getFields();
+          int nMatchingKeys = 0;
+          for (String indexedField : indexedFields) {
+            if (conditions.containsKey(indexedField)) {
+              nMatchingKeys++;
+            } else {
+              break;
+            }
+          }
+          if (nMatchingKeys > 0) {
+            long newCount = estimateFromIndex(index, conditions, nMatchingKeys);
+            if (newCount < conditionEstimation) {
+              conditionEstimation = newCount;
+            }
           }
         }
       }
@@ -107,12 +141,17 @@ public class OWhereClause extends SimpleNode {
       key = new OCompositeKey();
       for (int i = 0; i < nMatchingKeys; i++) {
         Object keyValue = convert(conditions.get(definitionFields.get(i)), definition.getTypes()[i]);
-        ((OCompositeKey) key).addKey(conditions.get(definitionFields.get(i)));
+        ((OCompositeKey) key).addKey(keyValue);
       }
     }
     if (key != null) {
-      Object result = index.get(key);
-      if(result instanceof OIdentifiable){
+      Object result = null;
+      if (conditions.size() == definitionFields.size()) {
+        result = index.get(key);
+      } else if (index.supportsOrderedIterations()) {
+        result = index.iterateEntriesBetween(key, true, key, true, true);
+      }
+      if (result instanceof OIdentifiable) {
         return 1;
       }
       if (result instanceof Collection) {
@@ -120,6 +159,17 @@ public class OWhereClause extends SimpleNode {
       }
       if (result instanceof OSizeable) {
         return ((OSizeable) result).size();
+      }
+      if (result instanceof Iterable) {
+        result = ((Iterable) result).iterator();
+      }
+      if (result instanceof Iterator) {
+        int i = 0;
+        while (((Iterator) result).hasNext()) {
+          ((Iterator) result).next();
+          i++;
+        }
+        return i;
       }
     }
     return Long.MAX_VALUE;
@@ -223,8 +273,8 @@ public class OWhereClause extends SimpleNode {
       if (expression instanceof OBinaryCondition) {
         OBinaryCondition b = (OBinaryCondition) expression;
         if (b.operator instanceof OEqualsCompareOperator) {
-          if (b.left.isBaseIdentifier() && b.right.isEarlyCalculated()) {
-            result.put(b.left.toString(), b.right.execute(null, ctx));
+          if (b.left.isBaseIdentifier() && b.right.isEarlyCalculated(ctx)) {
+            result.put(b.left.toString(), b.right.execute((OResult) null, ctx));
           }
         }
       }
@@ -249,6 +299,98 @@ public class OWhereClause extends SimpleNode {
       return null;
     }
     return this.baseExpression.getIndexedFunctionConditions(iSchemaClass, database);
+  }
+
+  public boolean needsAliases(Set<String> aliases) {
+    return this.baseExpression.needsAliases(aliases);
+  }
+
+  public void setBaseExpression(OBooleanExpression baseExpression) {
+    this.baseExpression = baseExpression;
+  }
+
+  public OWhereClause copy() {
+    OWhereClause result = new OWhereClause(-1);
+    result.baseExpression = baseExpression.copy();
+    result.flattened = flattened == null ? null : flattened.stream().map(x -> x.copy()).collect(Collectors.toList());
+    return result;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OWhereClause that = (OWhereClause) o;
+
+    if (baseExpression != null ? !baseExpression.equals(that.baseExpression) : that.baseExpression != null)
+      return false;
+    if (flattened != null ? !flattened.equals(that.flattened) : that.flattened != null)
+      return false;
+
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    int result = baseExpression != null ? baseExpression.hashCode() : 0;
+    result = 31 * result + (flattened != null ? flattened.hashCode() : 0);
+    return result;
+  }
+
+  public void extractSubQueries(SubQueryCollector collector) {
+    if (baseExpression != null) {
+      baseExpression.extractSubQueries(collector);
+    }
+    flattened = null;
+  }
+
+  public boolean refersToParent() {
+    return baseExpression != null && baseExpression.refersToParent();
+  }
+
+  public OBooleanExpression getBaseExpression() {
+    return baseExpression;
+  }
+
+  public List<OAndBlock> getFlattened() {
+    return flattened;
+  }
+
+  public void setFlattened(List<OAndBlock> flattened) {
+    this.flattened = flattened;
+  }
+
+  public OResult serialize() {
+    OResultInternal result = new OResultInternal();
+    if (baseExpression != null) {
+      result.setProperty("baseExpression", baseExpression.serialize());
+    }
+    if (flattened != null) {
+      result.setProperty("flattened", flattened.stream().map(x -> x.serialize()).collect(Collectors.toList()));
+    }
+    return result;
+  }
+
+  public void deserialize(OResult fromResult) {
+    if (fromResult.getProperty("baseExpression") != null) {
+      baseExpression = OBooleanExpression.deserializeFromOResult(fromResult.getProperty("baseExpression"));
+    }
+    if (fromResult.getProperty("flattened") != null) {
+      List<OResult> ser = fromResult.getProperty("flattened");
+      flattened = new ArrayList<>();
+      for (OResult r : ser) {
+        OAndBlock block = new OAndBlock(-1);
+        block.deserialize(r);
+        flattened.add(block);
+      }
+    }
+  }
+
+  public boolean isCacheable() {
+    return baseExpression.isCacheable();
   }
 }
 /* JavaCC - OriginalChecksum=e8015d01ce1ab2bc337062e9e3f2603e (do not edit this line) */

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,13 +14,14 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.orientechnologies.common.log;
 
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.util.IllegalFormatException;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 
@@ -28,8 +29,8 @@ import static java.util.logging.Level.SEVERE;
 
 /**
  * Log formatter that uses ANSI code if they are available and enabled.
- * 
- * @author Luca Garulli
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OAnsiLogFormatter extends OLogFormatter {
 
@@ -43,9 +44,7 @@ public class OAnsiLogFormatter extends OLogFormatter {
     final StringBuilder buffer = new StringBuilder(512);
     buffer.append(EOL);
     buffer.append("$ANSI{cyan ");
-    synchronized (dateFormat) {
-      buffer.append(dateFormat.format(new Date()));
-    }
+    buffer.append(dateFormatter.format(LocalDateTime.now()));
     buffer.append("}");
 
     if (OAnsiCode.isSupportsColors()) {
@@ -72,7 +71,7 @@ public class OAnsiLogFormatter extends OLogFormatter {
         buffer.append(String.format(message, additionalArgs));
       else
         buffer.append(message);
-    } catch (Exception e) {
+    } catch (IllegalFormatException ignore) {
       buffer.append(message);
     }
 

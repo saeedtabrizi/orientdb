@@ -1,35 +1,37 @@
 package com.orientechnologies.common.concur.lock;
 
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import org.junit.Assert;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 /**
- * @author Andrey Lomakin (a.lomakin-at-orientechnologies.com)
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 8/18/14
  */
-@Test(enabled = false)
 public class ReadersWriterSpinLockTst {
-  private final CountDownLatch         latch           = new CountDownLatch(1);
+  private final CountDownLatch latch = new CountDownLatch(1);
 
-  private final AtomicLong             readers         = new AtomicLong();
-  private final AtomicLong             writers         = new AtomicLong();
+  private final AtomicLong readers = new AtomicLong();
+  private final AtomicLong writers = new AtomicLong();
 
-  private final AtomicLong             readersCounter  = new AtomicLong();
-  private final AtomicLong             writersCounter  = new AtomicLong();
+  private final AtomicLong readersCounter   = new AtomicLong();
+  private final AtomicLong writersCounter   = new AtomicLong();
+  private final AtomicLong readRetryCounter = new AtomicLong();
 
-  private final OReadersWriterSpinLock spinLock        = new OReadersWriterSpinLock();
+  private final    OReadersWriterSpinLock spinLock        = new OReadersWriterSpinLock();
+  private final    ExecutorService        executorService = Executors.newCachedThreadPool();
+  private volatile boolean                stop            = false;
+  private volatile long                   c               = 47;
 
-  private volatile boolean             stop            = false;
-
-  private final ExecutorService        executorService = Executors.newCachedThreadPool();
-
-  private volatile long                c               = 47;
-
+  @Test
+  @Ignore
   public void testCompetingAccess() throws Exception {
     List<Future> futures = new ArrayList<Future>();
     int threads = 8;
@@ -41,7 +43,7 @@ public class ReadersWriterSpinLockTst {
       futures.add(executorService.submit(new Reader()));
 
     latch.countDown();
-    Thread.sleep(5 * 60 * 1000);
+    Thread.sleep(60 * 60 * 1000);
 
     stop = true;
 
@@ -52,86 +54,32 @@ public class ReadersWriterSpinLockTst {
     System.out.println("Reads : " + readers.get());
   }
 
-  private final class Reader implements Callable<Void> {
-    @Override
-    public Void call() throws Exception {
-      latch.await();
+  @Test
+  @Ignore
+  public void testCompetingAccessWithTry() throws Exception {
+    List<Future> futures = new ArrayList<Future>();
+    int threads = 8;
 
-      try {
-        while (!stop) {
-          spinLock.acquireReadLock();
-          try {
-						spinLock.acquireReadLock();
-						try {
-							readersCounter.incrementAndGet();
-							readers.incrementAndGet();
-							consumeCPU(100);
-							readersCounter.decrementAndGet();
-						} finally {
-							spinLock.releaseReadLock();
-						}
-          } finally {
-            spinLock.releaseReadLock();
-          }
-        }
-      } catch (Exception e) {
-        e.printStackTrace();
-        throw new RuntimeException(e);
-      }
+    for (int i = 0; i < threads; i++)
+      futures.add(executorService.submit(new Writer()));
 
-      return null;
-    }
-  }
+    for (int i = 0; i < threads; i++)
+      futures.add(executorService.submit(new TryReader()));
 
-  private final class Writer implements Callable<Void> {
-    @Override
-    public Void call() throws Exception {
-      latch.await();
+    latch.countDown();
+    Thread.sleep(60 * 60 * 1000);
 
-      try {
-        while (!stop) {
-          spinLock.acquireWriteLock();
-          try {
-						spinLock.acquireWriteLock();
-						try {
-							spinLock.acquireReadLock();
-							try {
-								writers.incrementAndGet();
-								writersCounter.incrementAndGet();
+    stop = true;
 
-								Assert.assertEquals(readersCounter.get(), 0);
+    for (Future future : futures)
+      future.get();
 
-								long rCounter = readersCounter.get();
-								long wCounter = writersCounter.get();
+    System.out.println("Writes : " + writers.get());
+    System.out.println("Reads : " + readers.get());
+    System.out.println("Reads retry : " + readRetryCounter.get());
 
-								Assert.assertEquals(rCounter, 0);
-								Assert.assertEquals(wCounter, 1);
-
-								consumeCPU(1000);
-
-								Assert.assertEquals(rCounter, readersCounter.get());
-								Assert.assertEquals(wCounter, writersCounter.get());
-
-								writersCounter.decrementAndGet();
-							} finally {
-								spinLock.releaseReadLock();
-							}
-						} finally {
-							spinLock.releaseWriteLock();
-						}
-          } finally {
-            spinLock.releaseWriteLock();
-          }
-
-          consumeCPU(1000);
-        }
-      } catch (Exception e) {
-        e.printStackTrace();
-        throw new RuntimeException(e);
-      }
-
-      return null;
-    }
+    assertThat(writersCounter.get()).isEqualTo(0);
+    assertThat(readersCounter.get()).isEqualTo(0);
   }
 
   private void consumeCPU(int cycles) {
@@ -140,5 +88,140 @@ public class ReadersWriterSpinLockTst {
       c1 += c1 * 31 + i * 51;
     }
     c = c1;
+  }
+
+  private final class Reader implements Callable<Void> {
+    private ThreadLocalRandom random = ThreadLocalRandom.current();
+
+    @Override
+    public Void call() throws Exception {
+      latch.await();
+
+      try {
+        while (!stop) {
+          spinLock.acquireReadLock();
+          try {
+            spinLock.acquireReadLock();
+            try {
+              Assert.assertEquals(writersCounter.get(), 0);
+
+              readersCounter.incrementAndGet();
+              readers.incrementAndGet();
+              consumeCPU(random.nextInt(100) + 50);
+
+              Assert.assertEquals(writersCounter.get(), 0);
+              readersCounter.decrementAndGet();
+            } finally {
+              spinLock.releaseReadLock();
+            }
+          } finally {
+            spinLock.releaseReadLock();
+          }
+        }
+      } catch (RuntimeException | Error e) {
+        e.printStackTrace();
+        throw e;
+      }
+
+      return null;
+    }
+  }
+
+  private final class TryReader implements Callable<Void> {
+    private ThreadLocalRandom random = ThreadLocalRandom.current();
+
+    @Override
+    public Void call() throws Exception {
+      latch.await();
+
+      try {
+        while (!stop) {
+          long start = System.nanoTime();
+          while (!spinLock.tryAcquireReadLock(500)) {
+            assertThat(System.nanoTime() - start).isGreaterThan(500);
+            readRetryCounter.incrementAndGet();
+
+            if (stop)
+              return null;
+            start = System.nanoTime();
+          }
+          try {
+            spinLock.acquireReadLock();
+            try {
+              Assert.assertEquals(0, writersCounter.get());
+
+              readersCounter.incrementAndGet();
+              readers.incrementAndGet();
+              consumeCPU(random.nextInt(100) + 50);
+
+              Assert.assertEquals(0, writersCounter.get());
+              readersCounter.decrementAndGet();
+            } finally {
+              spinLock.releaseReadLock();
+            }
+          } finally {
+            spinLock.releaseReadLock();
+          }
+        }
+      } catch (RuntimeException | Error e) {
+        e.printStackTrace();
+        throw e;
+      }
+
+      return null;
+    }
+  }
+
+  private final class Writer implements Callable<Void> {
+    private ThreadLocalRandom random = ThreadLocalRandom.current();
+
+    @Override
+    public Void call() throws Exception {
+      latch.await();
+
+      try {
+        while (!stop) {
+          spinLock.acquireWriteLock();
+          try {
+            spinLock.acquireWriteLock();
+            try {
+              spinLock.acquireReadLock();
+              try {
+                writers.incrementAndGet();
+                writersCounter.incrementAndGet();
+
+                Assert.assertEquals(readersCounter.get(), 0);
+
+                long rCounter = readersCounter.get();
+                long wCounter = writersCounter.get();
+
+                Assert.assertEquals(rCounter, 0);
+                Assert.assertEquals(wCounter, 1);
+
+                consumeCPU(random.nextInt(1000) + 500);
+
+                Assert.assertEquals(rCounter, readersCounter.get());
+                Assert.assertEquals(wCounter, writersCounter.get());
+
+                writersCounter.decrementAndGet();
+              } finally {
+                spinLock.releaseReadLock();
+              }
+            } finally {
+              spinLock.releaseWriteLock();
+            }
+          } finally {
+            spinLock.releaseWriteLock();
+          }
+
+          consumeCPU(random.nextInt(40000) + 1000);
+        }
+      } catch (RuntimeException | Error e) {
+        e.printStackTrace();
+        throw e;
+      }
+
+      return null;
+    }
   }
 }

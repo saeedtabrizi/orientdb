@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,21 +15,18 @@
  */
 package com.orientechnologies.orient.test.database.auto;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
-import org.testng.Assert;
-import org.testng.annotations.*;
-
-import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
+import org.testng.Assert;
+import org.testng.annotations.*;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 @Test(groups = "sql-findReferences")
 public class SQLFindReferencesTest extends DocumentDBBaseTest {
@@ -110,7 +107,7 @@ public class SQLFindReferencesTest extends DocumentDBBaseTest {
   }
 
   @BeforeClass
-  public void createTestEnviroment() {
+  public void createTestEnvironment() {
     createSchema();
     populateDatabase();
   }
@@ -132,7 +129,6 @@ public class SQLFindReferencesTest extends DocumentDBBaseTest {
     car.createProperty("plate", OType.STRING);
     car.createProperty("owner", OType.LINK, worker);
 
-    database.getMetadata().getSchema().save();
   }
 
   private void populateDatabase() {
@@ -190,7 +186,7 @@ public class SQLFindReferencesTest extends DocumentDBBaseTest {
   }
 
   @AfterClass
-  public void deleteTestEnviroment() {
+  public void deleteTestEnvironment() {
 		database.open("admin", "admin");
 
     carID.reset();
@@ -221,16 +217,14 @@ public class SQLFindReferencesTest extends DocumentDBBaseTest {
   private void dropClass(String iClass) {
     OCommandSQL dropClassCommand = new OCommandSQL("drop class " + iClass);
     database.command(dropClassCommand).execute();
-    database.getMetadata().getSchema().save();
     database.getMetadata().getSchema().reload();
     database.reload();
     while (database.getMetadata().getSchema().existsClass(iClass)) {
       database.getMetadata().getSchema().dropClass(iClass);
-      database.getMetadata().getSchema().save();
       database.reload();
     }
     while (database.getClusterIdByName(iClass) > -1) {
-      database.dropCluster(iClass, true);
+      database.dropCluster(iClass);
       database.reload();
     }
   }

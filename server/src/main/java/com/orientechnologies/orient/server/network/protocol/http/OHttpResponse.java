@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.network.protocol.http;
@@ -22,10 +22,13 @@ package com.orientechnologies.orient.server.network.protocol.http;
 import com.orientechnologies.common.collection.OMultiValue;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.common.util.OCallable;
+import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
+import com.orientechnologies.orient.core.record.OElement;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.serialization.serializer.OJSONWriter;
+import com.orientechnologies.orient.core.sql.executor.OResult;
 import com.orientechnologies.orient.server.OClientConnection;
 
 import java.io.ByteArrayInputStream;
@@ -33,9 +36,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.io.StringWriter;
+import java.io.Writer;
 import java.net.Socket;
 import java.nio.charset.Charset;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -43,38 +49,44 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.zip.GZIPOutputStream;
 
 /**
  * Maintains information about current HTTP response.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OHttpResponse {
-  public static final String   JSON_FORMAT       = "type,indent:-1,rid,version,attribSameRow,class,keepTypes,alwaysFetchEmbeddedDocuments";
-  public static final char[]   URL_SEPARATOR     = { '/' };
-  private static final Charset utf8              = Charset.forName("utf8");
-  public final String          httpVersion;
-  private final OutputStream   out;
-  public String                headers;
-  public String[]              additionalHeaders;
-  public String                characterSet;
-  public String                contentType;
-  public String                serverInfo;
+  public static final  String  JSON_FORMAT   = "type,indent:-1,rid,version,attribSameRow,class,keepTypes,alwaysFetchEmbeddedDocuments";
+  public static final  char[]  URL_SEPARATOR = { '/' };
+  private static final Charset utf8          = Charset.forName("utf8");
 
-  public String                sessionId;
-  public String                callbackFunction;
-  public String                contentEncoding;
-  public boolean               sendStarted       = false;
-  public String                content;
-  public int                   code;
-  public boolean               keepAlive         = true;
-  public boolean               jsonErrorResponse = true;
-  public OClientConnection     connection;
+  public final  String       httpVersion;
+  private final OutputStream out;
+  public        String       headers;
+  public        String[]     additionalHeaders;
+  public        String       characterSet;
+  public        String       contentType;
+  public        String       serverInfo;
+
+  public String sessionId;
+  public String callbackFunction;
+  public String contentEncoding;
+  public String staticEncoding;
+  public boolean sendStarted = false;
+  public String content;
+  public int    code;
+  public boolean keepAlive         = true;
+  public boolean jsonErrorResponse = true;
+  public OClientConnection connection;
+  private boolean streaming = OGlobalConfiguration.NETWORK_HTTP_STREAMING.getValueAsBoolean();
 
   public OHttpResponse(final OutputStream iOutStream, final String iHttpVersion, final String[] iAdditionalHeaders,
       final String iResponseCharSet, final String iServerInfo, final String iSessionId, final String iCallbackFunction,
       final boolean iKeepAlive, OClientConnection connection) {
+    streaming = connection.getProtocol().getServer().getContextConfiguration()
+        .getValueAsBoolean(OGlobalConfiguration.NETWORK_HTTP_STREAMING);
     out = iOutStream;
     httpVersion = iHttpVersion;
     additionalHeaders = iAdditionalHeaders;
@@ -155,7 +167,12 @@ public class OHttpResponse {
       writeLine(headers);
     }
 
-    writeLine("Date: " + new Date());
+    // Set up a date formatter that prints the date in the Http-date format as
+    // per RFC 7231, section 7.1.1.1
+    SimpleDateFormat sdf = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz");
+    sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+    writeLine("Date: " + sdf.format(new Date()));
     writeLine("Content-Type: " + iContentType + "; charset=" + characterSet);
     writeLine("Server: " + serverInfo);
     writeLine("Connection: " + (iKeepAlive ? "Keep-Alive" : "close"));
@@ -194,6 +211,11 @@ public class OHttpResponse {
 
   public void writeResult(Object iResult, final String iFormat, final String iAccept,
       final Map<String, Object> iAdditionalProperties) throws InterruptedException, IOException {
+    writeResult(iResult, iFormat, iAccept, iAdditionalProperties, null);
+  }
+
+  public void writeResult(Object iResult, final String iFormat, final String iAccept,
+      final Map<String, Object> iAdditionalProperties, final String mode) throws InterruptedException, IOException {
     if (iResult == null) {
       send(OHttpUtils.STATUS_OK_NOCONTENT_CODE, "", OHttpUtils.CONTENT_TEXT_PLAIN, null, null);
     } else {
@@ -206,11 +228,12 @@ public class OHttpResponse {
           doc.field(key, entry.getValue());
         }
         newResult = Collections.singleton(doc).iterator();
-      } else if (OMultiValue.isMultiValue(iResult)
-          && (OMultiValue.getSize(iResult) > 0 && !(OMultiValue.getFirstValue(iResult) instanceof OIdentifiable))) {
+      } else if (OMultiValue.isMultiValue(iResult) && (OMultiValue.getSize(iResult) > 0 && !(
+          (OMultiValue.getFirstValue(iResult) instanceof OIdentifiable) || ((OMultiValue
+              .getFirstValue(iResult) instanceof OResult))))) {
         newResult = Collections.singleton(new ODocument().field("value", iResult)).iterator();
       } else if (iResult instanceof OIdentifiable) {
-        // CONVERT SIGLE VALUE IN A COLLECTION
+        // CONVERT SINGLE VALUE IN A COLLECTION
         newResult = Collections.singleton(iResult).iterator();
       } else if (iResult instanceof Iterable<?>) {
         newResult = ((Iterable<OIdentifiable>) iResult).iterator();
@@ -223,7 +246,7 @@ public class OHttpResponse {
       if (newResult == null) {
         send(OHttpUtils.STATUS_OK_NOCONTENT_CODE, "", OHttpUtils.CONTENT_TEXT_PLAIN, null, null);
       } else {
-        writeRecords(newResult, null, iFormat, iAccept, iAdditionalProperties);
+        writeRecords(newResult, null, iFormat, iAccept, iAdditionalProperties, mode);
       }
     }
   }
@@ -242,110 +265,151 @@ public class OHttpResponse {
 
   public void writeRecords(final Object iRecords, final String iFetchPlan, String iFormat, final String accept,
       final Map<String, Object> iAdditionalProperties) throws IOException {
-    if (iRecords == null)
-      return;
+    writeRecords(iRecords, iFetchPlan, iFormat, accept, iAdditionalProperties, null);
+  }
 
+  public void writeRecords(final Object iRecords, final String iFetchPlan, String iFormat, final String accept,
+      final Map<String, Object> iAdditionalProperties, final String mode) throws IOException {
+    if (iRecords == null) {
+      send(OHttpUtils.STATUS_OK_NOCONTENT_CODE, "", OHttpUtils.CONTENT_TEXT_PLAIN, null, null);
+      return;
+    }
+    final int size = OMultiValue.getSize(iRecords);
     final Iterator<Object> it = OMultiValue.getMultiValueIterator(iRecords);
 
     if (accept != null && accept.contains("text/csv")) {
-      sendStream(OHttpUtils.STATUS_OK_CODE, "OK", OHttpUtils.CONTENT_JSON, "data.csv", new OCallable<Void, OChunkedResponse>() {
+      sendStream(OHttpUtils.STATUS_OK_CODE, OHttpUtils.STATUS_OK_DESCRIPTION, OHttpUtils.CONTENT_CSV, "data.csv",
+          new OCallable<Void, OChunkedResponse>() {
 
-        @Override
-        public Void call(final OChunkedResponse iArgument) {
-          final LinkedHashSet<String> colNames = new LinkedHashSet<String>();
-          final List<ODocument> records = new ArrayList<ODocument>();
+            @Override
+            public Void call(final OChunkedResponse iArgument) {
+              final LinkedHashSet<String> colNames = new LinkedHashSet<String>();
+              final List<OElement> records = new ArrayList<OElement>();
 
-          // BROWSE ALL THE RECORD TO HAVE THE COMPLETE COLUMN
-          // NAMES LIST
-          while (it.hasNext()) {
-            final Object r = it.next();
-            if (r != null && r instanceof OIdentifiable) {
-              final ORecord rec = ((OIdentifiable) r).getRecord();
-              if (rec != null) {
-                if (rec instanceof ODocument) {
-                  final ODocument doc = (ODocument) rec;
-                  records.add(doc);
+              // BROWSE ALL THE RECORD TO HAVE THE COMPLETE COLUMN
+              // NAMES LIST
+              while (it.hasNext()) {
+                final Object r = it.next();
 
-                  for (String fieldName : doc.fieldNames()) {
+                if (r instanceof OResult) {
+
+                  OResult result = (OResult) r;
+                  records.add(result.toElement());
+
+                  for (String fieldName : result.getPropertyNames()) {
                     colNames.add(fieldName);
+                  }
+
+                } else if (r != null && r instanceof OIdentifiable) {
+                  final ORecord rec = ((OIdentifiable) r).getRecord();
+                  if (rec != null) {
+                    if (rec instanceof ODocument) {
+                      final ODocument doc = (ODocument) rec;
+                      records.add(doc);
+
+                      for (String fieldName : doc.fieldNames()) {
+                        colNames.add(fieldName);
+                      }
+                    }
                   }
                 }
               }
-            }
-          }
 
-          final List<String> orderedColumns = new ArrayList<String>(colNames);
+              final List<String> orderedColumns = new ArrayList<String>(colNames);
 
-          try {
-            // WRITE THE HEADER
-            for (int col = 0; col < orderedColumns.size(); ++col) {
-              if (col > 0)
-                iArgument.write(',');
+              try {
+                // WRITE THE HEADER
+                for (int col = 0; col < orderedColumns.size(); ++col) {
+                  if (col > 0)
+                    iArgument.write(',');
 
-              iArgument.write(orderedColumns.get(col).getBytes());
-            }
-            iArgument.write(OHttpUtils.EOL);
+                  iArgument.write(orderedColumns.get(col).getBytes());
+                }
+                iArgument.write(OHttpUtils.EOL);
 
-            // WRITE EACH RECORD
-            for (ODocument doc : records) {
-              for (int col = 0; col < orderedColumns.size(); ++col) {
-                if (col > 0) {
-                  iArgument.write(',');
+                // WRITE EACH RECORD
+                for (OElement doc : records) {
+                  for (int col = 0; col < orderedColumns.size(); ++col) {
+                    if (col > 0) {
+                      iArgument.write(',');
+                    }
+
+                    Object value = doc.getProperty(orderedColumns.get(col));
+                    if (value != null) {
+                      if (!(value instanceof Number))
+                        value = "\"" + value + "\"";
+
+                      iArgument.write(value.toString().getBytes());
+                    }
+                  }
+                  iArgument.write(OHttpUtils.EOL);
                 }
 
-                Object value = doc.field(orderedColumns.get(col));
-                if (value != null) {
-                  if (!(value instanceof Number))
-                    value = "\"" + value + "\"";
+                iArgument.flush();
 
-                  iArgument.write(value.toString().getBytes());
-                }
+              } catch (IOException e) {
+                OLogManager.instance().error(this, "HTTP response: error on writing records", e);
               }
-              iArgument.write(OHttpUtils.EOL);
+
+              return null;
             }
-
-            iArgument.flush();
-
-          } catch (IOException e) {
-            OLogManager.instance().error(this, "HTTP response: error on writing records", e);
-          }
-
-          return null;
-        }
-      });
+          });
     } else {
       if (iFormat == null)
         iFormat = JSON_FORMAT;
       else
         iFormat = JSON_FORMAT + "," + iFormat;
 
-      final StringWriter buffer = new StringWriter();
-      final OJSONWriter json = new OJSONWriter(buffer, iFormat);
-      json.beginObject();
-
-      final String format = iFetchPlan != null ? iFormat + ",fetchPlan:" + iFetchPlan : iFormat;
-
-      // WRITE RECORDS
-      json.beginCollection(-1, true, "result");
-      formatMultiValue(it, buffer, format);
-      json.endCollection(-1, true);
-
-      if (iAdditionalProperties != null) {
-        for (Map.Entry<String, Object> entry : iAdditionalProperties.entrySet()) {
-
-          final Object v = entry.getValue();
-          if (OMultiValue.isMultiValue(v)) {
-            json.beginCollection(-1, true, entry.getKey());
-            formatMultiValue(OMultiValue.getMultiValueIterator(v), buffer, format);
-            json.endCollection(-1, true);
-          } else
-            json.writeAttribute(entry.getKey(), v);
-        }
+      final String sendFormat = iFormat;
+      if (streaming) {
+        sendStream(OHttpUtils.STATUS_OK_CODE, OHttpUtils.STATUS_OK_DESCRIPTION, OHttpUtils.CONTENT_JSON, null, iArgument -> {
+          try {
+            OutputStreamWriter writer = new OutputStreamWriter(iArgument);
+            writeRecordsOnStream(iFetchPlan, sendFormat, iAdditionalProperties, it, writer);
+            writer.flush();
+          } catch (IOException e) {
+            OLogManager.instance().error(this, "Error during writing of records to the HTTP response", e);
+          }
+          return null;
+        });
+      } else {
+        final StringWriter buffer = new StringWriter();
+        writeRecordsOnStream(iFetchPlan, iFormat, iAdditionalProperties, it, buffer);
+        send(OHttpUtils.STATUS_OK_CODE, OHttpUtils.STATUS_OK_DESCRIPTION, OHttpUtils.CONTENT_JSON, buffer.toString(), null);
       }
-
-      json.endObject();
-      send(OHttpUtils.STATUS_OK_CODE, "OK", OHttpUtils.CONTENT_JSON, buffer.toString(), null);
     }
+  }
+
+  private void writeRecordsOnStream(String iFetchPlan, String iFormat, Map<String, Object> iAdditionalProperties,
+      Iterator<Object> it, Writer buffer) throws IOException {
+    final OJSONWriter json = new OJSONWriter(buffer, iFormat);
+    json.beginObject();
+
+    final String format = iFetchPlan != null ? iFormat + ",fetchPlan:" + iFetchPlan : iFormat;
+
+    // WRITE RECORDS
+    json.beginCollection(-1, true, "result");
+    formatMultiValue(it, buffer, format);
+    json.endCollection(-1, true);
+
+    if (iAdditionalProperties != null) {
+      for (Map.Entry<String, Object> entry : iAdditionalProperties.entrySet()) {
+
+        final Object v = entry.getValue();
+        if (OMultiValue.isMultiValue(v)) {
+          json.beginCollection(-1, true, entry.getKey());
+          formatMultiValue(OMultiValue.getMultiValueIterator(v), buffer, format);
+          json.endCollection(-1, true);
+        } else
+          json.writeAttribute(entry.getKey(), v);
+
+        if (Thread.currentThread().isInterrupted())
+          break;
+
+      }
+    }
+
+    json.endObject();
   }
 
   private void checkConnection() throws IOException {
@@ -358,10 +422,9 @@ public class OHttpResponse {
       OLogManager.instance().debug(this, "[OHttpResponse] found and removed pending closed channel %d (%s)", connection, socket);
       throw new IOException("Connection is closed");
     }
-
   }
 
-  public void formatMultiValue(final Iterator<?> iIterator, final StringWriter buffer, final String format) throws IOException {
+  public void formatMultiValue(final Iterator<?> iIterator, final Writer buffer, final String format) throws IOException {
     if (iIterator != null) {
       int counter = 0;
       String objectJson;
@@ -373,7 +436,10 @@ public class OHttpResponse {
             buffer.append(", ");
           }
 
-          if (entry instanceof OIdentifiable) {
+          if (entry instanceof OResult) {
+            objectJson = ((OResult) entry).toJSON();
+            buffer.append(objectJson);
+          } else if (entry instanceof OIdentifiable) {
             ORecord rec = ((OIdentifiable) entry).getRecord();
             if (rec != null) {
               try {
@@ -408,18 +474,23 @@ public class OHttpResponse {
 
     final String format = iFetchPlan != null ? iFormat + ",fetchPlan:" + iFetchPlan : iFormat;
     if (iRecord != null) {
-      send(OHttpUtils.STATUS_OK_CODE, "OK", OHttpUtils.CONTENT_JSON, iRecord.toJSON(format),
+      send(OHttpUtils.STATUS_OK_CODE, OHttpUtils.STATUS_OK_DESCRIPTION, OHttpUtils.CONTENT_JSON, iRecord.toJSON(format),
           OHttpUtils.HEADER_ETAG + iRecord.getVersion());
     }
   }
 
   public void sendStream(final int iCode, final String iReason, final String iContentType, InputStream iContent, long iSize)
       throws IOException {
-    sendStream(iCode, iReason, iContentType, iContent, iSize, null);
+    sendStream(iCode, iReason, iContentType, iContent, iSize, null, null);
   }
 
   public void sendStream(final int iCode, final String iReason, final String iContentType, InputStream iContent, long iSize,
       final String iFileName) throws IOException {
+    sendStream(iCode, iReason, iContentType, iContent, iSize, iFileName, null);
+  }
+
+  public void sendStream(final int iCode, final String iReason, final String iContentType, InputStream iContent, long iSize,
+      final String iFileName, Map<String, String> additionalHeaders) throws IOException {
     writeStatus(iCode, iReason);
     writeHeaders(iContentType);
     writeLine("Content-Transfer-Encoding: binary");
@@ -428,6 +499,11 @@ public class OHttpResponse {
       writeLine("Content-Disposition: attachment; filename=\"" + iFileName + "\"");
     }
 
+    if (additionalHeaders != null) {
+      for (Map.Entry<String, String> entry : additionalHeaders.entrySet()) {
+        writeLine(String.format("%s: %s", entry.getKey(), entry.getValue()));
+      }
+    }
     if (iSize < 0) {
       // SIZE UNKNOWN: USE A MEMORY BUFFER
       final ByteArrayOutputStream o = new ByteArrayOutputStream();
@@ -509,8 +585,6 @@ public class OHttpResponse {
 
   /**
    * Stores additional headers to send
-   *
-   * @param iHeader
    */
   public void setHeader(final String iHeader) {
     headers = iHeader;
@@ -543,6 +617,10 @@ public class OHttpResponse {
     this.contentEncoding = contentEncoding;
   }
 
+  public void setStaticEncoding(String contentEncoding) {
+    this.staticEncoding = contentEncoding;
+  }
+
   public void setSessionId(String sessionId) {
     this.sessionId = sessionId;
   }
@@ -572,6 +650,10 @@ public class OHttpResponse {
       return (String) key;
     }
     return "" + key;
+  }
+
+  public void setStreaming(boolean streaming) {
+    this.streaming = streaming;
   }
 
 }

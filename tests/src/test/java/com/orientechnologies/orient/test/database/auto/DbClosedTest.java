@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,10 +46,10 @@ public class DbClosedTest extends DocumentDBBaseTest {
   }
 
   public void testDoubleDb() {
-    OObjectDatabaseTx db = new OObjectDatabaseTx(pool.acquire());
+    ODatabaseDocumentTx db = pool.acquire();
 
     // now I am getting another db instance
-    OObjectDatabaseTx dbAnother = new OObjectDatabaseTx(pool.acquire());
+    ODatabaseDocumentTx dbAnother = pool.acquire();
     dbAnother.close();
 
     db.activateOnCurrentThread();
@@ -57,10 +57,10 @@ public class DbClosedTest extends DocumentDBBaseTest {
   }
 
   public void testDoubleDbWindowsPath() {
-    OObjectDatabaseTx db = new OObjectDatabaseTx(pool.acquire());
+    ODatabaseDocumentTx db = pool.acquire();
 
     // now I am getting another db instance
-    OObjectDatabaseTx dbAnother = new OObjectDatabaseTx(pool.acquire());
+    ODatabaseDocumentTx dbAnother = pool.acquire();
     dbAnother.close();
 
     db.activateOnCurrentThread();

@@ -1,13 +1,30 @@
+/**
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * <p>
+ * For more information: http://orientdb.com
+ */
 package com.orientechnologies.orient.jdbc;
 
-import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.intent.OIntentMassiveInsert;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OClass.INDEX_TYPE;
 import com.orientechnologies.orient.core.metadata.schema.OSchema;
 import com.orientechnologies.orient.core.metadata.schema.OType;
+import com.orientechnologies.orient.core.record.OVertex;
 import com.orientechnologies.orient.core.record.impl.OBlob;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.record.impl.ORecordBytes;
@@ -21,7 +38,7 @@ import java.util.*;
 
 public class OrientDbCreationHelper {
 
-  public static void loadDB(ODatabaseDocumentTx db, int documents) throws IOException {
+  public static void loadDB(ODatabaseDocument db, int documents) throws IOException {
 
     db.declareIntent(new OIntentMassiveInsert());
 
@@ -38,49 +55,7 @@ public class OrientDbCreationHelper {
     createAuthorAndArticles(db, 50, 50);
     createArticleWithAttachmentSplitted(db);
 
-  }
-
-  public static void createSchemaDB(ODatabaseDocumentTx db) {
-
-    OSchema schema = db.getMetadata().getSchema();
-
-    // item
-    OClass item = schema.createClass("Item");
-
-    item.createProperty("stringKey", OType.STRING).createIndex(INDEX_TYPE.UNIQUE);
-    item.createProperty("intKey", OType.INTEGER).createIndex(INDEX_TYPE.UNIQUE);
-    item.createProperty("date", OType.DATE).createIndex(INDEX_TYPE.NOTUNIQUE);
-    item.createProperty("time", OType.DATETIME).createIndex(INDEX_TYPE.NOTUNIQUE);
-    item.createProperty("text", OType.STRING);
-    item.createProperty("score", OType.DECIMAL);
-    item.createProperty("length", OType.LONG).createIndex(INDEX_TYPE.NOTUNIQUE);
-    item.createProperty("published", OType.BOOLEAN).createIndex(INDEX_TYPE.NOTUNIQUE);
-    item.createProperty("title", OType.STRING).createIndex(INDEX_TYPE.NOTUNIQUE);
-    item.createProperty("author", OType.STRING).createIndex(INDEX_TYPE.NOTUNIQUE);
-    item.createProperty("tags", OType.EMBEDDEDLIST);
-
-    // class Article
-    OClass article = schema.createClass("Article");
-
-    article.createProperty("uuid", OType.INTEGER).createIndex(INDEX_TYPE.UNIQUE);
-    article.createProperty("date", OType.DATE).createIndex(INDEX_TYPE.NOTUNIQUE);
-    article.createProperty("title", OType.STRING);
-    article.createProperty("content", OType.STRING);
-    // article.createProperty("attachment", OType.LINK);
-
-    // author
-    OClass author = schema.createClass("Author");
-
-    author.createProperty("uuid", OType.LONG).createIndex(INDEX_TYPE.UNIQUE);
-    author.createProperty("name", OType.STRING).setMin("3");
-    author.createProperty("rating", OType.DOUBLE);
-    author.createProperty("articles", OType.LINKLIST, article);
-
-    // link article-->author
-    article.createProperty("author", OType.LINK, author);
-
-    schema.reload();
-
+    createWriterAndPosts(db, 10, 10);
   }
 
   public static ODocument createItem(int id, ODocument doc) {
@@ -100,7 +75,7 @@ public class OrientDbCreationHelper {
     doc.field("text", contents);
     doc.field("title", "orientDB");
     doc.field("score", BigDecimal.valueOf(contents.length() / id));
-    doc.field("length", contents.length());
+    doc.field("length", contents.length(), OType.LONG);
     doc.field("published", (id % 2 > 0));
     doc.field("author", "anAuthor" + id);
     // doc.field("tags", asList("java", "orient", "nosql"),
@@ -115,14 +90,14 @@ public class OrientDbCreationHelper {
     return doc;
   }
 
-  public static void createAuthorAndArticles(ODatabaseDocumentTx db, int totAuthors, int totArticles) throws IOException {
+  public static void createAuthorAndArticles(ODatabaseDocument db, int totAuthors, int totArticles) throws IOException {
     int articleSerial = 0;
     for (int a = 1; a <= totAuthors; ++a) {
       ODocument author = new ODocument("Author");
-      List<ODocument> articles = new ArrayList<ODocument>(totArticles);
+      List<ODocument> articles = new ArrayList<>(totArticles);
       author.field("articles", articles);
 
-      author.field("uuid", a);
+      author.field("uuid", a, OType.DOUBLE);
       author.field("name", "Jay");
       author.field("rating", new Random().nextDouble());
 
@@ -134,8 +109,8 @@ public class OrientDbCreationHelper {
         article.field("date", time, OType.DATE);
 
         article.field("uuid", articleSerial++);
-        article.field("title", "the title");
-        article.field("content", "the content");
+        article.field("title", "the title for article " + articleSerial);
+        article.field("content", "the content for article " + articleSerial);
         article.field("attachment", loadFile(db, "./src/test/resources/file.pdf"));
 
         articles.add(article);
@@ -145,7 +120,7 @@ public class OrientDbCreationHelper {
     }
   }
 
-  public static ODocument createArticleWithAttachmentSplitted(ODatabaseDocumentTx db) throws IOException {
+  public static ODocument createArticleWithAttachmentSplitted(ODatabaseDocument db) throws IOException {
 
     ODocument article = new ODocument("Article");
     Calendar instance = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
@@ -162,11 +137,55 @@ public class OrientDbCreationHelper {
     return article;
   }
 
-  private static OBlob loadFile(ODatabaseDocumentInternal database, String filePath) throws IOException {
+  public static void createWriterAndPosts(ODatabaseDocument db, int totAuthors, int totArticles) throws IOException {
+    int articleSerial = 0;
+    for (int a = 1; a <= totAuthors; ++a) {
+      OVertex writer = db.newVertex("Writer");
+      writer.setProperty("uuid", a);
+      writer.setProperty("name", "happy writer");
+      writer.setProperty("is_active", Boolean.TRUE);
+      writer.setProperty("isActive", Boolean.TRUE);
+
+      for (int i = 1; i <= totArticles; ++i) {
+
+        OVertex post = db.newVertex("Post");
+
+        Calendar instance = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        Date time = instance.getTime();
+        post.setProperty("date", time, OType.DATE);
+        post.setProperty("uuid", articleSerial++);
+        post.setProperty("title", "the title");
+        post.setProperty("content", "the content");
+
+        db.newEdge(writer, post, "Writes");
+      }
+
+    }
+
+    //additional wrong data
+    OVertex writer = db.newVertex("Writer");
+    writer.setProperty("uuid", totAuthors * 2);
+    writer.setProperty("name", "happy writer");
+    writer.setProperty("is_active", Boolean.TRUE);
+    writer.setProperty("isActive", Boolean.TRUE);
+
+    OVertex post = db.newVertex("Post");
+
+    //no date!!
+
+    post.setProperty("uuid", articleSerial * 2);
+    post.setProperty("title", "the title");
+    post.setProperty("content", "the content");
+
+    db.newEdge(writer, post, "Writes");
+
+  }
+
+  private static OBlob loadFile(ODatabaseDocument database, String filePath) throws IOException {
     final File f = new File(filePath);
     if (f.exists()) {
       BufferedInputStream inputStream = new BufferedInputStream(new FileInputStream(f));
-      OBlob record = new ORecordBytes(database);
+      OBlob record = new ORecordBytes();
       record.fromInputStream(inputStream);
       return record;
     }
@@ -174,14 +193,14 @@ public class OrientDbCreationHelper {
     return null;
   }
 
-  private static List<ORID> loadFile(ODatabaseDocumentInternal database, String filePath, int bufferSize) throws IOException {
+  private static List<ORID> loadFile(ODatabaseDocument database, String filePath, int bufferSize) throws IOException {
     File binaryFile = new File(filePath);
     long binaryFileLength = binaryFile.length();
     int numberOfRecords = (int) (binaryFileLength / bufferSize);
     int remainder = (int) (binaryFileLength % bufferSize);
     if (remainder > 0)
       numberOfRecords++;
-    List<ORID> binaryChuncks = new ArrayList<ORID>(numberOfRecords);
+    List<ORID> binaryChuncks = new ArrayList<>(numberOfRecords);
     BufferedInputStream binaryStream = new BufferedInputStream(new FileInputStream(binaryFile));
     byte[] chunk;
 
@@ -193,13 +212,82 @@ public class OrientDbCreationHelper {
       else
         chunk = new byte[bufferSize];
       binaryStream.read(chunk);
-      recordChunk = new ORecordBytes(database, chunk);
+      recordChunk = new ORecordBytes(chunk);
       database.save(recordChunk);
       binaryChuncks.add(recordChunk.getIdentity());
     }
     database.declareIntent(null);
 
     return binaryChuncks;
+  }
+
+  public static void createSchemaDB(ODatabaseDocument db) {
+
+    OSchema schema = db.getMetadata().getSchema();
+
+    // item
+    OClass item = schema.createClass("Item");
+
+    item.createProperty("stringKey", OType.STRING).createIndex(INDEX_TYPE.UNIQUE);
+    item.createProperty("intKey", OType.INTEGER).createIndex(INDEX_TYPE.UNIQUE);
+    item.createProperty("date", OType.DATE).createIndex(INDEX_TYPE.NOTUNIQUE);
+    item.createProperty("time", OType.DATETIME).createIndex(INDEX_TYPE.NOTUNIQUE);
+    item.createProperty("text", OType.STRING);
+    item.createProperty("score", OType.DECIMAL);
+    item.createProperty("length", OType.INTEGER).createIndex(INDEX_TYPE.NOTUNIQUE);
+    item.createProperty("published", OType.BOOLEAN).createIndex(INDEX_TYPE.NOTUNIQUE);
+    item.createProperty("title", OType.STRING).createIndex(INDEX_TYPE.NOTUNIQUE);
+    item.createProperty("author", OType.STRING).createIndex(INDEX_TYPE.NOTUNIQUE);
+    item.createProperty("tags", OType.EMBEDDEDLIST);
+
+    // class Article
+    OClass article = schema.createClass("Article");
+
+    article.createProperty("uuid", OType.LONG).createIndex(INDEX_TYPE.UNIQUE);
+    article.createProperty("date", OType.DATE).createIndex(INDEX_TYPE.NOTUNIQUE);
+    article.createProperty("title", OType.STRING);
+    article.createProperty("content", OType.STRING);
+    // article.createProperty("attachment", OType.LINK);
+
+    // author
+    OClass author = schema.createClass("Author");
+
+    author.createProperty("uuid", OType.LONG).createIndex(INDEX_TYPE.UNIQUE);
+    author.createProperty("name", OType.STRING).setMin("3");
+    author.createProperty("rating", OType.DOUBLE);
+    author.createProperty("articles", OType.LINKLIST, article);
+
+    // link article-->author
+    article.createProperty("author", OType.LINK, author);
+
+    //Graph
+
+    OClass v = schema.getClass("V");
+    if (v == null) {
+      schema.createClass("V");
+    }
+
+    OClass post = schema.createClass("Post", v);
+    post.createProperty("uuid", OType.LONG);
+    post.createProperty("title", OType.STRING);
+    post.createProperty("date", OType.DATE).createIndex(INDEX_TYPE.NOTUNIQUE);
+    post.createProperty("content", OType.STRING);
+
+    OClass writer = schema.createClass("Writer", v);
+    writer.createProperty("uuid", OType.LONG).createIndex(INDEX_TYPE.UNIQUE);
+    writer.createProperty("name", OType.STRING);
+    writer.createProperty("is_active", OType.BOOLEAN);
+    writer.createProperty("isActive", OType.BOOLEAN);
+
+    OClass e = schema.getClass("E");
+    if (e == null) {
+      schema.createClass("E");
+    }
+
+    schema.createClass("Writes", e);
+
+    schema.reload();
+
   }
 
 }

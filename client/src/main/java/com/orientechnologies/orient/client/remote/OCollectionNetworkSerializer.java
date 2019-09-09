@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,17 +14,18 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 
 package com.orientechnologies.orient.client.remote;
 
-import java.io.IOException;
+import com.orientechnologies.orient.core.storage.index.sbtreebonsai.local.OBonsaiBucketPointer;
+import com.orientechnologies.orient.core.storage.ridbag.sbtree.OBonsaiCollectionPointer;
+import com.orientechnologies.orient.enterprise.channel.binary.OChannelDataInput;
+import com.orientechnologies.orient.enterprise.channel.binary.OChannelDataOutput;
 
-import com.orientechnologies.orient.core.db.record.ridbag.sbtree.OBonsaiCollectionPointer;
-import com.orientechnologies.orient.core.index.sbtreebonsai.local.OBonsaiBucketPointer;
-import com.orientechnologies.orient.enterprise.channel.binary.OChannelBinary;
+import java.io.IOException;
 
 public class OCollectionNetworkSerializer {
   public static final OCollectionNetworkSerializer INSTANCE = new OCollectionNetworkSerializer();
@@ -32,19 +33,19 @@ public class OCollectionNetworkSerializer {
   public OCollectionNetworkSerializer() {
   }
 
-  public OBonsaiCollectionPointer readCollectionPointer(OChannelBinary client) throws IOException {
+  public OBonsaiCollectionPointer readCollectionPointer(OChannelDataInput client) throws IOException {
     final long fileId = client.readLong();
     final OBonsaiBucketPointer rootPointer = readBonsaiBucketPointer(client);
     return new OBonsaiCollectionPointer(fileId, rootPointer);
   }
 
-  private OBonsaiBucketPointer readBonsaiBucketPointer(OChannelBinary client) throws IOException {
+  private OBonsaiBucketPointer readBonsaiBucketPointer(OChannelDataInput client) throws IOException {
     long pageIndex = client.readLong();
     int pageOffset = client.readInt();
     return new OBonsaiBucketPointer(pageIndex, pageOffset);
   }
 
-  public void writeCollectionPointer(OChannelBinary client, OBonsaiCollectionPointer treePointer) throws IOException {
+  public void writeCollectionPointer(OChannelDataOutput client, OBonsaiCollectionPointer treePointer) throws IOException {
     client.writeLong(treePointer.getFileId());
     client.writeLong(treePointer.getRootPointer().getPageIndex());
     client.writeInt(treePointer.getRootPointer().getPageOffset());

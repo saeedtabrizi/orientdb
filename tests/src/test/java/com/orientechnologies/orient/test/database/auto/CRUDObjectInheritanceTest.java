@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -169,5 +169,15 @@ public class CRUDObjectInheritanceTest extends ObjectDBBaseTest {
         .query(new OSQLSynchQuery<InheritanceTestBaseClass>("select from InheritanceTestBaseClass"));
     Assert.assertEquals(2, result1.size());
   }
+
+  @Test
+  public void testKeywordClass(){
+    OClass klass = database.getMetadata().getSchema().createClass("Not");
+
+    OClass klass1 = database.getMetadata().getSchema().createClass("Extends_Not", klass);
+    Assert.assertEquals(1,klass1.getSuperClasses().size(),1);
+    Assert.assertEquals("Not",klass1.getSuperClasses().get(0).getName());
+  }
+
 
 }

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,12 +14,10 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.index;
-
-import java.util.Map.Entry;
 
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
@@ -33,9 +31,8 @@ import com.orientechnologies.orient.core.tx.OTransactionIndexChangesPerKey.OTran
 /**
  * Transactional wrapper for indexes. Stores changes locally to the transaction until tx.commit(). All the other operations are
  * delegated to the wrapped OIndex instance.
- * 
- * @author Luca Garulli
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public abstract class OIndexTxAware<T> extends OIndexAbstractDelegate<T> {
   private static final OAlwaysLessKey    ALWAYS_LESS_KEY    = new OAlwaysLessKey();
@@ -51,7 +48,8 @@ public abstract class OIndexTxAware<T> extends OIndexAbstractDelegate<T> {
     /**
      * Any partially matched key will be used as search result.
      */
-    NONE, /**
+    NONE,
+    /**
      * The biggest partially matched key will be used as search result.
      */
     HIGHEST_BOUNDARY,
@@ -71,36 +69,16 @@ public abstract class OIndexTxAware<T> extends OIndexAbstractDelegate<T> {
   public long getSize() {
     long tot = delegate.getSize();
 
-    final OTransactionIndexChanges indexChanges = database.getTransaction().getIndexChanges(delegate.getName());
+    final OTransactionIndexChanges indexChanges = database.getMicroOrRegularTransaction().getIndexChanges(delegate.getName());
     if (indexChanges != null) {
-      if (indexChanges.cleared)
-        // BEGIN FROM 0
-        tot = 0;
-
-      for (final Entry<Object, OTransactionIndexChangesPerKey> entry : indexChanges.changesPerKey.entrySet()) {
-        for (final OTransactionIndexEntry e : entry.getValue().entries) {
-          if (e.operation == OPERATION.REMOVE) {
-            if (e.value == null)
-              // KEY REMOVED
-              tot--;
-          }
-        }
-      }
-
-      for (final OTransactionIndexEntry e : indexChanges.nullKeyChanges.entries) {
-        if (e.operation == OPERATION.REMOVE) {
-          if (e.value == null)
-            // KEY REMOVED
-            tot--;
-        }
-      }
+      throw new UnsupportedOperationException("Size of index is undefined if transaction is in progress");
     }
 
     return tot;
   }
 
   @Override
-  public OIndexTxAware<T> put(final Object iKey, final OIdentifiable iValue) {
+  public OIndexTxAware<T> put(Object iKey, final OIdentifiable iValue) {
     checkForKeyType(iKey);
     final ORID rid = iValue.getIdentity();
 
@@ -111,31 +89,35 @@ public abstract class OIndexTxAware<T> extends OIndexAbstractDelegate<T> {
       else
         throw new IllegalArgumentException("Cannot store non persistent RID as index value for key '" + iKey + "'");
 
-    database.getTransaction().addIndexEntry(delegate, super.getName(), OPERATION.PUT, iKey, iValue);
+    iKey = getCollatingValue(iKey);
+
+    database.getMicroOrRegularTransaction().addIndexEntry(delegate, super.getName(), OPERATION.PUT, iKey, iValue);
     return this;
   }
 
   @Override
-  public boolean remove(final Object key) {
-    database.getTransaction().addIndexEntry(delegate, super.getName(), OPERATION.REMOVE, key, null);
+  public boolean remove(Object key) {
+    key = getCollatingValue(key);
+    database.getMicroOrRegularTransaction().addIndexEntry(delegate, super.getName(), OPERATION.REMOVE, key, null);
     return true;
   }
 
   @Override
-  public boolean remove(final Object iKey, final OIdentifiable iRID) {
-    database.getTransaction().addIndexEntry(delegate, super.getName(), OPERATION.REMOVE, iKey, iRID);
+  public boolean remove(Object iKey, final OIdentifiable iRID) {
+    iKey = getCollatingValue(iKey);
+    database.getMicroOrRegularTransaction().addIndexEntry(delegate, super.getName(), OPERATION.REMOVE, iKey, iRID);
     return true;
   }
 
   @Override
   public OIndexTxAware<T> clear() {
-    database.getTransaction().addIndexEntry(delegate, super.getName(), OPERATION.CLEAR, null, null);
+    database.getMicroOrRegularTransaction().addIndexEntry(delegate, super.getName(), OPERATION.CLEAR, null, null);
     return this;
   }
 
   @Override
   public Object getFirstKey() {
-    final OTransactionIndexChanges indexChanges = database.getTransaction().getIndexChanges(delegate.getName());
+    final OTransactionIndexChanges indexChanges = database.getMicroOrRegularTransaction().getIndexChanges(delegate.getName());
     if (indexChanges == null)
       return delegate.getFirstKey();
 
@@ -174,7 +156,7 @@ public abstract class OIndexTxAware<T> extends OIndexAbstractDelegate<T> {
 
   @Override
   public Object getLastKey() {
-    final OTransactionIndexChanges indexChanges = database.getTransaction().getIndexChanges(delegate.getName());
+    final OTransactionIndexChanges indexChanges = database.getMicroOrRegularTransaction().getIndexChanges(delegate.getName());
     if (indexChanges == null)
       return delegate.getLastKey();
 
@@ -280,4 +262,12 @@ public abstract class OIndexTxAware<T> extends OIndexAbstractDelegate<T> {
     keyFrom = enhanceCompositeKey(keyFrom, partialSearchModeFrom);
     return keyFrom;
   }
+
+  protected Object getCollatingValue(final Object key) {
+    final OIndexDefinition definition = getDefinition();
+    if (key != null && definition != null)
+      return definition.getCollate().transform(key);
+    return key;
+  }
+
 }

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -27,51 +27,45 @@ import com.orientechnologies.orient.core.storage.cache.OWriteCache;
 import com.orientechnologies.orient.core.storage.impl.local.OAbstractPaginatedStorage;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.atomicoperations.OAtomicOperation;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.atomicoperations.OAtomicOperationsManager;
-import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OWALChanges;
-import com.orientechnologies.orient.core.storage.impl.local.statistic.OPerformanceStatisticManager;
-import com.orientechnologies.orient.core.storage.impl.local.statistic.OSessionStoragePerformanceStatistic;
 
 import java.io.IOException;
 
 /**
  * Base class for all durable data structures, that is data structures state of which can be consistently restored after system
- * crash but results of last operations in small interval before crash may be lost.
- * <p>
- * This class contains methods which are used to support such concepts as:
+ * crash but results of last operations in small interval before crash may be lost. This class contains methods which are used to
+ * support such concepts as:
  * <ol>
  * <li>"atomic operation" - set of operations which should be either applied together or not. It includes not only changes on
  * current data structure but on all durable data structures which are used by current one during implementation of specific
  * operation.</li>
  * <li>write ahead log - log of all changes which were done with page content after loading it from cache.</li>
  * </ol>
- * <p>
- * <p>
  * To support of "atomic operation" concept following should be done:
  * <ol>
  * <li>Call {@link #startAtomicOperation(boolean)} method.</li>
- * <li>Call {@link #endAtomicOperation(boolean, Exception)} method when atomic operation completes, passed in parameter should be
+ * <li>Call {@link #endAtomicOperation(boolean)} method when atomic operation completes, passed in parameter should be
  * <code>false</code> if atomic operation completes with success and <code>true</code> if there were some exceptions and it is
  * needed to rollback given operation.</li>
  * </ol>
  *
- * @author Andrey Lomakin
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 8/27/13
  */
 public abstract class ODurableComponent extends OSharedResourceAdaptive {
-  protected final OAtomicOperationsManager     atomicOperationsManager;
-  protected final OAbstractPaginatedStorage    storage;
-  protected final OReadCache                   readCache;
-  protected final OWriteCache                  writeCache;
-  protected final OPerformanceStatisticManager performanceStatisticManager;
+  protected final OAtomicOperationsManager  atomicOperationsManager;
+  protected final OAbstractPaginatedStorage storage;
+  protected final OReadCache                readCache;
+  protected final OWriteCache               writeCache;
 
   private volatile String name;
   private volatile String fullName;
 
-  protected final String extension;
+  private final String extension;
 
-  private volatile String lockName;
+  private final String lockName;
 
-  public ODurableComponent(OAbstractPaginatedStorage storage, String name, String extension, String lockName) {
+  public ODurableComponent(final OAbstractPaginatedStorage storage, final String name, final String extension,
+      final String lockName) {
     super(true);
 
     assert name != null;
@@ -82,10 +76,7 @@ public abstract class ODurableComponent extends OSharedResourceAdaptive {
     this.atomicOperationsManager = storage.getAtomicOperationsManager();
     this.readCache = storage.getReadCache();
     this.writeCache = storage.getWriteCache();
-    this.performanceStatisticManager = storage.getPerformanceStatisticManager();
     this.lockName = lockName;
-
-    performanceStatisticManager.registerComponent(fullName);
   }
 
   public String getLockName() {
@@ -96,7 +87,7 @@ public abstract class ODurableComponent extends OSharedResourceAdaptive {
     return name;
   }
 
-  public void setName(String name) {
+  public void setName(final String name) {
     this.name = name;
     this.fullName = name + extension;
   }
@@ -109,134 +100,110 @@ public abstract class ODurableComponent extends OSharedResourceAdaptive {
     return extension;
   }
 
-  @Override
-  protected void acquireExclusiveLock() {
-    super.acquireExclusiveLock();
-  }
-
-  protected void endAtomicOperation(boolean rollback, Exception e) throws IOException {
-    atomicOperationsManager.endAtomicOperation(rollback, e);
+  protected void endAtomicOperation(final boolean rollback) throws IOException {
+    atomicOperationsManager.endAtomicOperation(rollback);
   }
 
   /**
-   * @see OAtomicOperationsManager#startAtomicOperation(com.orientechnologies.orient.core.storage.impl.local.paginated.base.ODurableComponent, boolean)
+   * @see OAtomicOperationsManager#startAtomicOperation(com.orientechnologies.orient.core.storage.impl.local.paginated.base.ODurableComponent,
+   * boolean)
    */
-  protected OAtomicOperation startAtomicOperation(boolean trackNonTxOperations) throws IOException {
+  protected OAtomicOperation startAtomicOperation(final boolean trackNonTxOperations) throws IOException {
     return atomicOperationsManager.startAtomicOperation(this, trackNonTxOperations);
   }
 
-  protected OWALChanges getChanges(OAtomicOperation atomicOperation, OCacheEntry entry) {
-    if (atomicOperation == null)
-      return null;
-
-    return atomicOperation.getChanges(entry.getFileId(), entry.getPageIndex());
-  }
-
-  protected long getFilledUpTo(OAtomicOperation atomicOperation, long fileId) throws IOException {
-    if (atomicOperation == null)
+  protected long getFilledUpTo(final OAtomicOperation atomicOperation, final long fileId) {
+    if (atomicOperation == null) {
       return writeCache.getFilledUpTo(fileId);
+    }
 
     return atomicOperation.filledUpTo(fileId);
   }
 
-  protected OCacheEntry loadPage(final OAtomicOperation atomicOperation, final long fileId, final long pageIndex,
+  protected OCacheEntry loadPageForWrite(final OAtomicOperation atomicOperation, final long fileId, final long pageIndex,
+      final boolean checkPinnedPages, final boolean verifyCheckSum) throws IOException {
+    if (atomicOperation == null) {
+      return readCache.loadForWrite(fileId, pageIndex, checkPinnedPages, writeCache, true, null);
+    }
+
+    return atomicOperation.loadPageForWrite(fileId, pageIndex, checkPinnedPages, 1, verifyCheckSum);
+  }
+
+  protected OCacheEntry loadPageForRead(final OAtomicOperation atomicOperation, final long fileId, final long pageIndex,
       final boolean checkPinnedPages) throws IOException {
-    return loadPage(atomicOperation, fileId, pageIndex, checkPinnedPages, 1);
+    return loadPageForRead(atomicOperation, fileId, pageIndex, checkPinnedPages, 1);
   }
 
-  protected OCacheEntry loadPage(OAtomicOperation atomicOperation, long fileId, long pageIndex, boolean checkPinnedPages,
-      final int pageCount) throws IOException {
-    if (atomicOperation == null)
-      return readCache.load(fileId, pageIndex, checkPinnedPages, writeCache, pageCount);
+  protected OCacheEntry loadPageForRead(final OAtomicOperation atomicOperation, final long fileId, final long pageIndex,
+      final boolean checkPinnedPages, final int pageCount) throws IOException {
+    if (atomicOperation == null) {
+      return readCache.loadForRead(fileId, pageIndex, checkPinnedPages, writeCache, true);
+    }
 
-    return atomicOperation.loadPage(fileId, pageIndex, checkPinnedPages, pageCount);
+    return atomicOperation.loadPageForRead(fileId, pageIndex, checkPinnedPages, pageCount);
   }
 
-  protected void pinPage(OAtomicOperation atomicOperation, OCacheEntry cacheEntry) throws IOException {
-    if (atomicOperation == null)
-      readCache.pinPage(cacheEntry);
-    else
-      atomicOperation.pinPage(cacheEntry);
-  }
-
-  protected OCacheEntry addPage(OAtomicOperation atomicOperation, long fileId) throws IOException {
-    if (atomicOperation == null)
-      return readCache.allocateNewPage(fileId, writeCache);
+  protected OCacheEntry addPage(final OAtomicOperation atomicOperation, final long fileId) throws IOException {
+    if (atomicOperation == null) {
+      return readCache.allocateNewPage(fileId, writeCache, null);
+    }
 
     return atomicOperation.addPage(fileId);
   }
 
-  protected void releasePage(OAtomicOperation atomicOperation, OCacheEntry cacheEntry) {
-    if (atomicOperation == null)
-      readCache.release(cacheEntry, writeCache);
-    else
-      atomicOperation.releasePage(cacheEntry);
+  protected void releasePageFromWrite(final OAtomicOperation atomicOperation, final OCacheEntry cacheEntry) throws IOException {
+    if (atomicOperation == null) {
+      readCache.releaseFromWrite(cacheEntry, writeCache, true);
+    } else {
+      atomicOperation.releasePageFromWrite(cacheEntry);
+    }
   }
 
-  protected long addFile(OAtomicOperation atomicOperation, String fileName) throws IOException {
-    if (atomicOperation == null)
+  protected void releasePageFromRead(final OAtomicOperation atomicOperation, final OCacheEntry cacheEntry) {
+    if (atomicOperation == null) {
+      readCache.releaseFromRead(cacheEntry, writeCache);
+    } else {
+      atomicOperation.releasePageFromRead(cacheEntry);
+    }
+  }
+
+  protected long addFile(final OAtomicOperation atomicOperation, final String fileName) throws IOException {
+    if (atomicOperation == null) {
       return readCache.addFile(fileName, writeCache);
+    }
 
     return atomicOperation.addFile(fileName);
   }
 
-  protected long openFile(OAtomicOperation atomicOperation, String fileName) throws IOException {
-    if (atomicOperation == null)
-      return readCache.openFile(fileName, writeCache);
+  protected long openFile(final OAtomicOperation atomicOperation, final String fileName) throws IOException {
+    if (atomicOperation == null) {
+      return writeCache.loadFile(fileName);
+    }
 
-    return atomicOperation.openFile(fileName);
+    return atomicOperation.loadFile(fileName);
   }
 
-  protected void openFile(OAtomicOperation atomicOperation, long fileId) throws IOException {
-    if (atomicOperation == null)
-      readCache.openFile(fileId, writeCache);
-    else
-      atomicOperation.openFile(fileId);
-  }
-
-  protected void deleteFile(OAtomicOperation atomicOperation, long fileId) throws IOException {
-    if (atomicOperation == null)
+  protected void deleteFile(final OAtomicOperation atomicOperation, final long fileId) throws IOException {
+    if (atomicOperation == null) {
       readCache.deleteFile(fileId, writeCache);
-    else
+    } else {
       atomicOperation.deleteFile(fileId);
+    }
   }
 
-  protected boolean isFileExists(OAtomicOperation atomicOperation, String fileName) {
-    if (atomicOperation == null)
+  protected boolean isFileExists(final OAtomicOperation atomicOperation, final String fileName) {
+    if (atomicOperation == null) {
       return writeCache.exists(fileName);
+    }
 
     return atomicOperation.isFileExists(fileName);
   }
 
-  protected boolean isFileExists(OAtomicOperation atomicOperation, long fileId) {
-    if (atomicOperation == null)
-      return writeCache.exists(fileId);
-
-    return atomicOperation.isFileExists(fileId);
-  }
-
-  protected void truncateFile(OAtomicOperation atomicOperation, long filedId) throws IOException {
-    if (atomicOperation == null)
+  protected void truncateFile(final OAtomicOperation atomicOperation, final long filedId) throws IOException {
+    if (atomicOperation == null) {
       readCache.truncateFile(filedId, writeCache);
-    else
+    } else {
       atomicOperation.truncateFile(filedId);
-  }
-
-  protected void startOperation() {
-    OSessionStoragePerformanceStatistic sessionStoragePerformanceStatistic = performanceStatisticManager
-        .getSessionPerformanceStatistic();
-    if (sessionStoragePerformanceStatistic != null) {
-      sessionStoragePerformanceStatistic
-          .startComponentOperation(getFullName(), OSessionStoragePerformanceStatistic.ComponentType.GENERAL);
     }
   }
-
-  protected void completeOperation() {
-    OSessionStoragePerformanceStatistic sessionStoragePerformanceStatistic = performanceStatisticManager
-        .getSessionPerformanceStatistic();
-    if (sessionStoragePerformanceStatistic != null) {
-      sessionStoragePerformanceStatistic.completeComponentOperation();
-    }
-  }
-
 }

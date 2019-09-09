@@ -8,7 +8,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 /**
- * @author Andrey Lomakin (a.lomakin-at-orientechnologies.com)
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 2/6/14
  */
 @RunWith(JUnit4.class)
@@ -22,7 +22,6 @@ public class OrientGraphClassicRemoteTest extends OrientGraphRemoteTest {
 	public Graph generateGraph(final String graphDirectoryName) {
 		final OrientGraph graph = (OrientGraph) super.generateGraph(graphDirectoryName);
 		graph.setUseLightweightEdges(false);
-		graph.setUseClassForEdgeLabel(false);
 		graph.setUseClassForVertexLabel(false);
 		graph.setUseVertexFieldsForEdgeLabels(false);
 		return graph;

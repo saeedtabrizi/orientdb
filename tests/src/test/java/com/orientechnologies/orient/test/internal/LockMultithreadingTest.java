@@ -47,7 +47,7 @@ public class LockMultithreadingTest {
     public Void call() throws Exception {
       Thread.currentThread().setName("Adder - " + Thread.currentThread().getId());
       countDownLatch.await();
-      ODatabaseRecordThreadLocal.INSTANCE.set(db);
+      ODatabaseRecordThreadLocal.instance().set(db);
       long value = createCounter.getAndIncrement();
       while (value < DOCUMENT_COUNT) {
         // because i like 7:)
@@ -77,7 +77,7 @@ public class LockMultithreadingTest {
           continue;
         }
 
-        ODatabaseRecordThreadLocal.INSTANCE.set(db);
+        ODatabaseRecordThreadLocal.instance().set(db);
         List<ODocument> execute;
         System.out.println(Thread.currentThread() + " : before search cycle(update)" + updateCounter);
         do {
@@ -88,7 +88,7 @@ public class LockMultithreadingTest {
         if (!deleted.contains(updateCounter)) {
           System.out.println(Thread.currentThread() + " : after search cycle(update) " + updateCounter);
           ODocument document = execute.get(0);
-          document.field("counter2", document.field("counter"));
+          document.field("counter2", document.<Object>field("counter"));
           try {
             document.save();
             System.out.println(Thread.currentThread() + " : document " + updateCounter + " updated");
@@ -118,7 +118,7 @@ public class LockMultithreadingTest {
         //wait while necessary document will be created
         while (number > createCounter.get());
         try {
-          ODatabaseRecordThreadLocal.INSTANCE.set(db);
+          ODatabaseRecordThreadLocal.instance().set(db);
 
           List<ODocument> execute;
           System.out.println(Thread.currentThread() + " : before search cycle (delete) " + number);
@@ -155,8 +155,6 @@ public class LockMultithreadingTest {
     database.getMetadata().getSchema().createClass(STUDENT_CLASS_NAME);
 
     database.getMetadata().getSchema().createClass(TRANSACTIONAL_WORD + STUDENT_CLASS_NAME);
-
-    database.getMetadata().getSchema().save();
 
     this.db = database;
   }

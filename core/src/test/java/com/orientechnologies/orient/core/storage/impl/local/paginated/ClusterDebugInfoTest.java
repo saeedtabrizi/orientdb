@@ -1,14 +1,15 @@
 package com.orientechnologies.orient.core.storage.impl.local.paginated;
 
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
-import com.orientechnologies.orient.core.db.ODatabase.OPERATION_MODE;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.storage.OPhysicalPosition;
-import com.orientechnologies.orient.core.storage.OStorage;
 import com.orientechnologies.orient.core.storage.OStorageOperationResult;
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import com.orientechnologies.orient.core.storage.cluster.OPaginatedCluster;
+import com.orientechnologies.orient.core.storage.cluster.OPaginatedClusterDebug;
+import com.orientechnologies.orient.core.storage.impl.local.OAbstractPaginatedStorage;
+import org.junit.Assert;
+import org.junit.Test;
 
 import java.io.IOException;
 
@@ -19,14 +20,14 @@ public class ClusterDebugInfoTest {
     ODatabaseDocumentTx db = new ODatabaseDocumentTx("memory:ClusterDebugInfoTest");
     db.create();
     try {
-      OStorage storage = db.getStorage();
+      OAbstractPaginatedStorage storage = (OAbstractPaginatedStorage) db.getStorage();
       int defaultId = storage.getDefaultClusterId();
       OPaginatedCluster cluster = (OPaginatedCluster) storage.getClusterById(defaultId);
       int size = OGlobalConfiguration.DISK_CACHE_PAGE_SIZE.getValueAsInteger();
       int half = size / 2;
       byte[] content = new byte[half * 1024];
       OStorageOperationResult<OPhysicalPosition> result = storage.createRecord(new ORecordId(defaultId), content, 0, (byte) 'b',
-          OPERATION_MODE.SYNCHRONOUS.ordinal(), null);
+          null);
 
       OPaginatedClusterDebug debug = cluster.readDebug(result.getResult().clusterPosition);
 
@@ -49,14 +50,14 @@ public class ClusterDebugInfoTest {
     ODatabaseDocumentTx db = new ODatabaseDocumentTx("memory:ClusterDebugInfoTest");
     db.create();
     try {
-      OStorage storage = db.getStorage();
+      OAbstractPaginatedStorage storage = (OAbstractPaginatedStorage) db.getStorage();
       int defaultId = storage.getDefaultClusterId();
       OPaginatedCluster cluster = (OPaginatedCluster) storage.getClusterById(defaultId);
       int size = OGlobalConfiguration.DISK_CACHE_PAGE_SIZE.getValueAsInteger();
       int half = size / 2;
       byte[] content = new byte[(size + half) * 1024];
-      OStorageOperationResult<OPhysicalPosition> result = storage.createRecord(new ORecordId(defaultId), content, 0, (byte) 'b',
-          OPERATION_MODE.SYNCHRONOUS.ordinal(), null);
+      OStorageOperationResult<OPhysicalPosition> result = storage
+          .createRecord(new ORecordId(defaultId), content, 0, (byte) 'b', null);
 
       OPaginatedClusterDebug debug = cluster.readDebug(result.getResult().clusterPosition);
 
@@ -85,13 +86,13 @@ public class ClusterDebugInfoTest {
     ODatabaseDocumentTx db = new ODatabaseDocumentTx("memory:ClusterDebugInfoTest");
     db.create();
     try {
-      OStorage storage = db.getStorage();
+      OAbstractPaginatedStorage storage = (OAbstractPaginatedStorage) db.getStorage();
       int defaultId = storage.getDefaultClusterId();
       OPaginatedCluster cluster = (OPaginatedCluster) storage.getClusterById(defaultId);
       int size = OGlobalConfiguration.DISK_CACHE_PAGE_SIZE.getValueAsInteger();
       byte[] content = new byte[(size + size) * 1024];
       OStorageOperationResult<OPhysicalPosition> result = storage.createRecord(new ORecordId(defaultId), content, 0, (byte) 'b',
-          OPERATION_MODE.SYNCHRONOUS.ordinal(), null);
+          null);
       OPaginatedClusterDebug debug = cluster.readDebug(result.getResult().clusterPosition);
 
       Assert.assertEquals(debug.clusterPosition, result.getResult().clusterPosition);

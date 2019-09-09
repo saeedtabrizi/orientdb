@@ -4,10 +4,16 @@ package com.orientechnologies.orient.core.sql.parser;
 
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
+import com.orientechnologies.orient.core.metadata.schema.OClass;
+import com.orientechnologies.orient.core.record.ORecord;
+import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.serialization.serializer.OStringSerializerHelper;
+import com.orientechnologies.orient.core.sql.executor.OResult;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class OInstanceofCondition extends OBooleanExpression {
 
@@ -23,14 +29,71 @@ public class OInstanceofCondition extends OBooleanExpression {
     super(p, id);
   }
 
-  /** Accept the visitor. **/
+  /**
+   * Accept the visitor.
+   **/
   public Object jjtAccept(OrientSqlVisitor visitor, Object data) {
     return visitor.visit(this, data);
   }
 
   @Override
   public boolean evaluate(OIdentifiable currentRecord, OCommandContext ctx) {
+    if (currentRecord == null) {
+      return false;
+    }
+    ORecord record = currentRecord.getRecord();
+    if (record == null) {
+      return false;
+    }
+    if (!(record instanceof ODocument)) {
+      return false;
+    }
+    ODocument doc = (ODocument) record;
+    OClass clazz = doc.getSchemaClass();
+    if (clazz == null) {
+      return false;
+    }
+    if (right != null) {
+      return clazz.isSubClassOf(right.getStringValue());
+    } else if (rightString != null) {
+      return clazz.isSubClassOf(decode(rightString));
+    }
     return false;
+  }
+
+  @Override
+  public boolean evaluate(OResult currentRecord, OCommandContext ctx) {
+    if (currentRecord == null) {
+      return false;
+    }
+    if (!currentRecord.isElement()) {
+      return false;
+    }
+    ORecord record = currentRecord.getElement().get().getRecord();
+    if (record == null) {
+      return false;
+    }
+    if (!(record instanceof ODocument)) {
+      return false;
+    }
+    ODocument doc = (ODocument) record;
+    OClass clazz = doc.getSchemaClass();
+    if (clazz == null) {
+      return false;
+    }
+    if (right != null) {
+      return clazz.isSubClassOf(right.getStringValue());
+    } else if (rightString != null) {
+      return clazz.isSubClassOf(decode(rightString));
+    }
+    return false;
+  }
+
+  private String decode(String rightString) {
+    if (rightString == null) {
+      return null;
+    }
+    return OStringSerializerHelper.decode(rightString.substring(1, rightString.length() - 1));
   }
 
   public void toString(Map<Object, Object> params, StringBuilder builder) {
@@ -42,7 +105,6 @@ public class OInstanceofCondition extends OBooleanExpression {
       builder.append(rightString);
     }
   }
-
 
   @Override
   public boolean supportsBasicCalculation() {
@@ -63,6 +125,73 @@ public class OInstanceofCondition extends OBooleanExpression {
       return (List) Collections.singletonList(left);
     }
     return Collections.EMPTY_LIST;
+  }
+
+  @Override
+  public boolean needsAliases(Set<String> aliases) {
+    if (left.needsAliases(aliases)) {
+      return true;
+    }
+    return false;
+  }
+
+  @Override
+  public OInstanceofCondition copy() {
+    OInstanceofCondition result = new OInstanceofCondition(-1);
+    result.left = left.copy();
+    result.right = right == null ? null : right.copy();
+    result.rightString = rightString;
+    return result;
+  }
+
+  @Override
+  public void extractSubQueries(SubQueryCollector collector) {
+    left.extractSubQueries(collector);
+  }
+
+  @Override
+  public boolean refersToParent() {
+    if (left != null && left.refersToParent()) {
+      return true;
+    }
+    return false;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OInstanceofCondition that = (OInstanceofCondition) o;
+
+    if (left != null ? !left.equals(that.left) : that.left != null)
+      return false;
+    if (right != null ? !right.equals(that.right) : that.right != null)
+      return false;
+    if (rightString != null ? !rightString.equals(that.rightString) : that.rightString != null)
+      return false;
+
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    int result = left != null ? left.hashCode() : 0;
+    result = 31 * result + (right != null ? right.hashCode() : 0);
+    result = 31 * result + (rightString != null ? rightString.hashCode() : 0);
+    return result;
+  }
+
+  @Override
+  public List<String> getMatchPatternInvolvedAliases() {
+    return left == null ? null : left.getMatchPatternInvolvedAliases();
+  }
+
+  @Override
+  public boolean isCacheable() {
+    return left.isCacheable();
   }
 
 }

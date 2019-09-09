@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.command;
@@ -35,7 +35,7 @@ import java.util.Set;
 /**
  * Text based Command Request abstract class.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 @SuppressWarnings("serial")
 public abstract class OCommandRequestAbstract implements OCommandRequestInternal, ODistributedCommand {
@@ -52,8 +52,9 @@ public abstract class OCommandRequestAbstract implements OCommandRequestInternal
   protected OAsyncReplicationOk    onAsyncReplicationOk;
   protected OAsyncReplicationError onAsyncReplicationError;
 
-
   private final Set<String> nodesToExclude = new HashSet<String>();
+  private boolean recordResultSet = true;
+
 
   protected OCommandRequestAbstract() {
   }
@@ -71,8 +72,9 @@ public abstract class OCommandRequestAbstract implements OCommandRequestInternal
   }
 
   protected void setParameters(final Object... iArgs) {
-    if (iArgs != null && iArgs.length>0)
+    if (iArgs != null && iArgs.length > 0) {
       parameters = convertToParameters(iArgs);
+    }
   }
 
   @SuppressWarnings("unchecked")
@@ -86,7 +88,7 @@ public abstract class OCommandRequestAbstract implements OCommandRequestInternal
         iArgs = (Object[]) iArgs[0];
 
       params = new HashMap<Object, Object>(iArgs.length);
-      for (int i = 0; i<iArgs.length; ++i) {
+      for (int i = 0; i < iArgs.length; ++i) {
         Object par = iArgs[i];
 
         if (par instanceof OIdentifiable && ((OIdentifiable) par).getIdentity().isValid())
@@ -231,5 +233,15 @@ public abstract class OCommandRequestAbstract implements OCommandRequestInternal
 
   public OAsyncReplicationError getOnAsyncReplicationError() {
     return onAsyncReplicationError;
+  }
+
+
+  @Override
+  public void setRecordResultSet(boolean recordResultSet) {
+    this.recordResultSet = recordResultSet;
+  }
+
+  public boolean isRecordResultSet() {
+    return recordResultSet;
   }
 }

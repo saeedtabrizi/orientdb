@@ -2,6 +2,9 @@
 /* JavaCCOptions:MULTI=true,NODE_USES_PARSER=false,VISITOR=true,TRACK_TOKENS=true,NODE_PREFIX=O,NODE_EXTENDS=,NODE_FACTORY=,SUPPORT_CLASS_VISIBILITY_PUBLIC=true */
 package com.orientechnologies.orient.core.sql.parser;
 
+import com.orientechnologies.orient.core.sql.executor.OResult;
+import com.orientechnologies.orient.core.sql.executor.OResultInternal;
+
 import java.util.Map;
 
 public class OLetItem extends SimpleNode {
@@ -18,7 +21,9 @@ public class OLetItem extends SimpleNode {
     super(p, id);
   }
 
-  /** Accept the visitor. **/
+  /**
+   * Accept the visitor.
+   **/
   public Object jjtAccept(OrientSqlVisitor visitor, Object data) {
     return visitor.visit(this, data);
   }
@@ -35,5 +40,119 @@ public class OLetItem extends SimpleNode {
     }
   }
 
+  public OLetItem copy() {
+    OLetItem result = new OLetItem(-1);
+    result.varName = varName.copy();
+    result.expression = expression == null ? null : expression.copy();
+    result.query = query == null ? null : query.copy();
+    return result;
+  }
+
+  public void setVarName(OIdentifier varName) {
+    this.varName = varName;
+  }
+
+  public void setExpression(OExpression expression) {
+    this.expression = expression;
+  }
+
+  public void setQuery(OStatement query) {
+    this.query = query;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OLetItem oLetItem = (OLetItem) o;
+
+    if (varName != null ? !varName.equals(oLetItem.varName) : oLetItem.varName != null)
+      return false;
+    if (expression != null ? !expression.equals(oLetItem.expression) : oLetItem.expression != null)
+      return false;
+    if (query != null ? !query.equals(oLetItem.query) : oLetItem.query != null)
+      return false;
+
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    int result = varName != null ? varName.hashCode() : 0;
+    result = 31 * result + (expression != null ? expression.hashCode() : 0);
+    result = 31 * result + (query != null ? query.hashCode() : 0);
+    return result;
+  }
+
+  public boolean refersToParent() {
+    if (expression != null && expression.refersToParent()) {
+      return true;
+    }
+    if (query != null && query.refersToParent()) {
+      return true;
+    }
+    return false;
+  }
+
+  public OIdentifier getVarName() {
+    return varName;
+  }
+
+  public OExpression getExpression() {
+    return expression;
+  }
+
+  public OStatement getQuery() {
+    return query;
+  }
+
+  public void extractSubQueries(SubQueryCollector collector) {
+    //this is to transform LET expressions with subqueries in simple LET, plus LET with query only, so the direct query is ignored
+    if (expression != null) {
+      expression.extractSubQueries(varName, collector);
+    }
+  }
+
+  public OResult serialize() {
+    OResultInternal result = new OResultInternal();
+    if (varName != null) {
+      result.setProperty("varName", varName.serialize());
+    }
+    if (expression != null) {
+      result.setProperty("expression", expression.serialize());
+    }
+    if (query != null) {
+      result.setProperty("query", query.serialize());
+    }
+
+    return result;
+  }
+
+  public void deserialize(OResult fromResult) {
+    if (fromResult.getProperty("varName") != null) {
+      varName = OIdentifier.deserialize(fromResult.getProperty("varName"));
+    }
+    if (fromResult.getProperty("expression") != null) {
+      expression = new OExpression(-1);
+      expression.deserialize(fromResult.getProperty("expression"));
+    }
+    if (fromResult.getProperty("query") != null) {
+      query = OStatement.deserializeFromOResult(fromResult.getProperty("expression"));
+    }
+  }
+
+  public boolean isCacheable() {
+    if (expression != null) {
+      return expression.isCacheable();
+    }
+    if (query != null) {
+      return expression.isCacheable();
+    }
+
+    return true;
+  }
 }
 /* JavaCC - OriginalChecksum=bb3cd298d79f50d72f6842e6d6ea4fb2 (do not edit this line) */

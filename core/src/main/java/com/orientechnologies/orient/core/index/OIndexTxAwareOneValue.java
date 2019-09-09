@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.index;
@@ -22,8 +22,6 @@ package com.orientechnologies.orient.core.index;
 import com.orientechnologies.common.comparator.ODefaultComparator;
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
-import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.storage.ORecordDuplicatedException;
 import com.orientechnologies.orient.core.tx.OTransactionIndexChanges;
 import com.orientechnologies.orient.core.tx.OTransactionIndexChanges.OPERATION;
 import com.orientechnologies.orient.core.tx.OTransactionIndexChangesPerKey;
@@ -34,9 +32,8 @@ import java.util.*;
 /**
  * Transactional wrapper for indexes. Stores changes locally to the transaction until tx.commit(). All the other operations are
  * delegated to the wrapped OIndex instance.
- * 
- * @author Luca Garulli
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OIndexTxAwareOneValue extends OIndexTxAware<OIdentifiable> {
   private static class MapEntry implements Map.Entry<Object, OIdentifiable> {
@@ -66,10 +63,10 @@ public class OIndexTxAwareOneValue extends OIndexTxAware<OIdentifiable> {
 
   private class PureTxBetweenIndexForwardCursor extends OIndexAbstractCursor {
     private final OTransactionIndexChanges indexChanges;
-    private Object                         firstKey;
-    private Object                         lastKey;
+    private       Object                   firstKey;
+    private       Object                   lastKey;
 
-    private Object                         nextKey;
+    private Object nextKey;
 
     public PureTxBetweenIndexForwardCursor(Object fromKey, boolean fromInclusive, Object toKey, boolean toInclusive,
         OTransactionIndexChanges indexChanges) {
@@ -78,17 +75,15 @@ public class OIndexTxAwareOneValue extends OIndexTxAware<OIdentifiable> {
       fromKey = enhanceFromCompositeKeyBetweenAsc(fromKey, fromInclusive);
       toKey = enhanceToCompositeKeyBetweenAsc(toKey, toInclusive);
 
-      if (toInclusive)
-        firstKey = indexChanges.getCeilingKey(fromKey);
-      else
-        firstKey = indexChanges.getHigherKey(fromKey);
+      final Object[] keys = indexChanges.firstAndLastKeys(fromKey, fromInclusive, toKey, toInclusive);
+      if (keys.length == 0) {
+        nextKey = null;
+      } else {
+        firstKey = keys[0];
+        lastKey = keys[1];
 
-      if (fromInclusive)
-        lastKey = indexChanges.getFloorKey(toKey);
-      else
-        lastKey = indexChanges.getLowerKey(toKey);
-
-      nextKey = firstKey;
+        nextKey = firstKey;
+      }
     }
 
     @Override
@@ -113,10 +108,10 @@ public class OIndexTxAwareOneValue extends OIndexTxAware<OIdentifiable> {
 
   private class PureTxBetweenIndexBackwardCursor extends OIndexAbstractCursor {
     private final OTransactionIndexChanges indexChanges;
-    private Object                         firstKey;
-    private Object                         lastKey;
+    private       Object                   firstKey;
+    private       Object                   lastKey;
 
-    private Object                         nextKey;
+    private Object nextKey;
 
     public PureTxBetweenIndexBackwardCursor(Object fromKey, boolean fromInclusive, Object toKey, boolean toInclusive,
         OTransactionIndexChanges indexChanges) {
@@ -125,17 +120,15 @@ public class OIndexTxAwareOneValue extends OIndexTxAware<OIdentifiable> {
       fromKey = enhanceFromCompositeKeyBetweenDesc(fromKey, fromInclusive);
       toKey = enhanceToCompositeKeyBetweenDesc(toKey, toInclusive);
 
-      if (toInclusive)
-        firstKey = indexChanges.getCeilingKey(fromKey);
-      else
-        firstKey = indexChanges.getHigherKey(fromKey);
+      final Object[] keys = indexChanges.firstAndLastKeys(fromKey, fromInclusive, toKey, toInclusive);
+      if (keys.length == 0) {
+        nextKey = null;
+      } else {
+        firstKey = keys[0];
+        lastKey = keys[1];
 
-      if (fromInclusive)
-        lastKey = indexChanges.getFloorKey(toKey);
-      else
-        lastKey = indexChanges.getLowerKey(toKey);
-
-      nextKey = lastKey;
+        nextKey = lastKey;
+      }
     }
 
     @Override
@@ -158,17 +151,18 @@ public class OIndexTxAwareOneValue extends OIndexTxAware<OIdentifiable> {
 
   private class OIndexTxCursor extends OIndexAbstractCursor {
 
-    private final OIndexCursor               backedCursor;
-    private final boolean                    ascOrder;
-    private final OTransactionIndexChanges   indexChanges;
-    private OIndexCursor                     txBetweenIndexCursor;
+    private final OIndexCursor             backedCursor;
+    private final boolean                  ascOrder;
+    private final OTransactionIndexChanges indexChanges;
+    private       OIndexCursor             txBetweenIndexCursor;
 
     private Map.Entry<Object, OIdentifiable> nextTxEntry;
     private Map.Entry<Object, OIdentifiable> nextBackedEntry;
 
-    private boolean                          firstTime;
+    private boolean firstTime;
 
-    public OIndexTxCursor(OIndexCursor txCursor, OIndexCursor backedCursor, boolean ascOrder, OTransactionIndexChanges indexChanges) {
+    public OIndexTxCursor(OIndexCursor txCursor, OIndexCursor backedCursor, boolean ascOrder,
+        OTransactionIndexChanges indexChanges) {
       this.backedCursor = backedCursor;
       this.ascOrder = ascOrder;
       this.indexChanges = indexChanges;
@@ -230,35 +224,13 @@ public class OIndexTxAwareOneValue extends OIndexTxAware<OIdentifiable> {
   }
 
   @Override
-  public ODocument checkEntry(final OIdentifiable iRecord, final Object iKey) {
-    // CHECK IF ALREADY EXISTS IN TX
-    if (!database.getTransaction().isActive()) {
-      final OIdentifiable previousRecord = get(iKey);
-      if (previousRecord != null && !previousRecord.equals(iRecord)) {
-        final ODocument metadata = getMetadata();
-        Boolean mergeKeys = false;
-        if (metadata != null) {
-          mergeKeys = metadata.field(OIndex.MERGE_KEYS);
-        }
-        final boolean mergeSameKey = mergeKeys != null && mergeKeys;
-        if (mergeSameKey) {
-          return (ODocument) previousRecord.getRecord();
-        } else
-          throw new ORecordDuplicatedException(String.format(
-              "Cannot index record %s: found duplicated key '%s' in index '%s' previously assigned to the record %s", iRecord,
-              iKey, getName(), previousRecord), getName(), previousRecord.getIdentity());
-      }
-      return super.checkEntry(iRecord, iKey);
-    }
-    return null;
-  }
-
-  @Override
-  public OIdentifiable get(final Object key) {
-    final OTransactionIndexChanges indexChanges = database.getTransaction().getIndexChanges(delegate.getName());
-
+  public OIdentifiable get(Object key) {
+    final OTransactionIndexChanges indexChanges = database.getMicroOrRegularTransaction()
+        .getIndexChangesInternal(delegate.getName());
     if (indexChanges == null)
       return super.get(key);
+
+    key = getCollatingValue(key);
 
     OIdentifiable result;
     if (!indexChanges.cleared)
@@ -282,12 +254,15 @@ public class OIndexTxAwareOneValue extends OIndexTxAware<OIdentifiable> {
   }
 
   @Override
-  public OIndexCursor iterateEntriesBetween(final Object fromKey, final boolean fromInclusive, final Object toKey,
-      final boolean toInclusive, final boolean ascOrder) {
-
-    final OTransactionIndexChanges indexChanges = database.getTransaction().getIndexChanges(delegate.getName());
+  public OIndexCursor iterateEntriesBetween(Object fromKey, final boolean fromInclusive, Object toKey, final boolean toInclusive,
+      final boolean ascOrder) {
+    final OTransactionIndexChanges indexChanges = database.getMicroOrRegularTransaction()
+        .getIndexChangesInternal(delegate.getName());
     if (indexChanges == null)
       return super.iterateEntriesBetween(fromKey, fromInclusive, toKey, toInclusive, ascOrder);
+
+    fromKey = getCollatingValue(fromKey);
+    toKey = getCollatingValue(toKey);
 
     final OIndexCursor txCursor;
     if (ascOrder)
@@ -305,9 +280,12 @@ public class OIndexTxAwareOneValue extends OIndexTxAware<OIdentifiable> {
 
   @Override
   public OIndexCursor iterateEntriesMajor(Object fromKey, boolean fromInclusive, boolean ascOrder) {
-    final OTransactionIndexChanges indexChanges = database.getTransaction().getIndexChanges(delegate.getName());
+    final OTransactionIndexChanges indexChanges = database.getMicroOrRegularTransaction()
+        .getIndexChangesInternal(delegate.getName());
     if (indexChanges == null)
       return super.iterateEntriesMajor(fromKey, fromInclusive, ascOrder);
+
+    fromKey = getCollatingValue(fromKey);
 
     final OIndexCursor txCursor;
 
@@ -327,9 +305,12 @@ public class OIndexTxAwareOneValue extends OIndexTxAware<OIdentifiable> {
 
   @Override
   public OIndexCursor iterateEntriesMinor(Object toKey, boolean toInclusive, boolean ascOrder) {
-    final OTransactionIndexChanges indexChanges = database.getTransaction().getIndexChanges(delegate.getName());
+    final OTransactionIndexChanges indexChanges = database.getMicroOrRegularTransaction()
+        .getIndexChangesInternal(delegate.getName());
     if (indexChanges == null)
       return super.iterateEntriesMinor(toKey, toInclusive, ascOrder);
+
+    toKey = getCollatingValue(toKey);
 
     final OIndexCursor txCursor;
 
@@ -348,11 +329,15 @@ public class OIndexTxAwareOneValue extends OIndexTxAware<OIdentifiable> {
 
   @Override
   public OIndexCursor iterateEntries(Collection<?> keys, boolean ascSortOrder) {
-    final OTransactionIndexChanges indexChanges = database.getTransaction().getIndexChanges(delegate.getName());
+    final OTransactionIndexChanges indexChanges = database.getMicroOrRegularTransaction()
+        .getIndexChangesInternal(delegate.getName());
     if (indexChanges == null)
       return super.iterateEntries(keys, ascSortOrder);
 
-    final List<Object> sortedKeys = new ArrayList<Object>(keys);
+    final List<Object> sortedKeys = new ArrayList<Object>(keys.size());
+    for (Object key : keys)
+      sortedKeys.add(getCollatingValue(key));
+
     if (ascSortOrder)
       Collections.sort(sortedKeys, ODefaultComparator.INSTANCE);
     else
@@ -391,15 +376,15 @@ public class OIndexTxAwareOneValue extends OIndexTxAware<OIdentifiable> {
 
   private Map.Entry<Object, OIdentifiable> calculateTxIndexEntry(final Object key, final OIdentifiable backendValue,
       final OTransactionIndexChanges indexChanges) {
+    OIdentifiable result = backendValue;
     final OTransactionIndexChangesPerKey changesPerKey = indexChanges.getChangesPerKey(key);
     if (changesPerKey.entries.isEmpty()) {
-      if (backendValue == null)
+      if (backendValue == null) {
         return null;
-      else
+      } else {
         return createMapEntry(key, backendValue);
+      }
     }
-
-    OIdentifiable result = backendValue;
 
     for (OTransactionIndexEntry entry : changesPerKey.entries) {
       if (entry.operation == OPERATION.REMOVE)

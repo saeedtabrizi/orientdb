@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.enterprise.channel.binary;
@@ -29,24 +29,30 @@ import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.serialization.OBinaryProtocol;
 import com.orientechnologies.orient.enterprise.channel.OChannel;
 
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.Arrays;
 
-public abstract class OChannelBinary extends OChannel {
-  private static final int MAX_LENGTH_DEBUG = 150;
-  protected final boolean  debug;
-  private final int        maxChunkSize;
-  public DataInputStream   in;
-  public DataOutputStream  out;
+/**
+ * Abstract representation of a channel.
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
+ */
+public abstract class OChannelBinary extends OChannel implements OChannelDataInput, OChannelDataOutput {
+  private static final int              MAX_LENGTH_DEBUG = 150;
+  protected final      boolean          debug;
+  private final        int              maxChunkSize;
+  public               DataInputStream  in;
+  public               DataOutputStream out;
+  private              int              responseTimeout;
 
   public OChannelBinary(final Socket iSocket, final OContextConfiguration iConfig) throws IOException {
     super(iSocket, iConfig);
 
     maxChunkSize = iConfig.getValueAsInteger(OGlobalConfiguration.NETWORK_BINARY_MAX_CONTENT_LENGTH) * 1024;
     debug = iConfig.getValueAsBoolean(OGlobalConfiguration.NETWORK_BINARY_DEBUG);
+    responseTimeout = iConfig.getValueAsInteger(OGlobalConfiguration.NETWORK_REQUEST_TIMEOUT);
 
     if (debug)
       OLogManager.instance().info(this, "%s - Connected", socket.getRemoteSocketAddress());
@@ -130,7 +136,7 @@ public abstract class OChannelBinary extends OChannel {
 
       updateMetricReceivedBytes(OBinaryProtocol.SIZE_INT + len);
 
-      final String value = new String(tmp);
+      final String value = new String(tmp, "UTF-8");
       OLogManager.instance().info(this, "%s - Read string: %s", socket.getRemoteSocketAddress(), value);
       return value;
     }
@@ -144,23 +150,23 @@ public abstract class OChannelBinary extends OChannel {
 
     updateMetricReceivedBytes(OBinaryProtocol.SIZE_INT + len);
 
-    return new String(tmp);
+    return new String(tmp, "UTF-8");
   }
 
   public byte[] readBytes() throws IOException {
     if (debug)
-      OLogManager.instance().info(this, "%s - Reading chunk of bytes. Reading chunk length as int (4 bytes)...",
-          socket.getRemoteSocketAddress());
+      OLogManager.instance()
+          .info(this, "%s - Reading chunk of bytes. Reading chunk length as int (4 bytes)...", socket.getRemoteSocketAddress());
 
     final int len = in.readInt();
     if (len > maxChunkSize) {
-      throw OException.wrapException(new OIOException("Impossible to read a chunk of length:" + len + " max allowed chunk length:"
-          + maxChunkSize + " see NETWORK_BINARY_MAX_CONTENT_LENGTH settings "), null);
+      throw new IOException("Impossible to read a chunk of length:" + len + " max allowed chunk length:" + maxChunkSize
+          + " see NETWORK_BINARY_MAX_CONTENT_LENGTH settings ");
     }
     updateMetricReceivedBytes(OBinaryProtocol.SIZE_INT + len);
 
     if (debug)
-      OLogManager.instance().info(this, "%s - Read chunk lenght: %d", socket.getRemoteSocketAddress(), len);
+      OLogManager.instance().info(this, "%s - Read chunk length: %d", socket.getRemoteSocketAddress(), len);
 
     if (len < 0)
       return null;
@@ -242,7 +248,7 @@ public abstract class OChannelBinary extends OChannel {
       out.writeInt(-1);
       updateMetricTransmittedBytes(OBinaryProtocol.SIZE_INT);
     } else {
-      final byte[] buffer = iContent.getBytes();
+      final byte[] buffer = iContent.getBytes("UTF-8");
       out.writeInt(buffer.length);
       out.write(buffer, 0, buffer.length);
       updateMetricTransmittedBytes(OBinaryProtocol.SIZE_INT + buffer.length);
@@ -257,16 +263,17 @@ public abstract class OChannelBinary extends OChannel {
 
   public OChannelBinary writeBytes(final byte[] iContent, final int iLength) throws IOException {
     if (debug)
-      OLogManager.instance().info(this, "%s - Writing bytes (4+%d=%d bytes): %s", socket.getRemoteSocketAddress(), iLength,
-          iLength + 4, Arrays.toString(iContent));
+      OLogManager.instance()
+          .info(this, "%s - Writing bytes (4+%d=%d bytes): %s", socket.getRemoteSocketAddress(), iLength, iLength + 4,
+              Arrays.toString(iContent));
 
     if (iContent == null) {
       out.writeInt(-1);
       updateMetricTransmittedBytes(OBinaryProtocol.SIZE_INT);
     } else {
       if (iLength > maxChunkSize) {
-        throw OException.wrapException(new OIOException("Impossible to write a chunk of length:" + iLength
-            + " max allowed chunk length:" + maxChunkSize + " see NETWORK_BINARY_MAX_CONTENT_LENGTH settings "), null);
+        throw new IOException("Impossible to write a chunk of length:" + iLength + " max allowed chunk length:" + maxChunkSize
+            + " see NETWORK_BINARY_MAX_CONTENT_LENGTH settings ");
       }
 
       out.writeInt(iLength);
@@ -303,7 +310,7 @@ public abstract class OChannelBinary extends OChannel {
     final String message = "Received unread response from " + socket.getRemoteSocketAddress()
         + " probably corrupted data from the network connection. Cleared dirty data in the buffer (" + i + " bytes): ["
         + dirtyBuffer + (i > dirtyBuffer.length() ? "..." : "") + "]";
-    OLogManager.instance().error(this, message);
+    OLogManager.instance().error(this, message, null);
     throw new OIOException(message);
 
   }
@@ -311,24 +318,27 @@ public abstract class OChannelBinary extends OChannel {
   @Override
   public void flush() throws IOException {
     if (debug)
-      OLogManager.instance().info(this, "%s - Flush", socket != null ? " null possible previous close" :socket.getRemoteSocketAddress());
+      OLogManager.instance()
+          .info(this, "%s - Flush", socket != null ? " null possible previous close" : socket.getRemoteSocketAddress());
 
     updateMetricFlushes();
 
-    super.flush();
     if (out != null)
+      // IT ALREADY CALL THE UNDERLYING FLUSH
       out.flush();
+    else
+      super.flush();
   }
 
   @Override
   public void close() {
     if (debug)
-      OLogManager.instance().info(this, "%s - Closing socket...", socket != null ? " null possible previous close" : socket.getRemoteSocketAddress());
+      OLogManager.instance()
+          .info(this, "%s - Closing socket...", socket != null ? " null possible previous close" : socket.getRemoteSocketAddress());
 
     try {
       if (in != null) {
         in.close();
-        // in = null;
       }
     } catch (IOException e) {
       OLogManager.instance().debug(this, "Error during closing of input stream", e);
@@ -337,7 +347,6 @@ public abstract class OChannelBinary extends OChannel {
     try {
       if (out != null) {
         out.close();
-        // out = null;
       }
     } catch (IOException e) {
       OLogManager.instance().debug(this, "Error during closing of output stream", e);
@@ -346,5 +355,17 @@ public abstract class OChannelBinary extends OChannel {
     super.close();
   }
 
+  public DataOutputStream getDataOutput() {
+    return out;
+  }
 
+  public DataInputStream getDataInput() {
+    return in;
+  }
+
+  public void setWaitResponseTimeout() throws SocketException {
+    final Socket s = socket;
+    if (s != null)
+      s.setSoTimeout(responseTimeout);
+  }
 }

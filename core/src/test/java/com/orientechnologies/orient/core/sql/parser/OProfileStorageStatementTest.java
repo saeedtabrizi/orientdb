@@ -1,14 +1,13 @@
 package com.orientechnologies.orient.core.sql.parser;
 
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 
-import static org.testng.Assert.assertTrue;
-import static org.testng.Assert.fail;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
-@Test
 public class OProfileStorageStatementTest {
 
   protected SimpleNode checkRightSyntax(String query) {
@@ -27,17 +26,21 @@ public class OProfileStorageStatementTest {
     try {
       SimpleNode result = osql.parse();
       if (!isCorrect) {
+//        System.out.println(query);
+//        if(result != null) {
+//          System.out.println("->");
+//          StringBuilder builer = new StringBuilder();
+//          result.toString(null, builer);
+//          System.out.println(builer.toString());
+//          System.out.println("............");
+//        }
         fail();
       }
-      System.out.println(query);
-      System.out.println("->");
-      StringBuilder builer = new StringBuilder();
-      result.toString(null, builer);
-      System.out.println(builer.toString());
-      System.out.println("............");
+
       return result;
     } catch (Exception e) {
       if (isCorrect) {
+        System.out.println(query);
         e.printStackTrace();
         fail();
       }
@@ -79,7 +82,6 @@ public class OProfileStorageStatementTest {
     checkWrongSyntax("PROFILE STORAGE off foo bar");
 
   }
-
 
   private void printTree(String s) {
     OrientSql osql = getParserFor(s);

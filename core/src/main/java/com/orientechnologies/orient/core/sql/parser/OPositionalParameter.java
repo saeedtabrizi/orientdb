@@ -2,6 +2,9 @@
 /* JavaCCOptions:MULTI=true,NODE_USES_PARSER=false,VISITOR=true,TRACK_TOKENS=true,NODE_PREFIX=O,NODE_EXTENDS=,NODE_FACTORY=,SUPPORT_CLASS_VISIBILITY_PUBLIC=true */
 package com.orientechnologies.orient.core.sql.parser;
 
+import com.orientechnologies.orient.core.sql.executor.OResult;
+import com.orientechnologies.orient.core.sql.executor.OResultInternal;
+
 import java.util.Map;
 
 public class OPositionalParameter extends OInputParameter {
@@ -16,7 +19,9 @@ public class OPositionalParameter extends OInputParameter {
     super(p, id);
   }
 
-  /** Accept the visitor. **/
+  /**
+   * Accept the visitor.
+   **/
   public Object jjtAccept(OrientSqlVisitor visitor, Object data) {
     return visitor.visit(this, data);
   }
@@ -41,6 +46,14 @@ public class OPositionalParameter extends OInputParameter {
     }
   }
 
+  public Object getValue(Map<Object, Object> params) {
+    Object result = null;
+    if (params != null) {
+      result = params.get(paramNumber);
+    }
+    return result;
+  }
+
   public Object bindFromInputParams(Map<Object, Object> params) {
     if (params != null) {
       Object value = params.get(paramNumber);
@@ -50,5 +63,41 @@ public class OPositionalParameter extends OInputParameter {
     return this;
   }
 
+  @Override
+  public OPositionalParameter copy() {
+    OPositionalParameter result = new OPositionalParameter(-1);
+    result.paramNumber = paramNumber;
+    return result;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OPositionalParameter that = (OPositionalParameter) o;
+
+    if (paramNumber != that.paramNumber)
+      return false;
+
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    return paramNumber;
+  }
+
+  public OResult serialize() {
+    OResultInternal result = (OResultInternal) super.serialize();
+    result.setProperty("paramNumber", paramNumber);
+    return result;
+  }
+
+  public void deserialize(OResult fromResult) {
+    paramNumber = fromResult.getProperty("paramNumber");
+  }
 }
 /* JavaCC - OriginalChecksum=f73bea7d9b3994a9d4e79d2c330d8ba2 (do not edit this line) */

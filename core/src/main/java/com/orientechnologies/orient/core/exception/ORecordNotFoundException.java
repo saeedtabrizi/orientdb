@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,13 +14,15 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.exception;
 
 import com.orientechnologies.common.exception.OHighLevelException;
 import com.orientechnologies.orient.core.id.ORID;
+
+import java.util.Objects;
 
 public class ORecordNotFoundException extends OCoreException implements OHighLevelException {
 
@@ -30,6 +32,7 @@ public class ORecordNotFoundException extends OCoreException implements OHighLev
 
   public ORecordNotFoundException(final ORecordNotFoundException exception) {
     super(exception);
+    this.rid = exception.rid;
   }
 
   public ORecordNotFoundException(final ORID iRID) {
@@ -51,5 +54,14 @@ public class ORecordNotFoundException extends OCoreException implements OHighLev
       return toString().equals(obj.toString());
 
     return rid != null ? rid.equals(((ORecordNotFoundException) obj).rid) : ((ORecordNotFoundException) obj).rid.equals(rid);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(rid);
+  }
+
+  public ORID getRid() {
+    return rid;
   }
 }

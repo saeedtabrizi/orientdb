@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,29 +14,26 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.tx;
 
-import com.orientechnologies.orient.core.OUncompletedCommit;
-import com.orientechnologies.orient.core.db.ODatabase.OPERATION_MODE;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.db.record.ORecordOperation;
 import com.orientechnologies.orient.core.exception.ORecordNotFoundException;
 import com.orientechnologies.orient.core.id.ORID;
-import com.orientechnologies.orient.core.index.OIndex;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.storage.ORecordCallback;
+import com.orientechnologies.orient.core.storage.OBasicTransaction;
 import com.orientechnologies.orient.core.storage.OStorage;
 
 import java.util.HashMap;
 import java.util.List;
 
-public interface OTransaction {
+public interface OTransaction extends OBasicTransaction {
   enum TXTYPE {
     NOTX, OPTIMISTIC, PESSIMISTIC
   }
@@ -55,10 +52,6 @@ public interface OTransaction {
 
   void commit(boolean force);
 
-  OUncompletedCommit<Void> initiateCommit();
-
-  OUncompletedCommit<Void> initiateCommit(boolean force);
-
   void rollback();
 
   /**
@@ -69,9 +62,9 @@ public interface OTransaction {
   /**
    * Changes the isolation level. Default is READ_COMMITTED. When REPEATABLE_READ is set, any record read from the storage is cached
    * in memory to guarantee the repeatable reads. This affects the used RAM and speed (because JVM Garbage Collector job).
-   * 
-   * @param iIsolationLevel
-   *          Isolation level to set
+   *
+   * @param iIsolationLevel Isolation level to set
+   *
    * @return Current object to allow call in chain
    */
   OTransaction setIsolationLevel(ISOLATION_LEVEL iIsolationLevel);
@@ -80,6 +73,7 @@ public interface OTransaction {
 
   ODatabaseDocument getDatabase();
 
+  @Deprecated
   void clearRecordEntries();
 
   @Deprecated
@@ -99,25 +93,16 @@ public interface OTransaction {
   ORecord loadRecordIfVersionIsNotLatest(ORID rid, int recordVersion, String fetchPlan, boolean ignoreCache)
       throws ORecordNotFoundException;
 
-  ORecord saveRecord(ORecord iRecord, String iClusterName, OPERATION_MODE iMode, boolean iForceCreate,
-      ORecordCallback<? extends Number> iRecordCreatedCallback, ORecordCallback<Integer> iRecordUpdatedCallback);
-
-  void deleteRecord(ORecord iRecord, OPERATION_MODE iMode);
-
-  int getId();
-
   TXSTATUS getStatus();
 
   @Deprecated
   Iterable<? extends ORecordOperation> getCurrentRecordEntries();
 
-  Iterable<? extends ORecordOperation> getAllRecordEntries();
+  Iterable<? extends ORecordOperation> getRecordOperations();
 
   List<ORecordOperation> getNewRecordEntriesByClass(OClass iClass, boolean iPolymorphic);
 
   List<ORecordOperation> getNewRecordEntriesByClusterIds(int[] iIds);
-
-  ORecord getRecord(ORID iRid);
 
   ORecordOperation getRecordEntry(ORID rid);
 
@@ -125,26 +110,10 @@ public interface OTransaction {
 
   ODocument getIndexChanges();
 
-  void addIndexEntry(OIndex<?> delegate, final String iIndexName, final OTransactionIndexChanges.OPERATION iStatus,
-      final Object iKey, final OIdentifiable iValue);
-
   @Deprecated
   void clearIndexEntries();
 
-  OTransactionIndexChanges getIndexChanges(String iName);
-
-  /**
-   * Tells if the transaction is active.
-   * 
-   * @return
-   */
-  boolean isActive();
-
   boolean isUsingLog();
-
-  void setCustomData(String iName, Object iValue);
-
-  Object getCustomData(String iName);
 
   /**
    * If you set this flag to false, you are unable to
@@ -152,7 +121,7 @@ public interface OTransaction {
    * <li>Rollback data changes in case of exception</li>
    * <li>Restore data in case of server crash</li>
    * </ol>
-   * 
+   * <p>
    * So you practically unable to work in multithreaded environment and keep data consistent.
    */
   void setUsingLog(boolean useLog);
@@ -162,11 +131,9 @@ public interface OTransaction {
   /**
    * When commit in transaction is performed all new records will change their identity, but index values will contain stale links,
    * to fix them given method will be called for each entry. This update local transaction maps too.
-   * 
-   * @param oldRid
-   *          Record identity before commit.
-   * @param newRid
-   *          Record identity after commit.
+   *
+   * @param oldRid Record identity before commit.
+   * @param newRid Record identity after commit.
    */
   void updateIdentityAfterCommit(final ORID oldRid, final ORID newRid);
 
@@ -174,15 +141,15 @@ public interface OTransaction {
 
   boolean isLockedRecord(OIdentifiable iRecord);
 
+  @Deprecated
   OStorage.LOCKING_STRATEGY lockingStrategy(OIdentifiable iRecord);
 
+  @Deprecated
   OTransaction lockRecord(OIdentifiable iRecord, OStorage.LOCKING_STRATEGY iLockingStrategy);
 
+  @Deprecated
   OTransaction unlockRecord(OIdentifiable iRecord);
-
-  HashMap<ORID, OStorage.LOCKING_STRATEGY> getLockedRecords();
 
   int getEntryCount();
 
-  boolean hasRecordCreation();
 }

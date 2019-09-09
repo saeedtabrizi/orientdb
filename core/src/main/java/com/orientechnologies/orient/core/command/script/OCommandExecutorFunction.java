@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.command.script;
@@ -28,7 +28,6 @@ import com.orientechnologies.orient.core.command.OCommandExecutorAbstract;
 import com.orientechnologies.orient.core.command.OCommandRequest;
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.metadata.function.OFunction;
 import com.orientechnologies.orient.core.metadata.security.ORole;
 import com.orientechnologies.orient.core.metadata.security.ORule;
@@ -41,7 +40,7 @@ import java.util.Map.Entry;
  * Executes Script Commands.
  * 
  * @see OCommandScript
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public class OCommandExecutorFunction extends OCommandExecutorAbstract {
@@ -64,7 +63,7 @@ public class OCommandExecutorFunction extends OCommandExecutorAbstract {
 
     parserText = request.getText();
 
-    ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.INSTANCE.get();
+    ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.instance().get();
     final OFunction f = db.getMetadata().getFunctionLibrary().getFunction(parserText);
 
     db.checkSecurity(ORule.ResourceGeneric.FUNCTION, ORole.PERMISSION_READ, f.getName());
@@ -74,8 +73,7 @@ public class OCommandExecutorFunction extends OCommandExecutorAbstract {
     final OPartitionedObjectPool.PoolEntry<ScriptEngine> entry = scriptManager.acquireDatabaseEngine(db.getName(), f.getLanguage());
     final ScriptEngine scriptEngine = entry.object;
     try {
-      final Bindings binding = scriptManager.bind(scriptEngine.getBindings(ScriptContext.ENGINE_SCOPE), (ODatabaseDocumentTx) db,
-          iContext, iArgs);
+      final Bindings binding = scriptManager.bind(scriptEngine,scriptEngine.getBindings(ScriptContext.ENGINE_SCOPE), db, iContext, iArgs);
 
       try {
         final Object result;
@@ -99,8 +97,7 @@ public class OCommandExecutorFunction extends OCommandExecutorAbstract {
           final Object[] args = iArgs == null ? null : iArgs.values().toArray();
           result = scriptEngine.eval(scriptManager.getFunctionInvoke(f, args), binding);
         }
-
-        return OCommandExecutorUtility.transformResult(result);
+        return OCommandExecutorUtility.transformResult(scriptManager.handleResult(f.getLanguage(),result,scriptEngine,binding,db));
 
       } catch (ScriptException e) {
         throw OException.wrapException(
@@ -112,7 +109,7 @@ public class OCommandExecutorFunction extends OCommandExecutorAbstract {
         throw e;
 
       } finally {
-        scriptManager.unbind(binding, iContext, iArgs);
+        scriptManager.unbind(scriptEngine,binding, iContext, iArgs);
       }
     } finally {
       scriptManager.releaseDatabaseEngine(f.getLanguage(), db.getName(), entry);

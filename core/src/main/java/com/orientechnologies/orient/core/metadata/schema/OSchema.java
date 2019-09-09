@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,24 +14,26 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.metadata.schema;
 
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
+import com.orientechnologies.orient.core.db.viewmanager.ViewCreationListener;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.metadata.schema.clusterselection.OClusterSelectionFactory;
-import com.orientechnologies.orient.core.type.ODocumentWrapper;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 public interface OSchema {
 
   int countClasses();
 
-  OClass createClass(Class<?> iClass);
+  int countViews();
 
   OClass createClass(String iClassName);
 
@@ -45,8 +47,6 @@ public interface OSchema {
 
   OClass createClass(String className, int[] clusterIds, OClass... superClasses);
 
-  OClass createAbstractClass(Class<?> iClass);
-
   OClass createAbstractClass(String iClassName);
 
   OClass createAbstractClass(String iClassName, OClass iSuperClass);
@@ -55,7 +55,7 @@ public interface OSchema {
 
   void dropClass(String iClassName);
 
-  <RET extends ODocumentWrapper> RET reload();
+  OSchema reload();
 
   boolean existsClass(String iClassName);
 
@@ -70,6 +70,7 @@ public interface OSchema {
    * If the database nor the entity manager have not registered class with specified name, returns null.
    *
    * @param iClassName Name of the class to retrieve
+   *
    * @return class instance or null if class with given name is not configured.
    */
   OClass getClass(String iClassName);
@@ -82,20 +83,29 @@ public interface OSchema {
 
   Collection<OClass> getClasses();
 
+  Collection<OView> getViews();
+
+  OView getView(String name);
+
+  OView createView(final String viewName, String statement);
+
+  OView createView(ODatabaseDocumentInternal database, final String viewName, String statement, Map<String, Object> metadata);
+
+  OView createView(OViewConfig config);
+
+  OView createView(OViewConfig config, ViewCreationListener listener);
+
+  boolean existsView(String name);
+
+  void dropView(String name);
+
+  @Deprecated
   void create();
 
   @Deprecated
   int getVersion();
 
   ORID getIdentity();
-
-  /**
-   * Do nothing. Starting from 1.0rc2 the schema is auto saved!
-   *
-   * @COMPATIBILITY 1.0rc1
-   */
-  @Deprecated
-  <RET extends ODocumentWrapper> RET save();
 
   /**
    * Returns all the classes that rely on a cluster
@@ -105,6 +115,8 @@ public interface OSchema {
   Set<OClass> getClassesRelyOnCluster(String iClusterName);
 
   OClass getClassByClusterId(int clusterId);
+
+  OView getViewByClusterId(int clusterId);
 
   OGlobalProperty getGlobalPropertyById(int id);
 
@@ -116,8 +128,4 @@ public interface OSchema {
 
   OImmutableSchema makeSnapshot();
 
-  /**
-   * Callback invoked when the schema is loaded, after all the initializations.
-   */
-  void onPostIndexManagement();
 }

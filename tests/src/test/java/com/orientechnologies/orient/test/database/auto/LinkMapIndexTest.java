@@ -1,7 +1,9 @@
 package com.orientechnologies.orient.test.database.auto;
 
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.index.OIndex;
+import com.orientechnologies.orient.core.index.OIndexKeyCursor;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -33,14 +35,12 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
     linkMapIndexTestClass.createIndex("mapIndexTestKey", OClass.INDEX_TYPE.NOTUNIQUE, "linkMap");
     linkMapIndexTestClass.createIndex("mapIndexTestValue", OClass.INDEX_TYPE.NOTUNIQUE, "linkMap by value");
 
-    database.getMetadata().getSchema().save();
   }
 
   @AfterClass
   public void destroySchema() {
     database.open("admin", "admin");
     database.getMetadata().getSchema().dropClass("LinkMapIndexTestClass");
-    database.getMetadata().getSchema().save();
     database.close();
   }
 
@@ -52,13 +52,15 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
   }
 
   public void testIndexMap() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -67,44 +69,47 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
     document.field("linkMap", map);
     document.save();
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 2);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key1") && !d.field("key").equals("key2")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key1") && !key.equals("key2")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 2);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    Assert.assertEquals(valueIndexMap.getSize(), 2);
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docOne.getIdentity()) && !d.field("key").equals(docTwo.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docOne.getIdentity()) && !value.getIdentity().equals(docTwo.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
-  public void testIndexMapInTx() throws Exception {
+  public void testIndexMapInTx() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     try {
       database.begin();
-      Map<String, ORID> map = new HashMap<String, ORID>();
+      Map<String, ORID> map = new HashMap<>();
 
       map.put("key1", docOne.getIdentity());
       map.put("key2", docTwo.getIdentity());
@@ -118,45 +123,48 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
       throw e;
     }
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 2);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key1") && !d.field("key").equals("key2")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key1") && !key.equals("key2")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 2);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docOne.getIdentity()) && !d.field("key").equals(docTwo.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docOne.getIdentity()) && !value.getIdentity().equals(docTwo.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
   public void testIndexMapUpdateOne() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docThree = new ODocument();
-    docThree.save();
+    docThree.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> mapOne = new HashMap<String, ORID>();
+    Map<String, ORID> mapOne = new HashMap<>();
 
     mapOne.put("key1", docOne.getIdentity());
     mapOne.put("key2", docTwo.getIdentity());
@@ -165,51 +173,54 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
     document.field("linkMap", mapOne);
     document.save();
 
-    final Map<String, ORID> mapTwo = new HashMap<String, ORID>();
+    final Map<String, ORID> mapTwo = new HashMap<>();
     mapTwo.put("key2", docOne.getIdentity());
     mapTwo.put("key3", docThree.getIdentity());
 
     document.field("linkMap", mapTwo);
     document.save();
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 2);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key2") && !d.field("key").equals("key3")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key2") && !key.equals("key3")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 2);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docOne.getIdentity()) && !d.field("key").equals(docThree.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docOne.getIdentity()) && !value.getIdentity().equals(docThree.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
-  public void testIndexMapUpdateOneTx() throws Exception {
+  public void testIndexMapUpdateOneTx() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     database.begin();
     try {
-      final Map<String, ORID> mapTwo = new HashMap<String, ORID>();
+      final Map<String, ORID> mapTwo = new HashMap<>();
 
       mapTwo.put("key3", docOne.getIdentity());
       mapTwo.put("key2", docTwo.getIdentity());
@@ -224,45 +235,48 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
       throw e;
     }
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 2);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key2") && !d.field("key").equals("key3")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key2") && !key.equals("key3")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 2);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docOne.getIdentity()) && !d.field("key").equals(docTwo.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docOne.getIdentity()) && !value.getIdentity().equals(docTwo.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
-  public void testIndexMapUpdateOneTxRollback() throws Exception {
+  public void testIndexMapUpdateOneTxRollback() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docThree = new ODocument();
-    docThree.save();
+    docThree.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> mapOne = new HashMap<String, ORID>();
+    Map<String, ORID> mapOne = new HashMap<>();
 
     mapOne.put("key1", docOne.getIdentity());
     mapOne.put("key2", docTwo.getIdentity());
@@ -272,7 +286,7 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
     document.save();
 
     database.begin();
-    final Map<String, ORID> mapTwo = new HashMap<String, ORID>();
+    final Map<String, ORID> mapTwo = new HashMap<>();
 
     mapTwo.put("key3", docTwo.getIdentity());
     mapTwo.put("key2", docThree.getIdentity());
@@ -281,45 +295,48 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
     document.save();
     database.rollback();
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 2);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key2") && !d.field("key").equals("key1")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key2") && !key.equals("key1")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 2);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docTwo.getIdentity()) && !d.field("key").equals(docOne.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docTwo.getIdentity()) && !value.equals(docOne.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
   public void testIndexMapAddItem() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docThree = new ODocument();
-    docThree.save();
+    docThree.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -331,46 +348,49 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
     database.command(new OCommandSQL("UPDATE " + document.getIdentity() + " put linkMap = 'key3', " + docThree.getIdentity()))
         .execute();
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 3);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 3);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key1") && !d.field("key").equals("key2") && !d.field("key").equals("key3")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key1") && !key.equals("key2") && !key.equals("key3")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 3);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 3);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docOne.getIdentity()) && !d.field("key").equals(docTwo.getIdentity())
-          && !d.field("key").equals(docThree.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docOne.getIdentity()) && !value.getIdentity().equals(docTwo.getIdentity()) && !value
+          .getIdentity().equals(docThree.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
-  public void testIndexMapAddItemTx() throws Exception {
+  public void testIndexMapAddItemTx() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docThree = new ODocument();
-    docThree.save();
+    docThree.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -382,7 +402,7 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
     try {
       database.begin();
       final ODocument loadedDocument = database.load(document.getIdentity());
-      loadedDocument.<Map<String, ORID>> field("linkMap").put("key3", docThree.getIdentity());
+      loadedDocument.<Map<String, ORID>>field("linkMap").put("key3", docThree.getIdentity());
       loadedDocument.save();
       database.commit();
     } catch (Exception e) {
@@ -390,46 +410,49 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
       throw e;
     }
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 3);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 3);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key1") && !d.field("key").equals("key2") && !d.field("key").equals("key3")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key1") && !key.equals("key2") && !key.equals("key3")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 3);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 3);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docOne.getIdentity()) && !d.field("key").equals(docTwo.getIdentity())
-          && !d.field("key").equals(docThree.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docOne.getIdentity()) && !value.getIdentity().equals(docTwo.getIdentity()) && !value
+          .getIdentity().equals(docThree.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
-  public void testIndexMapAddItemTxRollback() throws Exception {
+  public void testIndexMapAddItemTxRollback() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docThree = new ODocument();
-    docThree.save();
+    docThree.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -440,49 +463,52 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
 
     database.begin();
     final ODocument loadedDocument = database.load(document.getIdentity());
-    loadedDocument.<Map<String, ORID>> field("linkMap").put("key3", docThree.getIdentity());
+    loadedDocument.<Map<String, ORID>>field("linkMap").put("key3", docThree.getIdentity());
     loadedDocument.save();
     database.rollback();
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 2);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key1") && !d.field("key").equals("key2")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key1") && !key.equals("key2")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 2);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docTwo.getIdentity()) && !d.field("key").equals(docOne.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docTwo.getIdentity()) && !value.getIdentity().equals(docOne.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
   public void testIndexMapUpdateItem() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docThree = new ODocument();
-    docThree.save();
+    docThree.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -494,45 +520,48 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
     database.command(new OCommandSQL("UPDATE " + document.getIdentity() + " put linkMap = 'key2'," + docThree.getIdentity()))
         .execute();
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 2);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    Assert.assertEquals(keyIndexMap.getSize(), 2);
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key1") && !d.field("key").equals("key2")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key1") && !key.equals("key2")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 2);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docOne.getIdentity()) && !d.field("key").equals(docThree.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docOne.getIdentity()) && !value.getIdentity().equals(docThree.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
-  public void testIndexMapUpdateItemInTx() throws Exception {
+  public void testIndexMapUpdateItemInTx() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docThree = new ODocument();
-    docThree.save();
+    docThree.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -544,52 +573,57 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
     try {
       database.begin();
       final ODocument loadedDocument = database.load(document.getIdentity());
-      loadedDocument.<Map<String, ORID>> field("linkMap").put("key2", docThree.getIdentity());
+      loadedDocument.<Map<String, ORID>>field("linkMap").put("key2", docThree.getIdentity());
       loadedDocument.save();
       database.commit();
     } catch (Exception e) {
       database.rollback();
       throw e;
     }
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 2);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 2);
 
-      if (!d.field("key").equals("key1") && !d.field("key").equals("key2")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    Assert.assertEquals(keyIndexMap.getSize(), 2);
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
+
+    while (key != null) {
+      if (!key.equals("key1") && !key.equals("key2")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 2);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docOne.getIdentity()) && !d.field("key").equals(docThree.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docOne.getIdentity()) && !value.getIdentity().equals(docThree.getIdentity())) {
+        Assert.fail("Unknown key found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
-  public void testIndexMapUpdateItemInTxRollback() throws Exception {
+  public void testIndexMapUpdateItemInTxRollback() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docThree = new ODocument();
-    docThree.save();
+    docThree.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -600,49 +634,52 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
 
     database.begin();
     final ODocument loadedDocument = database.load(document.getIdentity());
-    loadedDocument.<Map<String, ORID>> field("linkMap").put("key2", docThree.getIdentity());
+    loadedDocument.<Map<String, ORID>>field("linkMap").put("key2", docThree.getIdentity());
     loadedDocument.save();
     database.rollback();
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 2);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key1") && !d.field("key").equals("key2")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key1") && !key.equals("key2")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 2);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docOne.getIdentity()) && !d.field("key").equals(docTwo.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docOne.getIdentity()) && !value.getIdentity().equals(docTwo.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
   public void testIndexMapRemoveItem() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docThree = new ODocument();
-    docThree.save();
+    docThree.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -654,45 +691,48 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
 
     database.command(new OCommandSQL("UPDATE " + document.getIdentity() + " remove linkMap = 'key2'")).execute();
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 2);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key1") && !d.field("key").equals("key3")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key1") && !key.equals("key3")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 2);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docOne.getIdentity()) && !d.field("key").equals(docThree.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docOne.getIdentity()) && !value.getIdentity().equals(docThree.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
-  public void testIndexMapRemoveItemInTx() throws Exception {
+  public void testIndexMapRemoveItemInTx() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docThree = new ODocument();
-    docThree.save();
+    docThree.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -705,7 +745,7 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
     try {
       database.begin();
       final ODocument loadedDocument = database.load(document.getIdentity());
-      loadedDocument.<Map<String, ORID>> field("linkMap").remove("key2");
+      loadedDocument.<Map<String, ORID>>field("linkMap").remove("key2");
       loadedDocument.save();
       database.commit();
     } catch (Exception e) {
@@ -713,45 +753,48 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
       throw e;
     }
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 2);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key1") && !d.field("key").equals("key3")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key1") && !key.equals("key3")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 2);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docOne.getIdentity()) && !d.field("key").equals(docThree.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docOne.getIdentity()) && !value.getIdentity().equals(docThree.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
-  public void testIndexMapRemoveItemInTxRollback() throws Exception {
+  public void testIndexMapRemoveItemInTxRollback() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docThree = new ODocument();
-    docThree.save();
+    docThree.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -763,50 +806,53 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
 
     database.begin();
     final ODocument loadedDocument = database.load(document.getIdentity());
-    loadedDocument.<Map<String, ORID>> field("linkMap").remove("key2");
+    loadedDocument.<Map<String, ORID>>field("linkMap").remove("key2");
     loadedDocument.save();
     database.rollback();
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 3);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 3);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key1") && !d.field("key").equals("key2") && !d.field("key").equals("key3")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key1") && !key.equals("key2") && !key.equals("key3")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 3);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 3);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docOne.getIdentity()) && !d.field("key").equals(docTwo.getIdentity())
-          && !d.field("key").equals(docThree.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docOne.getIdentity()) && !value.getIdentity().equals(docTwo.getIdentity()) && !value
+          .getIdentity().equals(docThree.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
   public void testIndexMapRemove() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docThree = new ODocument();
-    docThree.save();
+    docThree.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -816,26 +862,23 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
     document.save();
     document.delete();
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 0);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 0);
-
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
-
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 0);
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 0);
   }
 
-  public void testIndexMapRemoveInTx() throws Exception {
+  public void testIndexMapRemoveInTx() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -853,26 +896,23 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
       throw e;
     }
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 0);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 0);
-
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
-
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 0);
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 0);
   }
 
-  public void testIndexMapRemoveInTxRollback() throws Exception {
+  public void testIndexMapRemoveInTxRollback() {
+    checkEmbeddedDB();
+
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -885,42 +925,43 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
     document.delete();
     database.rollback();
 
-    final List<ODocument> resultByKey = database.command(new OCommandSQL("select key, rid from index:mapIndexTestKey")).execute();
+    final OIndex keyIndexMap = getIndex("mapIndexTestKey");
+    Assert.assertEquals(keyIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByKey);
-    Assert.assertEquals(resultByKey.size(), 2);
-    for (ODocument d : resultByKey) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor keyCursor = keyIndexMap.keyCursor();
+    String key = (String) keyCursor.next(-1);
 
-      if (!d.field("key").equals("key1") && !d.field("key").equals("key2")) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (key != null) {
+      if (!key.equals("key1") && !key.equals("key2")) {
+        Assert.fail("Unknown key found: " + key);
       }
+
+      key = (String) keyCursor.next(-1);
     }
 
-    final List<ODocument> resultByValue = database.command(new OCommandSQL("select key, rid from index:mapIndexTestValue"))
-        .execute();
+    final OIndex valueIndexMap = getIndex("mapIndexTestValue");
+    Assert.assertEquals(valueIndexMap.getSize(), 2);
 
-    Assert.assertNotNull(resultByValue);
-    Assert.assertEquals(resultByValue.size(), 2);
-    for (ODocument d : resultByValue) {
-      Assert.assertTrue(d.containsField("key"));
-      Assert.assertTrue(d.containsField("rid"));
+    final OIndexKeyCursor valueCursor = valueIndexMap.keyCursor();
+    OIdentifiable value = (OIdentifiable) valueCursor.next(-1);
 
-      if (!d.field("key").equals(docOne.getIdentity()) && !d.field("key").equals(docTwo.getIdentity())) {
-        Assert.fail("Unknown key found: " + d.field("key"));
+    while (value != null) {
+      if (!value.getIdentity().equals(docOne.getIdentity()) && !value.getIdentity().equals(docTwo.getIdentity())) {
+        Assert.fail("Unknown value found: " + value);
       }
+
+      value = (OIdentifiable) valueCursor.next(-1);
     }
   }
 
   public void testIndexMapSQL() {
     final ODocument docOne = new ODocument();
-    docOne.save();
+    docOne.save(database.getClusterNameById(database.getDefaultClusterId()));
 
     final ODocument docTwo = new ODocument();
-    docTwo.save();
+    docTwo.save(database.getClusterNameById(database.getDefaultClusterId()));
 
-    Map<String, ORID> map = new HashMap<String, ORID>();
+    Map<String, ORID> map = new HashMap<>();
 
     map.put("key1", docOne.getIdentity());
     map.put("key2", docTwo.getIdentity());
@@ -929,15 +970,16 @@ public class LinkMapIndexTest extends DocumentDBBaseTest {
     document.field("linkMap", map);
     document.save();
 
-    final List<ODocument> resultByKey = database.query(new OSQLSynchQuery<ODocument>(
-        "select * from LinkMapIndexTestClass where linkMap containskey ?"), "key1");
+    final List<ODocument> resultByKey = database
+        .query(new OSQLSynchQuery<ODocument>("select * from LinkMapIndexTestClass where linkMap containskey ?"), "key1");
     Assert.assertNotNull(resultByKey);
     Assert.assertEquals(resultByKey.size(), 1);
 
     Assert.assertEquals(map, document.field("linkMap"));
 
-    final List<ODocument> resultByValue = database.query(new OSQLSynchQuery<ODocument>(
-        "select * from LinkMapIndexTestClass where linkMap  containsvalue ?"), docOne.getIdentity());
+    final List<ODocument> resultByValue = database
+        .query(new OSQLSynchQuery<ODocument>("select * from LinkMapIndexTestClass where linkMap  containsvalue ?"),
+            docOne.getIdentity());
     Assert.assertNotNull(resultByValue);
     Assert.assertEquals(resultByValue.size(), 1);
 

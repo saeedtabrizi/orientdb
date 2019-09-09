@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.common.concur.lock;
@@ -36,7 +36,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * Adaptive class to handle shared resources. It's configurable specifying if it's running in a concurrent environment and allow o
  * specify a maximum timeout to avoid deadlocks.
  * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public class OAdaptiveLock extends OAbstractLock {
@@ -85,7 +85,7 @@ public class OAdaptiveLock extends OAbstractLock {
                 Thread.currentThread().interrupt();
                 return;
               }
-            } catch (InterruptedException e2) {
+            } catch (InterruptedException ignore) {
               Thread.currentThread().interrupt();
             }
           }
@@ -165,15 +165,7 @@ public class OAdaptiveLock extends OAbstractLock {
 
       printWriter.flush();
       return stringWriter.toString();
-    } catch (RuntimeException e) {
-      return null;
-    } catch (NoSuchFieldException e) {
-      return null;
-    } catch (IllegalAccessException e) {
-      return null;
-    } catch (NoSuchMethodException e) {
-      return null;
-    } catch (InvocationTargetException e) {
+    } catch (RuntimeException | NoSuchFieldException | IllegalAccessException | InvocationTargetException | NoSuchMethodException ignore) {
       return null;
     }
 

@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,10 +14,9 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
-
 
 package com.orientechnologies.orient.enterprise.channel.binary;
 
@@ -32,14 +31,19 @@ import com.orientechnologies.orient.core.config.OContextConfiguration;
 
 public class OChannelBinaryServer extends OChannelBinary {
 
-	public OChannelBinaryServer(final Socket iSocket, final OContextConfiguration iConfig) throws IOException {
-		super(iSocket, iConfig);
+  public OChannelBinaryServer(final Socket iSocket, final OContextConfiguration iConfig) throws IOException {
+    super(iSocket, iConfig);
 
-		inStream = new BufferedInputStream(socket.getInputStream(), socketBufferSize);
-		outStream = new BufferedOutputStream(socket.getOutputStream(), socketBufferSize);
+    if (socketBufferSize > 0) {
+      inStream = new BufferedInputStream(socket.getInputStream(), socketBufferSize);
+      outStream = new BufferedOutputStream(socket.getOutputStream(), socketBufferSize);
+    } else {
+      inStream = new BufferedInputStream(socket.getInputStream());
+      outStream = new BufferedOutputStream(socket.getOutputStream());
+    }
 
-		out = new DataOutputStream(outStream);
-		in = new DataInputStream(inStream);
-		connected();
-	}
+    out = new DataOutputStream(outStream);
+    in = new DataInputStream(inStream);
+    connected();
+  }
 }

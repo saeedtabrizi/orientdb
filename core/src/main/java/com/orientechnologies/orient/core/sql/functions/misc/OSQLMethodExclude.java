@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql.functions.misc;
@@ -33,26 +33,26 @@ import java.util.Map;
 /**
  * Filter the content by excluding only some fields. If the content is a document, then creates a copy without the excluded fields.
  * If it's a collection of documents it acts against on each single entry.
- * 
+ * <p>
  * <p>
  * Syntax: <blockquote>
- * 
+ * <p>
  * <pre>
  * exclude(&lt;field|value|expression&gt; [,&lt;field-name&gt;]* )
  * </pre>
- * 
+ * <p>
  * </blockquote>
- * 
+ * <p>
  * <p>
  * Examples: <blockquote>
- * 
+ * <p>
  * <pre>
  * SELECT <b>exclude(roles, 'permissions')</b> FROM OUser
  * </pre>
- * 
+ * <p>
  * </blockquote>
- * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 
 public class OSQLMethodExclude extends OAbstractSQLMethod {
@@ -71,7 +71,7 @@ public class OSQLMethodExclude extends OAbstractSQLMethod {
   @Override
   public Object execute(Object iThis, OIdentifiable iCurrentRecord, OCommandContext iContext, Object ioResult, Object[] iParams) {
     if (iThis != null) {
-      if(iThis instanceof ORecordId){
+      if (iThis instanceof ORecordId) {
         iThis = ((ORecordId) iThis).getRecord();
       }
       if (iThis instanceof ODocument) {
@@ -98,11 +98,22 @@ public class OSQLMethodExclude extends OAbstractSQLMethod {
 
   private Object copy(final ODocument document, final Object[] iFieldNames) {
     final ODocument doc = document.copy();
-//    ORecordInternal.setIdentity(doc, ORecordId.EMPTY_RECORD_ID);
     for (Object iFieldName : iFieldNames) {
       if (iFieldName != null) {
         final String fieldName = iFieldName.toString();
-        doc.removeField(fieldName);
+        if (fieldName.endsWith("*")) {
+          final String fieldPart = fieldName.substring(0, fieldName.length() - 1);
+          final List<String> toExclude = new ArrayList<String>();
+          for (String f : doc.fieldNames()) {
+            if (f.startsWith(fieldPart))
+              toExclude.add(f);
+          }
+
+          for (String f : toExclude)
+            doc.removeField(f);
+
+        } else
+          doc.removeField(fieldName);
       }
     }
     doc.deserializeFields();
@@ -114,7 +125,20 @@ public class OSQLMethodExclude extends OAbstractSQLMethod {
     for (Object iFieldName : iFieldNames) {
       if (iFieldName != null) {
         final String fieldName = iFieldName.toString();
-        doc.removeField(fieldName);
+
+        if (fieldName.endsWith("*")) {
+          final String fieldPart = fieldName.substring(0, fieldName.length() - 1);
+          final List<String> toExclude = new ArrayList<String>();
+          for (String f : doc.fieldNames()) {
+            if (f.startsWith(fieldPart))
+              toExclude.add(f);
+          }
+
+          for (String f : toExclude)
+            doc.removeField(f);
+
+        } else
+          doc.removeField(fieldName);
       }
     }
     return doc;

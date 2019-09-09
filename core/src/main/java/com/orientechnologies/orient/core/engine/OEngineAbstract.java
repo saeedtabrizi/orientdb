@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.engine;
@@ -27,6 +27,8 @@ import com.orientechnologies.orient.core.storage.cache.OWriteCacheIdGen;
 
 public abstract class OEngineAbstract implements OEngine {
   private static final OWriteCacheIdGen writeCacheIdGen = new OSnowFlakeIdGen();
+
+  private boolean running = false;
 
   protected int generateStorageId() {
     return writeCacheIdGen.nextId();
@@ -42,9 +44,21 @@ public abstract class OEngineAbstract implements OEngine {
     return dbMode;
   }
 
+  @Override
+  public void startup() {
+    this.running = true;
+  }
+
+  @Override
   public void shutdown() {
+    this.running = false;
   }
 
   public void removeStorage(final OStorage iStorage) {
+  }
+
+  @Override
+  public boolean isRunning() {
+    return running;
   }
 }

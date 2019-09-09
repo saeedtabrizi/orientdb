@@ -5,20 +5,17 @@ import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import org.testng.annotations.Test;
+import org.junit.Test;
 
 import java.math.BigDecimal;
 import java.util.Date;
 import java.util.List;
 
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNotNull;
-import static org.testng.Assert.assertTrue;
+import static org.junit.Assert.*;
 
 /**
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
-@Test
 public class OSQLFunctionConvertTest {
 
   @Test
@@ -30,6 +27,11 @@ public class OSQLFunctionConvertTest {
       db.command(new OCommandSQL("create class TestConversion")).execute();
 
       db.command(new OCommandSQL("insert into TestConversion set string = 'Jay', date = sysdate(), number = 33")).execute();
+
+      ODocument doc = (ODocument) db.query(new OSQLSynchQuery<ODocument>("select from TestConversion limit 1")).get(0);
+
+
+      db.command(new OCommandSQL("update TestConversion set selfrid = 'foo"+doc.getIdentity()+"'")).execute();
 
       List<ODocument> results = db.query(new OSQLSynchQuery<ODocument>("select string.asString() as convert from TestConversion"));
       assertNotNull(results);
@@ -80,6 +82,11 @@ public class OSQLFunctionConvertTest {
       assertNotNull(results);
       assertEquals(results.size(), 1);
       assertTrue(results.get(0).field("convert") instanceof Double);
+
+      results = db.query(new OSQLSynchQuery<ODocument>("select selfrid.substring(3).convert('LINK').string as convert from TestConversion"));
+      assertNotNull(results);
+      assertEquals(results.size(), 1);
+      assertEquals(results.get(0).field("convert"), "Jay");
 
     } finally {
       db.drop();

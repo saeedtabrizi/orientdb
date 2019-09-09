@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql.functions;
@@ -44,7 +44,7 @@ import java.util.List;
 /**
  * Wraps function managing the binding of parameters.
  * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public class OSQLFunctionRuntime extends OSQLFilterItemAbstract {
@@ -96,7 +96,7 @@ public class OSQLFunctionRuntime extends OSQLFilterItemAbstract {
       } else if (configuredParameters[i] instanceof OCommandSQL) {
         try {
           runtimeParameters[i] = ((OCommandSQL) configuredParameters[i]).setContext(iContext).execute();
-        } catch (OCommandExecutorNotFoundException e) {
+        } catch (OCommandExecutorNotFoundException ignore) {
           // TRY WITH SIMPLE CONDITION
           final String text = ((OCommandSQL) configuredParameters[i]).getText();
           final OSQLPredicate pred = new OSQLPredicate(text);
@@ -160,7 +160,7 @@ public class OSQLFunctionRuntime extends OSQLFilterItemAbstract {
 
       if (iEvaluate)
         if (iParameters[i] != null) {
-          if (iParameters[i] instanceof String && !iParameters[i].toString().startsWith("[")) {
+          if (iParameters[i] instanceof String) {
             final Object v = OSQLHelper.parseValue(null, null, iParameters[i].toString(), null);
             if (v == OSQLHelper.VALUE_NOT_PARSED
                 || (v != null && OMultiValue.isMultiValue(v) && OMultiValue.getFirstValue(v) == OSQLHelper.VALUE_NOT_PARSED))

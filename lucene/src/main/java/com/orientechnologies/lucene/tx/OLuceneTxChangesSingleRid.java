@@ -1,6 +1,6 @@
 /*
  *
- *  * Copyright 2014 Orient Technologies.
+ *  * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  * Licensed under the Apache License, Version 2.0 (the "License");
  *  * you may not use this file except in compliance with the License.
@@ -18,8 +18,10 @@
 
 package com.orientechnologies.lucene.tx;
 
-import com.orientechnologies.lucene.OLuceneIndexType;
+import com.orientechnologies.common.exception.OException;
+import com.orientechnologies.lucene.builder.OLuceneIndexType;
 import com.orientechnologies.lucene.engine.OLuceneIndexEngine;
+import com.orientechnologies.lucene.exception.OLuceneIndexException;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -38,25 +40,37 @@ public class OLuceneTxChangesSingleRid extends OLuceneTxChangesAbstract {
   private final Set<String>   updated     = new HashSet<String>();
   private final Set<Document> deletedDocs = new HashSet<Document>();
 
-  public OLuceneTxChangesSingleRid(OLuceneIndexEngine engine, IndexWriter writer) {
-    super(engine, writer);
+  public OLuceneTxChangesSingleRid(OLuceneIndexEngine engine, IndexWriter writer, IndexWriter deletedIdx) {
+    super(engine, writer, deletedIdx);
   }
 
-  public void put(Object key, OIdentifiable value, Document doc) throws IOException {
+  public void put(Object key, OIdentifiable value, Document doc) {
     if (deleted.remove(value.getIdentity().toString())) {
-      doc.add(OLuceneIndexType.createField(TMP, value.getIdentity().toString(), Field.Store.YES, Field.Index.NOT_ANALYZED_NO_NORMS));
+      doc.add(OLuceneIndexType.createField(TMP, value.getIdentity().toString(), Field.Store.YES));
       updated.add(value.getIdentity().toString());
     }
-    writer.addDocument(doc);
+    try {
+      writer.addDocument(doc);
+    } catch (IOException e) {
+      throw OException.wrapException(new OLuceneIndexException("unable to add document to changes index"), e);
+    }
   }
 
-  public void remove(Object key, OIdentifiable value) throws IOException {
+  public void remove(Object key, OIdentifiable value) {
 
-    if (value.getIdentity().isTemporary()) {
-      writer.deleteDocuments(engine.deleteQuery(key, value));
-    } else {
-      deleted.add(value.getIdentity().toString());
-      deletedDocs.add(engine.buildDocument(key, value));
+    try {
+      if (value.getIdentity().isTemporary()) {
+        writer.deleteDocuments(engine.deleteQuery(key, value));
+      } else {
+        deleted.add(value.getIdentity().toString());
+        Document doc = engine.buildDocument(key, value);
+        deletedDocs.add(doc);
+        deletedIdx.addDocument(doc);
+
+      }
+    } catch (IOException e) {
+      throw OException
+          .wrapException(new OLuceneIndexException("Error while deleting documents in transaction from lucene index"), e);
     }
   }
 

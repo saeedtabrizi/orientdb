@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -33,10 +33,9 @@ import java.util.Collections;
 import java.util.List;
 
 public class OSimpleKeyIndexDefinition extends OAbstractIndexDefinition {
-  private static final long serialVersionUID = -1264300379465791244L;
   private OType[] keyTypes;
 
-  public OSimpleKeyIndexDefinition(int version, final OType... keyTypes) {
+  public OSimpleKeyIndexDefinition(final OType... keyTypes) {
     super();
 
     this.keyTypes = keyTypes;
@@ -45,7 +44,7 @@ public class OSimpleKeyIndexDefinition extends OAbstractIndexDefinition {
   public OSimpleKeyIndexDefinition() {
   }
 
-  public OSimpleKeyIndexDefinition(OType[] keyTypes2, List<OCollate> collatesList, int version) {
+  public OSimpleKeyIndexDefinition(OType[] keyTypes2, List<OCollate> collatesList) {
     super();
 
     this.keyTypes = Arrays.copyOf(keyTypes2, keyTypes2.length);
@@ -114,27 +113,23 @@ public class OSimpleKeyIndexDefinition extends OAbstractIndexDefinition {
 
   @Override
   public ODocument toStream() {
-    document.setInternalStatus(ORecordElement.STATUS.UNMARSHALLING);
-    try {
-      serializeToStream();
-      return document;
-    } finally {
-      document.setInternalStatus(ORecordElement.STATUS.LOADED);
-    }
+    serializeToStream();
+    return document;
+
   }
 
   @Override
   protected void serializeToStream() {
     super.serializeToStream();
 
-    final List<String> keyTypeNames = new ArrayList<String>(keyTypes.length);
+    final List<String> keyTypeNames = new ArrayList<>(keyTypes.length);
 
     for (final OType keyType : keyTypes)
       keyTypeNames.add(keyType.toString());
 
     document.field("keyTypes", keyTypeNames, OType.EMBEDDEDLIST);
     if (collate instanceof OCompositeCollate) {
-      List<String> collatesNames = new ArrayList<String>();
+      List<String> collatesNames = new ArrayList<>();
       for (OCollate curCollate : ((OCompositeCollate) this.collate).getCollates())
         collatesNames.add(curCollate.getName());
       document.field("collates", collatesNames, OType.EMBEDDEDLIST);
@@ -166,10 +161,11 @@ public class OSimpleKeyIndexDefinition extends OAbstractIndexDefinition {
       setCollate(collate);
     } else {
       final List<String> collatesNames = document.field("collates");
-      if( collatesNames != null ) {
+      if (collatesNames != null) {
         OCompositeCollate collates = new OCompositeCollate(this);
-        for (String collateName : collatesNames)
+        for (String collateName : collatesNames) {
           collates.addCollate(OSQLEngine.getCollate(collateName));
+        }
         this.collate = collates;
       }
     }
@@ -189,10 +185,7 @@ public class OSimpleKeyIndexDefinition extends OAbstractIndexDefinition {
       return false;
 
     final OSimpleKeyIndexDefinition that = (OSimpleKeyIndexDefinition) o;
-    if (!Arrays.equals(keyTypes, that.keyTypes))
-      return false;
-
-    return true;
+    return Arrays.equals(keyTypes, that.keyTypes);
   }
 
   @Override

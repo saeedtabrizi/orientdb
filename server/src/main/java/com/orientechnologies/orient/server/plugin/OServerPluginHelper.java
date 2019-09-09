@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,15 +14,16 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.server.plugin;
 
-import java.util.Collection;
-
 import com.orientechnologies.orient.server.OClientConnection;
 import com.orientechnologies.orient.server.OServer;
+import com.orientechnologies.orient.server.network.protocol.ONetworkProtocol;
+
+import java.util.Collection;
 
 public class OServerPluginHelper {
 
@@ -76,6 +77,27 @@ public class OServerPluginHelper {
         final OServerPlugin pluginInstance = plugin.getInstance();
         if (pluginInstance != null)
           pluginInstance.onClientError(connection, iThrowable);
+      }
+  }
+
+
+  public static void invokeHandlerCallbackOnSocketAccepted(final OServer iServer, final ONetworkProtocol networkProtocol) {
+    final Collection<OServerPluginInfo> plugins = iServer.getPlugins();
+    if (plugins != null)
+      for (OServerPluginInfo plugin : plugins) {
+        final OServerPlugin pluginInstance = plugin.getInstance();
+        if (pluginInstance != null)
+          pluginInstance.onSocketAccepted(networkProtocol);
+      }
+  }
+
+  public static void invokeHandlerCallbackOnSocketDestroyed(final OServer iServer, final ONetworkProtocol networkProtocol) {
+    final Collection<OServerPluginInfo> plugins = iServer.getPlugins();
+    if (plugins != null)
+      for (OServerPluginInfo plugin : plugins) {
+        final OServerPlugin pluginInstance = plugin.getInstance();
+        if (pluginInstance != null)
+          pluginInstance.onSocketDestroyed(networkProtocol);
       }
   }
 

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
@@ -33,14 +33,14 @@ import java.util.Map;
 /**
  * SQL DROP CLUSTER command: Drop a cluster from the database
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 @SuppressWarnings("unchecked")
 public class OCommandExecutorSQLDropCluster extends OCommandExecutorSQLAbstract implements OCommandDistributedReplicateRequest {
   public static final String KEYWORD_DROP    = "DROP";
   public static final String KEYWORD_CLUSTER = "CLUSTER";
 
-  private String clusterName;
+  private String             clusterName;
 
   public OCommandExecutorSQLDropCluster parse(final OCommandRequest iRequest) {
     final OCommandRequestText textRequest = (OCommandRequestText) iRequest;
@@ -100,15 +100,18 @@ public class OCommandExecutorSQLDropCluster extends OCommandExecutorSQLAbstract 
     }
 
     // REMOVE CACHE OF COMMAND RESULTS IF ACTIVE
-    getDatabase().getMetadata().getCommandCache().invalidateResultsOfCluster(clusterName);
+    database.getMetadata().getCommandCache().invalidateResultsOfCluster(clusterName);
 
-    database.dropCluster(clusterId, true);
+    database.dropCluster(clusterId);
     return true;
   }
 
   @Override
   public long getDistributedTimeout() {
-    return OGlobalConfiguration.DISTRIBUTED_COMMAND_TASK_SYNCH_TIMEOUT.getValueAsLong();
+    if (clusterName != null && getDatabase().existsCluster(clusterName))
+      return 10 * getDatabase().countClusterElements(clusterName);
+
+    return getDatabase().getConfiguration().getValueAsLong(OGlobalConfiguration.DISTRIBUTED_COMMAND_LONG_TASK_SYNCH_TIMEOUT);
   }
 
   @Override

@@ -9,7 +9,7 @@ import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 
 /**
- * @author Andrey Lomakin (a.lomakin-at-orientechnologies.com)
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 9/17/14
  */
 @Test
@@ -24,7 +24,7 @@ public class IteratorSpeedTest {
       document.save();
     }
 
-    ORecordIteratorClass iterator = new ORecordIteratorClass(db, db, "SpeedTest", true);
+    ORecordIteratorClass iterator = new ORecordIteratorClass(db, "SpeedTest", true);
     iterator.setRange(new ORecordId(oClass.getDefaultClusterId(), 999998), new ORecordId(oClass.getDefaultClusterId(), 999999));
 
     long start = System.nanoTime();

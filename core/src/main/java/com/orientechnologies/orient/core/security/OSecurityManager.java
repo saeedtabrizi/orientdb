@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.security;
@@ -26,6 +26,7 @@ import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.exception.OConfigurationException;
 import com.orientechnologies.orient.core.exception.OSecurityException;
 import com.orientechnologies.orient.core.metadata.security.OSecurity;
+import com.orientechnologies.orient.core.metadata.security.OSecurityInternal;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
@@ -199,7 +200,7 @@ public class OSecurityManager {
   public boolean checkPasswordWithSalt(final String iPassword, final String iHash, final String algorithm) {
 
     if (!isAlgorithmSupported(algorithm)) {
-      OLogManager.instance().error(this, "The password hash algorithm is not supported: %s", algorithm);
+      OLogManager.instance().error(this, "The password hash algorithm is not supported: %s", null, algorithm);
       return false;
     }
 
@@ -252,10 +253,12 @@ public class OSecurityManager {
    */
   private static boolean isAlgorithmSupported(final String algorithm) {
     // Java 7 specific checks.
-    if (Runtime.class.getPackage().getImplementationVersion().startsWith("1.7")) {
-      // Java 7 does not support the PBKDF2_SHA256_ALGORITHM.
-      if (algorithm.equals(PBKDF2_SHA256_ALGORITHM)) {
-        return false;
+    if (Runtime.class.getPackage() != null && Runtime.class.getPackage().getImplementationVersion() != null) {
+      if (Runtime.class.getPackage().getImplementationVersion().startsWith("1.7")) {
+        // Java 7 does not support the PBKDF2_SHA256_ALGORITHM.
+        if (algorithm != null && algorithm.equals(PBKDF2_SHA256_ALGORITHM)) {
+          return false;
+        }
       }
     }
 
@@ -329,7 +332,7 @@ public class OSecurityManager {
       securityFactory = new OSecuritySharedFactory();
   }
 
-  public OSecurity newSecurity() {
+  public OSecurityInternal newSecurity() {
     if (securityFactory != null)
       return securityFactory.newSecurity();
 

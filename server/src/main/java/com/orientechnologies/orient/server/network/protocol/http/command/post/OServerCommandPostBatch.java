@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,52 +14,39 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.network.protocol.http.command.post;
 
 import com.orientechnologies.common.collection.OMultiValue;
 import com.orientechnologies.common.log.OLogManager;
-import com.orientechnologies.orient.core.command.OCommandManager;
-import com.orientechnologies.orient.core.command.OCommandRequestText;
-import com.orientechnologies.orient.core.command.script.OCommandScript;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.executor.OResultSet;
 import com.orientechnologies.orient.server.network.protocol.http.OHttpRequest;
 import com.orientechnologies.orient.server.network.protocol.http.OHttpResponse;
-import com.orientechnologies.orient.server.network.protocol.http.OHttpUtils;
 import com.orientechnologies.orient.server.network.protocol.http.command.OServerCommandDocumentAbstract;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Executes a batch of operations in a single call. This is useful to reduce network latency issuing multiple commands as multiple
- * requests. Batch command supports transactions as well.<br>
- * <br>
- * Format: { "transaction" : &lt;true|false&gt;, "operations" : [ { "type" : "&lt;type&gt;" }* ] }<br>
- * Where:
- * <ul>
- * <li><b>type</b> can be:
- * <ul>
- * <li>'c' for create</li>
- * <li>'u' for update</li>
- * <li>'d' for delete. The '@rid' field only is needed.</li>
- * </ul>
- * </li>
- * </ul>
- * Example:<br>
- * 
+ * requests. Batch command supports transactions as well.<br> <br> Format: { "transaction" : &lt;true|false&gt;, "operations" : [ {
+ * "type" : "&lt;type&gt;" }* ] }<br> Where: <ul> <li><b>type</b> can be: <ul> <li>'c' for create</li> <li>'u' for update</li>
+ * <li>'d' for delete. The '@rid' field only is needed.</li> </ul> </li> </ul> Example:<br>
+ * <p>
  * <pre>
- * { "transaction" : true, 
- *   "operations" : [ 
+ * { "transaction" : true,
+ *   "operations" : [
  *        { "type" : "u",
  *          "record" : {
  *            "@rid" : "#14:122",
  *            "name" : "Luca",
  *            "vehicle" : "Car"
- *          } 
+ *          }
  *        }, { "type" : "d",
  *          "record" : {
  *            "@rid" : "#14:100"
@@ -70,12 +57,11 @@ import java.util.Map;
  *            "name" : "Venice"
  *          }
  *        }
- *     ] 
+ *     ]
  * }
  * </pre>
- * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OServerCommandPostBatch extends OServerCommandDocumentAbstract {
   private static final String[] NAMES = { "POST|batch/*" };
@@ -86,7 +72,7 @@ public class OServerCommandPostBatch extends OServerCommandDocumentAbstract {
 
     iRequest.data.commandInfo = "Execute multiple requests in one shot";
 
-    ODatabaseDocumentTx db = null;
+    ODatabaseDocument db = null;
 
     ODocument batch = null;
 
@@ -97,8 +83,8 @@ public class OServerCommandPostBatch extends OServerCommandDocumentAbstract {
 
       if (db.getTransaction().isActive()) {
         // TEMPORARY PATCH TO UNDERSTAND WHY UNDER HIGH LOAD TX IS NOT COMMITTED AFTER BATCH. MAYBE A PENDING TRANSACTION?
-        OLogManager.instance().warn(this,
-            "Found database instance from the pool with a pending transaction. Forcing rollback before using it");
+        OLogManager.instance()
+            .warn(this, "Found database instance from the pool with a pending transaction. Forcing rollback before using it");
         db.rollback(true);
       }
 
@@ -153,6 +139,11 @@ public class OServerCommandPostBatch extends OServerCommandDocumentAbstract {
           if (command == null)
             throw new IllegalArgumentException("command parameter is null");
 
+          Object params = operation.get("parameters");
+          if (params instanceof Collection) {
+            params = ((Collection) params).toArray();
+          }
+
           String commandAsString = null;
           if (command != null)
             if (OMultiValue.isMultiValue(command)) {
@@ -165,9 +156,14 @@ public class OServerCommandPostBatch extends OServerCommandDocumentAbstract {
             } else
               commandAsString = command.toString();
 
-          final OCommandRequestText cmd = (OCommandRequestText) OCommandManager.instance().getRequester(language);
-          cmd.setText(commandAsString);
-          lastResult = db.command(cmd).execute();
+          OResultSet result;
+          if (params == null) {
+            result = db.execute(language, commandAsString);
+          } else {
+            result = db.execute(language, commandAsString, (Object[]) params);
+          }
+          lastResult = result.stream().map(x -> x.toElement()).collect(Collectors.toList());
+          result.close();
         } else if (type.equals("script")) {
           // COMMAND
           final String language = (String) operation.get("language");
@@ -184,15 +180,33 @@ public class OServerCommandPostBatch extends OServerCommandDocumentAbstract {
             int i = 0;
             for (Object o : OMultiValue.getMultiValueIterable(script)) {
               if (o != null) {
-                if (i++ > 0)
+                if (i++ > 0) {
+                  if (!text.toString().trim().endsWith(";")) {
+                    text.append(";");
+                  }
                   text.append("\n");
+                }
                 text.append(o.toString());
               }
             }
           } else
             text.append(script);
 
-          lastResult = db.command(new OCommandScript(language, text.toString())).execute();
+          Object params = operation.get("parameters");
+          if (params instanceof Collection) {
+            params = ((Collection) params).toArray();
+          }
+
+
+          OResultSet result;
+          if (params == null) {
+            result = db.execute(language, text.toString());
+          } else {
+            result = db.execute(language, text.toString(), (Object[]) params);
+          }
+
+          lastResult = result.stream().map(x -> x.toElement()).collect(Collectors.toList());
+          result.close();
         }
       }
 
@@ -201,7 +215,6 @@ public class OServerCommandPostBatch extends OServerCommandDocumentAbstract {
 
       try {
         iResponse.writeResult(lastResult);
-        iResponse.send(OHttpUtils.STATUS_OK_CODE, OHttpUtils.STATUS_OK_DESCRIPTION, OHttpUtils.CONTENT_TEXT_PLAIN, null, null);
       } catch (RuntimeException e) {
         OLogManager.instance()
             .error(this, "Error (%s) on serializing result of batch command:\n%s", e, batch.toJSON("prettyPrint"));

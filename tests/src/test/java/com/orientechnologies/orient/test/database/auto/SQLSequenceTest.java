@@ -1,5 +1,6 @@
 package com.orientechnologies.orient.test.database.auto;
 
+import com.orientechnologies.orient.core.exception.ODatabaseException;
 import org.testng.Assert;
 import org.testng.annotations.Optional;
 import org.testng.annotations.Parameters;
@@ -10,6 +11,9 @@ import com.orientechnologies.orient.core.metadata.sequence.OSequence;
 import com.orientechnologies.orient.core.metadata.sequence.OSequenceLibrary;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
+
+import java.util.Locale;
+import java.util.concurrent.ExecutionException;
 
 /**
  * @author Matan Shukry (matanshukry@gmail.com)
@@ -28,8 +32,8 @@ public class SQLSequenceTest extends DocumentDBBaseTest {
 
   @Test
   public void trivialTest() {
-    testSequence("seq1", OSequence.SEQUENCE_TYPE.ORDERED);
-    testSequence("seq2", OSequence.SEQUENCE_TYPE.CACHED);
+    testSequence("seqSQL1", OSequence.SEQUENCE_TYPE.ORDERED);
+    testSequence("seqSQL2", OSequence.SEQUENCE_TYPE.CACHED);
   }
 
   private void testSequence(String sequenceName, OSequence.SEQUENCE_TYPE sequenceType) {
@@ -43,7 +47,7 @@ public class SQLSequenceTest extends DocumentDBBaseTest {
     } catch (OSequenceException se) {
       err = se;
     }
-    Assert.assertTrue(err == null || err.getMessage().toLowerCase().contains("already exists"),
+    Assert.assertTrue(err == null || err.getMessage().toLowerCase(Locale.ENGLISH).contains("already exists"),
         "Creating a second " + sequenceType.toString() + " sequences with same name doesn't throw an exception");
 
     // Doing it twice to check everything works after reset
@@ -78,31 +82,43 @@ public class SQLSequenceTest extends DocumentDBBaseTest {
   }
 
   @Test
-  public void testFree() {
+  public void testFree() throws ExecutionException, InterruptedException {
     OSequenceLibrary sequenceManager = database.getMetadata().getSequenceLibrary();
 
-    OSequence seq = sequenceManager.createSequence("seqOrdered", OSequence.SEQUENCE_TYPE.ORDERED, null);
+    OSequence seq = null;
+    try {
+      seq = sequenceManager.createSequence("seqSQLOrdered", OSequence.SEQUENCE_TYPE.ORDERED, null);
+    } catch (ODatabaseException exc) {
+      Assert.assertTrue(false, "Unable to create sequence");
+    }
 
     OSequenceException err = null;
     try {
-      sequenceManager.createSequence("seqOrdered", OSequence.SEQUENCE_TYPE.ORDERED, null);
+      sequenceManager.createSequence("seqSQLOrdered", OSequence.SEQUENCE_TYPE.ORDERED, null);
     } catch (OSequenceException se) {
       err = se;
+    } catch (ODatabaseException exc) {
+      Assert.assertTrue(false, "Unable to create sequence");
     }
-    Assert.assertTrue(err == null || err.getMessage().toLowerCase().contains("already exists"),
+
+    Assert.assertTrue(err == null || err.getMessage().toLowerCase(Locale.ENGLISH).contains("already exists"),
         "Creating two ordered sequences with same name doesn't throw an exception");
 
-    OSequence seqSame = sequenceManager.getSequence("seqOrdered");
+    OSequence seqSame = sequenceManager.getSequence("seqSQLOrdered");
     Assert.assertEquals(seqSame, seq);
 
     testUsage(seq, FIRST_START);
 
     //
-    seq.updateParams(new OSequence.CreateParams().setStart(SECOND_START).setCacheSize(13));
+    try {
+      seq.updateParams(new OSequence.CreateParams().setStart(SECOND_START).setCacheSize(13));
+    } catch (ODatabaseException exc) {
+      Assert.assertTrue(false, "Unable to update paramas");
+    }
     testUsage(seq, SECOND_START);
   }
 
-  private void testUsage(OSequence seq, long reset) {
+  private void testUsage(OSequence seq, long reset) throws ExecutionException, InterruptedException {
     for (int i = 0; i < 2; ++i) {
       Assert.assertEquals(seq.reset(), reset);
       Assert.assertEquals(seq.current(), reset);

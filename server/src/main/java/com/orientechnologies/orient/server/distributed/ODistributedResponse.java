@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,24 +14,29 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.distributed;
 
-import java.io.*;
+import com.orientechnologies.orient.core.serialization.OStreamableHelper;
+
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.util.Arrays;
 
 /**
  *
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  *
  */
-public class ODistributedResponse implements Externalizable {
-  private ODistributedRequestId requestId;
-  private String                executorNodeName;
-  private String                senderNodeName;
-  private Object                payload;
+public class ODistributedResponse {
+  private ODistributedResponseManager distributedResponseManager;
+  private ODistributedRequestId       requestId;
+  private String                      executorNodeName;
+  private String                      senderNodeName;
+  private Object                      payload;
 
   /**
    * Constructor used by serializer.
@@ -39,8 +44,9 @@ public class ODistributedResponse implements Externalizable {
   public ODistributedResponse() {
   }
 
-  public ODistributedResponse(final ODistributedRequestId iRequestId, final String executorNodeName, final String senderNodeName,
-      final Serializable payload) {
+  public ODistributedResponse(final ODistributedResponseManager msg, final ODistributedRequestId iRequestId,
+      final String executorNodeName, final String senderNodeName, final Object payload) {
+    this.distributedResponseManager = msg;
     this.requestId = iRequestId;
     this.executorNodeName = executorNodeName;
     this.senderNodeName = senderNodeName;
@@ -49,6 +55,14 @@ public class ODistributedResponse implements Externalizable {
 
   public ODistributedRequestId getRequestId() {
     return requestId;
+  }
+
+  @Override
+  public boolean equals(final Object obj) {
+    if (obj instanceof ODistributedResponse && ((ODistributedResponse) obj).payload != null)
+      return ((ODistributedResponse) obj).payload.equals(payload);
+
+    return false;
   }
 
   public String getExecutorNodeName() {
@@ -73,20 +87,23 @@ public class ODistributedResponse implements Externalizable {
     return this;
   }
 
-  @Override
-  public void writeExternal(final ObjectOutput out) throws IOException {
-    out.writeObject(requestId);
+  public void toStream(final DataOutput out) throws IOException {
+    requestId.toStream(out);
     out.writeUTF(executorNodeName);
     out.writeUTF(senderNodeName);
-    out.writeObject(payload);
+    OStreamableHelper.toStream(out, payload);
   }
 
-  @Override
-  public void readExternal(final ObjectInput in) throws IOException, ClassNotFoundException {
-    requestId = (ODistributedRequestId) in.readObject();
+  public void fromStream(final DataInput in) throws IOException {
+    requestId = new ODistributedRequestId();
+    requestId.fromStream(in);
     executorNodeName = in.readUTF();
     senderNodeName = in.readUTF();
-    payload = (Serializable) in.readObject();
+    payload = OStreamableHelper.fromStream(in);
+  }
+
+  public ODistributedResponseManager getDistributedResponseManager() {
+    return distributedResponseManager;
   }
 
   @Override
@@ -98,5 +115,9 @@ public class ODistributedResponse implements Externalizable {
       return Arrays.toString((Object[]) payload);
 
     return payload.toString();
+  }
+
+  public void setDistributedResponseManager(final ODistributedResponseManager distributedResponseManager) {
+    this.distributedResponseManager = distributedResponseManager;
   }
 }

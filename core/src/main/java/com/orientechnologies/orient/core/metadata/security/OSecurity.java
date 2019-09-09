@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.metadata.security;
@@ -28,9 +28,9 @@ import com.orientechnologies.orient.core.record.impl.ODocument;
 
 /**
  * Manages users and roles.
- * 
- * @author Luca Garulli
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
+ *
  */
 public interface OSecurity {
   static final String RESTRICTED_CLASSNAME   = "ORestricted";
@@ -43,15 +43,11 @@ public interface OSecurity {
   static final String ONCREATE_IDENTITY_TYPE = "onCreate.identityType";
   static final String ONCREATE_FIELD         = "onCreate.fields";
 
-  OUser create();
-
-  void load();
-
   boolean isAllowed(final Set<OIdentifiable> iAllowAll, final Set<OIdentifiable> iAllowOperation);
 
   /**
    * Record level security: allows a user to access to a record.
-   * 
+   *
    * @param iDocument
    *          ODocument instance to give access
    * @param iOperationType
@@ -125,42 +121,6 @@ public interface OSecurity {
    */
   OIdentifiable denyRole(final ODocument iDocument, final ORestrictedOperation iOperationType, final String iRoleName);
 
-  /**
-   * Uses the version with ENUM instead.
-   */
-  @Deprecated
-  OIdentifiable allowUser(final ODocument iDocument, final String iAllowFieldName, final String iUserName);
-
-  /**
-   * Uses the version with ENUM instead.
-   */
-  @Deprecated
-  OIdentifiable allowRole(final ODocument iDocument, final String iAllowFieldName, final String iRoleName);
-
-  /**
-   * Uses the version with ENUM instead.
-   */
-  @Deprecated
-  OIdentifiable allowIdentity(final ODocument iDocument, final String iAllowFieldName, final OIdentifiable iId);
-
-  /**
-   * Uses the version with ENUM instead.
-   */
-  @Deprecated
-  OIdentifiable disallowUser(final ODocument iDocument, final String iAllowFieldName, final String iUserName);
-
-  /**
-   * Uses the version with ENUM instead.
-   */
-  @Deprecated
-  OIdentifiable disallowRole(final ODocument iDocument, final String iAllowFieldName, final String iRoleName);
-
-  /**
-   * Uses the version with ENUM instead.
-   */
-  @Deprecated
-  OIdentifiable disallowIdentity(final ODocument iDocument, final String iAllowFieldName, final OIdentifiable iId);
-
   OUser authenticate(String iUsername, String iUserPassword);
 
   OUser authenticate(final OToken authToken);
@@ -188,14 +148,4 @@ public interface OSecurity {
   List<ODocument> getAllUsers();
 
   List<ODocument> getAllRoles();
-
-  void close(boolean onDelete);
-
-  void createClassTrigger();
-
-  OSecurity getUnderlying();
-
-  long getVersion();
-
-  void incrementVersion();
 }

@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.core.storage;
@@ -22,7 +22,6 @@ package com.orientechnologies.orient.core.storage;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.ORecordInternal;
 import com.orientechnologies.orient.core.type.OBuffer;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.io.IOException;
 import java.io.ObjectInput;
@@ -39,7 +38,6 @@ public class ORawBuffer extends OBuffer {
     version = 0;
   }
 
-  @SuppressFBWarnings("EI_EXPOSE_REP2")
   public ORawBuffer(final byte[] buffer, final int version, final byte recordType) {
     this.buffer = buffer;
     this.version = version;
@@ -48,8 +46,6 @@ public class ORawBuffer extends OBuffer {
 
   /**
    * Creates a new object by the record received.
-   * 
-   * @param iRecord
    */
   public ORawBuffer(final ORecord iRecord) {
     this.buffer = iRecord.toStream();
@@ -57,12 +53,14 @@ public class ORawBuffer extends OBuffer {
     this.recordType = ORecordInternal.getRecordType(iRecord);
   }
 
+  @Override
   public void readExternal(final ObjectInput iInput) throws IOException, ClassNotFoundException {
     super.readExternal(iInput);
     version = iInput.readInt();
     recordType = iInput.readByte();
   }
 
+  @Override
   public void writeExternal(final ObjectOutput iOutput) throws IOException {
     super.writeExternal(iOutput);
     iOutput.writeInt(version);

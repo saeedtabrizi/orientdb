@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.graph.sql.functions;
@@ -35,21 +35,18 @@ import com.tinkerpop.blueprints.Vertex;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientVertex;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Shortest path algorithm to find the shortest path from one node to another node in a directed graph.
  *
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
+ * @deprecated see {@link com.orientechnologies.orient.core.sql.functions.graph.OSQLFunctionShortestPath} instead
+ *
  */
+@Deprecated
 public class OSQLFunctionShortestPath extends OSQLFunctionMathAbstract {
-  public static final String NAME = "shortestPath";
+  public static final String NAME            = "shortestPath";
   public static final String PARAM_MAX_DEPTH = "maxDepth";
 
   protected static final float DISTANCE = 1f;
@@ -107,6 +104,10 @@ public class OSQLFunctionShortestPath extends OSQLFunctionMathAbstract {
         }
         ctx.destinationVertex = graph.getVertex(OSQLHelper.getValue(dest, record, iContext));
 
+        if (ctx.sourceVertex == null || ctx.destinationVertex == null) {
+          return new ArrayList<ORID>();
+        }
+
         if (ctx.sourceVertex.equals(ctx.destinationVertex)) {
           final List<ORID> result = new ArrayList<ORID>(1);
           result.add(ctx.destinationVertex.getIdentity());
@@ -114,7 +115,7 @@ public class OSQLFunctionShortestPath extends OSQLFunctionMathAbstract {
         }
 
         if (iParams.length > 2 && iParams[2] != null) {
-          ctx.directionLeft = Direction.valueOf(iParams[2].toString().toUpperCase());
+          ctx.directionLeft = Direction.valueOf(iParams[2].toString().toUpperCase(Locale.ENGLISH));
         }
         if (ctx.directionLeft == Direction.OUT) {
           ctx.directionRight = Direction.IN;
@@ -126,7 +127,16 @@ public class OSQLFunctionShortestPath extends OSQLFunctionMathAbstract {
         if (iParams.length > 3) {
           ctx.edgeType = iParams[3] == null ? null : "" + iParams[3];
         }
-        ctx.edgeTypeParam = new String[] { ctx.edgeType };
+        if (iParams != null && iParams.length > 3 && iParams[3] instanceof Collection) {
+          ctx.edgeTypeParam = new String[((Collection) iParams[3]).size()];
+          Collection coll = (Collection) iParams[3];
+          int i = 0;
+          for (Object o : coll) {
+            ctx.edgeTypeParam[i++] = "" + o;
+          }
+        } else {
+          ctx.edgeTypeParam = new String[] { ctx.edgeType };
+        }
 
         if (iParams.length > 4) {
           bindAdditionalParams(iParams[4], ctx);

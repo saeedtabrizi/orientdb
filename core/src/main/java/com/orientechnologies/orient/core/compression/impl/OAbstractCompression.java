@@ -24,7 +24,7 @@ import com.orientechnologies.orient.core.compression.OCompression;
 
 /**
  * Base class for the compression implementations.
- * 
+ *
  * @author Luca Garulli
  * @since 05.06.13
  */

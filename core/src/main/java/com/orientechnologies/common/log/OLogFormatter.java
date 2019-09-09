@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -22,9 +22,9 @@ package com.orientechnologies.common.log;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.IllegalFormatException;
 import java.util.logging.Formatter;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
@@ -32,12 +32,12 @@ import java.util.logging.LogRecord;
 /**
  * Basic Log formatter.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 
 public class OLogFormatter extends Formatter {
 
-  protected static final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
+  protected static final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss:SSS");
 
   /**
    * The end-of-line character for this platform.
@@ -78,11 +78,9 @@ public class OLogFormatter extends Formatter {
     final String requester = getSourceClassSimpleName(iRecord.getLoggerName());
 
     final StringBuilder buffer = new StringBuilder(512);
-    buffer.append(EOL);
-    synchronized (dateFormat) {
-      buffer.append(dateFormat.format(new Date()));
-    }
 
+    buffer.append(EOL);
+    buffer.append(dateFormatter.format(LocalDateTime.now()));
     buffer.append(String.format(" %-5.5s ", level.getName()));
 
     // FORMAT THE MESSAGE
@@ -91,7 +89,7 @@ public class OLogFormatter extends Formatter {
         buffer.append(String.format(message, additionalArgs));
       else
         buffer.append(message);
-    } catch (Exception e) {
+    } catch (IllegalFormatException ignore) {
       buffer.append(message);
     }
 
@@ -105,6 +103,8 @@ public class OLogFormatter extends Formatter {
   }
 
   protected String getSourceClassSimpleName(final String iSourceClassName) {
+    if (iSourceClassName == null)
+      return null;
     return iSourceClassName.substring(iSourceClassName.lastIndexOf(".") + 1);
   }
 }

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,23 +14,22 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.command;
 
-import com.orientechnologies.common.listener.OProgressListener;
-import com.orientechnologies.orient.core.serialization.OSerializableStream;
-
 import java.util.Map;
+
+import com.orientechnologies.common.listener.OProgressListener;
 
 /**
  * Internal specialization of generic OCommand interface.
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
-public interface OCommandRequestInternal extends OCommandRequest, OSerializableStream {
+public interface OCommandRequestInternal extends OCommandRequest {
 
   Map<Object, Object> getParameters();
 
@@ -47,4 +46,14 @@ public interface OCommandRequestInternal extends OCommandRequest, OSerializableS
   boolean isCacheableResult();
 
   void setCacheableResult(boolean iValue);
+
+  /**
+   * Communicate to a listener if the result set is an record based or anything else
+   *
+   * @param recordResultSet
+   */
+  void setRecordResultSet(boolean recordResultSet);
+
+  boolean isRecordResultSet();
+
 }

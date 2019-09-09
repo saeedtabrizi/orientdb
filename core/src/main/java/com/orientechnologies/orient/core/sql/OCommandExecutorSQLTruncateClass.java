@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,12 +14,13 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
 
 import com.orientechnologies.common.exception.OException;
+import com.orientechnologies.orient.core.cache.OCommandCache;
 import com.orientechnologies.orient.core.command.OCommandDistributedReplicateRequest;
 import com.orientechnologies.orient.core.command.OCommandRequest;
 import com.orientechnologies.orient.core.command.OCommandRequestText;
@@ -30,21 +31,21 @@ import com.orientechnologies.orient.core.metadata.schema.OClass;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Locale;
 import java.util.Map;
 
 /**
  * SQL TRUNCATE CLASS command: Truncates an entire class deleting all configured clusters where the class relies on.
- * 
- * @author Luca Garulli
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OCommandExecutorSQLTruncateClass extends OCommandExecutorSQLAbstract implements OCommandDistributedReplicateRequest {
-  public static final String KEYWORD_TRUNCATE    = "TRUNCATE";
-  public static final String KEYWORD_CLASS       = "CLASS";
-  public static final String KEYWORD_POLYMORPHIC = "POLYMORPHIC";
-  private OClass             schemaClass;
-  private boolean            unsafe              = false;
-  private boolean            deep                = false;
+  public static final String  KEYWORD_TRUNCATE    = "TRUNCATE";
+  public static final String  KEYWORD_CLASS       = "CLASS";
+  public static final String  KEYWORD_POLYMORPHIC = "POLYMORPHIC";
+  private             OClass  schemaClass;
+  private             boolean unsafe              = false;
+  private             boolean deep                = false;
 
   @SuppressWarnings("unchecked")
   public OCommandExecutorSQLTruncateClass parse(final OCommandRequest iRequest) {
@@ -88,9 +89,9 @@ public class OCommandExecutorSQLTruncateClass extends OCommandExecutorSQLAbstrac
 
       while (pos > 0) {
         String nextWord = word.toString();
-        if (nextWord.toUpperCase().equals(KEYWORD_UNSAFE)) {
+        if (nextWord.toUpperCase(Locale.ENGLISH).equals(KEYWORD_UNSAFE)) {
           unsafe = true;
-        } else if (nextWord.toUpperCase().equals(KEYWORD_POLYMORPHIC)) {
+        } else if (nextWord.toUpperCase(Locale.ENGLISH).equals(KEYWORD_POLYMORPHIC)) {
           deep = true;
         }
         oldPos = pos;
@@ -110,7 +111,7 @@ public class OCommandExecutorSQLTruncateClass extends OCommandExecutorSQLAbstrac
     if (schemaClass == null)
       throw new OCommandExecutionException("Cannot execute the command because it has not been parsed yet");
 
-    final long recs = schemaClass.count();
+    final long recs = schemaClass.count(deep);
     if (recs > 0 && !unsafe) {
       if (schemaClass.isSubClassOf("V")) {
         throw new OCommandExecutionException(
@@ -122,16 +123,18 @@ public class OCommandExecutorSQLTruncateClass extends OCommandExecutorSQLAbstrac
     }
 
     Collection<OClass> subclasses = schemaClass.getAllSubclasses();
-    if (deep && !unsafe) {// for multiple inheritance
+    if (deep && !unsafe) { // for multiple inheritance
       for (OClass subclass : subclasses) {
         long subclassRecs = schemaClass.count();
         if (subclassRecs > 0) {
           if (subclass.isSubClassOf("V")) {
-            throw new OCommandExecutionException("'TRUNCATE CLASS' command cannot be used on not empty vertex classes ("
-                + subclass.getName() + "). Apply the 'UNSAFE' keyword to force it (at your own risk)");
+            throw new OCommandExecutionException(
+                "'TRUNCATE CLASS' command cannot be used on not empty vertex classes (" + subclass.getName()
+                    + "). Apply the 'UNSAFE' keyword to force it (at your own risk)");
           } else if (subclass.isSubClassOf("E")) {
-            throw new OCommandExecutionException("'TRUNCATE CLASS' command cannot be used on not empty edge classes ("
-                + subclass.getName() + "). Apply the 'UNSAFE' keyword to force it (at your own risk)");
+            throw new OCommandExecutionException(
+                "'TRUNCATE CLASS' command cannot be used on not empty edge classes (" + subclass.getName()
+                    + "). Apply the 'UNSAFE' keyword to force it (at your own risk)");
           }
         }
       }
@@ -139,9 +142,11 @@ public class OCommandExecutorSQLTruncateClass extends OCommandExecutorSQLAbstrac
 
     try {
       schemaClass.truncate();
+      invalidateCommandCache(schemaClass);
       if (deep) {
         for (OClass subclass : subclasses) {
           subclass.truncate();
+          invalidateCommandCache(subclass);
         }
       }
     } catch (IOException e) {
@@ -151,9 +156,27 @@ public class OCommandExecutorSQLTruncateClass extends OCommandExecutorSQLAbstrac
     return recs;
   }
 
+  private void invalidateCommandCache(OClass clazz) {
+    if (clazz == null) {
+      return;
+    }
+    OCommandCache commandCache = getDatabase().getMetadata().getCommandCache();
+    if (commandCache != null && commandCache.isEnabled()) {
+      int[] clusterIds = clazz.getClusterIds();
+      if (clusterIds != null) {
+        for (int i : clusterIds) {
+          String clusterName = getDatabase().getClusterNameById(i);
+          if (clusterName != null) {
+            commandCache.invalidateResultsOfCluster(clusterName);
+          }
+        }
+      }
+    }
+  }
+
   @Override
   public long getDistributedTimeout() {
-    return OGlobalConfiguration.DISTRIBUTED_COMMAND_TASK_SYNCH_TIMEOUT.getValueAsLong();
+    return getDatabase().getConfiguration().getValueAsLong(OGlobalConfiguration.DISTRIBUTED_COMMAND_TASK_SYNCH_TIMEOUT);
   }
 
   @Override

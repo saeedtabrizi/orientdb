@@ -1,25 +1,16 @@
 package com.orientechnologies.orient.test.database.auto;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import org.testng.Assert;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Optional;
-import org.testng.annotations.Parameters;
-import org.testng.annotations.Test;
-
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OSchema;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
+import org.testng.Assert;
+import org.testng.annotations.Optional;
+import org.testng.annotations.*;
+
+import java.util.*;
 
 /**
  * @author LomakiA <a href="mailto:Andrey.Lomakin@exigenservices.com">Andrey Lomakin</a>
@@ -89,7 +80,6 @@ public class SQLSelectHashIndexReuseTest extends AbstractIndexReuseTest {
     oClass.createIndex("sqlSelectHashIndexReuseTestEmbeddedListTwoProp8", OClass.INDEX_TYPE.NOTUNIQUE_HASH_INDEX,
         "fEmbeddedListTwo", "prop8");
 
-    schema.save();
 
     final String fullTextIndexStrings[] = { "Alice : What is the use of a book, without pictures or conversations?",
         "Rabbit : Oh my ears and whiskers, how late it's getting!",
@@ -2141,7 +2131,6 @@ public class SQLSelectHashIndexReuseTest extends AbstractIndexReuseTest {
     oClass.createIndex("sqlSelectHashIndexReuseTestOnPropertiesFromClassAndSuperclass", OClass.INDEX_TYPE.UNIQUE_HASH_INDEX,
         "prop0", "prop1");
 
-    schema.save();
 
     long oldIndexUsage = profiler.getCounter("db.demo.query.indexUsed");
     long oldcompositeIndexUsed = profiler.getCounter("db.demo.query.compositeIndexUsed");
@@ -2179,12 +2168,12 @@ public class SQLSelectHashIndexReuseTest extends AbstractIndexReuseTest {
       klazz.createIndex("CountFunctionWithNotUniqueHashIndex_A", "NOTUNIQUE_HASH_INDEX", "a");
     }
 
-    ODocument doc = database.newInstance("CountFunctionWithNotUniqueHashIndex").field("a", "a").field("b", "b").save();
+    ODocument doc = database.<ODocument>newInstance("CountFunctionWithNotUniqueHashIndex").field("a", "a").field("b", "b").save();
 
     ODocument result = (ODocument) database.query(
         new OSQLSynchQuery<ODocument>("select count(*) from CountFunctionWithNotUniqueHashIndex where a = 'a' and b = 'b'")).get(0);
 
-    Assert.assertEquals(result.field("count", Long.class), 1L);
+    Assert.assertEquals(result.<Object>field("count", Long.class), 1L);
     assertProfileCount(profiler.getCounter("db.demo.query.indexUsed"), oldIndexUsage, 1);
     assertProfileCount(profiler.getCounter("db.demo.query.compositeIndexUsed"), oldcompositeIndexUsed);
 
@@ -2202,12 +2191,12 @@ public class SQLSelectHashIndexReuseTest extends AbstractIndexReuseTest {
       klazz.createIndex("CountFunctionWithUniqueHashIndex_A", "UNIQUE_HASH_INDEX", "a");
     }
 
-    ODocument doc = database.newInstance("CountFunctionWithUniqueHashIndex").field("a", "a").field("b", "b").save();
+    ODocument doc = database.<ODocument>newInstance("CountFunctionWithUniqueHashIndex").field("a", "a").field("b", "b").save();
 
     ODocument result = (ODocument) database.query(
         new OSQLSynchQuery<ODocument>("select count(*) from CountFunctionWithUniqueHashIndex where a = 'a'")).get(0);
 
-    Assert.assertEquals(result.field("count", Long.class), 1L);
+    Assert.assertEquals(result.<Object>field("count", Long.class), 1L);
     assertProfileCount(profiler.getCounter("db.demo.query.indexUsed"), oldIndexUsage, 1);
     assertProfileCount(profiler.getCounter("db.demo.query.compositeIndexUsed"), oldcompositeIndexUsed);
 

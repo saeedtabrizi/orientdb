@@ -1,6 +1,6 @@
 /*
  *
- *  * Copyright 2014 Orient Technologies.
+ *  * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  * Licensed under the Apache License, Version 2.0 (the "License");
  *  * you may not use this file except in compliance with the License.
@@ -18,7 +18,9 @@
 
 package com.orientechnologies.lucene.tx;
 
+import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.lucene.engine.OLuceneIndexEngine;
+import com.orientechnologies.lucene.exception.OLuceneIndexException;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
@@ -37,26 +39,35 @@ public class OLuceneTxChangesMultiRid extends OLuceneTxChangesAbstract {
   private final Map<String, List<String>> deleted     = new HashMap<String, List<String>>();
   private final Set<Document>             deletedDocs = new HashSet<Document>();
 
-  public OLuceneTxChangesMultiRid(OLuceneIndexEngine engine, IndexWriter writer) {
-    super(engine, writer);
+  public OLuceneTxChangesMultiRid(OLuceneIndexEngine engine, IndexWriter writer, IndexWriter deletedIdx) {
+    super(engine, writer, deletedIdx);
   }
 
-  public void put(Object key, OIdentifiable value, Document doc) throws IOException {
-    writer.addDocument(doc);
+  public void put(Object key, OIdentifiable value, Document doc) {
+    try {
+      writer.addDocument(doc);
+    } catch (IOException e) {
+      throw OException.wrapException(new OLuceneIndexException("unable to add document to changes index"), e);
+    }
   }
 
-  public void remove(Object key, OIdentifiable value) throws IOException {
+  public void remove(Object key, OIdentifiable value) {
 
-    if (value.getIdentity().isTemporary()) {
-      writer.deleteDocuments(engine.deleteQuery(key, value));
-    } else {
-      List<String> strings = deleted.get(value.getIdentity().toString());
-      if (strings == null) {
-        strings = new ArrayList<String>();
-        deleted.put(value.getIdentity().toString(), strings);
+    try {
+      if (value.getIdentity().isTemporary()) {
+        writer.deleteDocuments(engine.deleteQuery(key, value));
+      } else {
+
+        deleted.putIfAbsent(value.getIdentity().toString(), new ArrayList<>());
+        deleted.get(value.getIdentity().toString()).add(key.toString());
+
+        Document doc = engine.buildDocument(key, value);
+        deletedDocs.add(doc);
+        deletedIdx.addDocument(doc);
       }
-      strings.add(key.toString());
-      deletedDocs.add(engine.buildDocument(key, value));
+    } catch (IOException e) {
+      throw OException
+          .wrapException(new OLuceneIndexException("Error while deleting documents in transaction from lucene index"), e);
     }
   }
 

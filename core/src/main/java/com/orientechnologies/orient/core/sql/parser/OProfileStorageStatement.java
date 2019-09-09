@@ -5,7 +5,11 @@ package com.orientechnologies.orient.core.sql.parser;
 import com.orientechnologies.common.listener.OProgressListener;
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
+import com.orientechnologies.orient.core.db.ODatabaseInternal;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.executor.OInternalResultSet;
+import com.orientechnologies.orient.core.sql.executor.OResultInternal;
+import com.orientechnologies.orient.core.sql.executor.OResultSet;
 import com.orientechnologies.orient.core.sql.query.OSQLAsynchQuery;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.orientechnologies.orient.core.storage.OStorage;
@@ -14,7 +18,7 @@ import com.orientechnologies.orient.core.storage.impl.local.statistic.OSessionSt
 
 import java.util.Map;
 
-public class OProfileStorageStatement extends OStatement {
+public class OProfileStorageStatement extends OSimpleExecStatement {
 
   protected boolean on;
 
@@ -28,8 +32,38 @@ public class OProfileStorageStatement extends OStatement {
     super(p, id);
   }
 
-  @Override
-  public Object execute(OSQLAsynchQuery<ODocument> request, OCommandContext context, OProgressListener progressListener) {
+  //new execution logic
+  @Override public OResultSet executeSimple(OCommandContext ctx) {
+    OResultInternal result = new OResultInternal();
+    result.setProperty("operation", "optimize database");
+
+    OStorage storage = ((ODatabaseInternal) ctx.getDatabase()).getStorage();
+
+    if (on) {
+      // activate the profiler
+      ((OAbstractPaginatedStorage) storage).startGatheringPerformanceStatisticForCurrentThread();
+      result.setProperty("value", "on");
+    } else {
+      // stop the profiler and return the stats
+      final OSessionStoragePerformanceStatistic performanceStatistic = ((OAbstractPaginatedStorage) storage)
+          .completeGatheringPerformanceStatisticForCurrentThread();
+
+      result.setProperty("value", "off");
+      if (performanceStatistic != null) {
+        result.setProperty("result", performanceStatistic.toDocument());
+      } else {
+        result.setProperty("result", "error");
+        result.setProperty("errorMessage", "profiling of storage was not started");
+      }
+    }
+
+    OInternalResultSet rs = new OInternalResultSet();
+    rs.add(result);
+    return rs;
+  }
+
+  //old execution logic
+  @Override public Object execute(OSQLAsynchQuery<ODocument> request, OCommandContext context, OProgressListener progressListener) {
     try {
       ODatabaseDocumentInternal db = getDatabase();
 
@@ -72,6 +106,30 @@ public class OProfileStorageStatement extends OStatement {
   public void toString(Map<Object, Object> params, StringBuilder builder) {
     builder.append("PROFILE STORAGE ");
     builder.append(on ? "ON" : "OFF");
+  }
+
+  @Override public OProfileStorageStatement copy() {
+    OProfileStorageStatement result = new OProfileStorageStatement(-1);
+    result.on = on;
+    return result;
+  }
+
+  @Override public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OProfileStorageStatement that = (OProfileStorageStatement) o;
+
+    if (on != that.on)
+      return false;
+
+    return true;
+  }
+
+  @Override public int hashCode() {
+    return (on ? 1 : 0);
   }
 }
 

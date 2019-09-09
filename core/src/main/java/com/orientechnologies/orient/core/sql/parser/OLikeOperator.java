@@ -14,7 +14,9 @@ public class OLikeOperator extends SimpleNode implements OBinaryCompareOperator 
     super(p, id);
   }
 
-  /** Accept the visitor. **/
+  /**
+   * Accept the visitor.
+   **/
   public Object jjtAccept(OrientSqlVisitor visitor, Object data) {
     return visitor.visit(this, data);
   }
@@ -24,6 +26,9 @@ public class OLikeOperator extends SimpleNode implements OBinaryCompareOperator 
     if (OMultiValue.isMultiValue(iLeft) || OMultiValue.isMultiValue(iRight))
       return false;
 
+    if (iLeft == null || iRight == null) {
+      return false;
+    }
     return OQueryHelper.like(iLeft.toString(), iRight.toString());
   }
 
@@ -32,10 +37,24 @@ public class OLikeOperator extends SimpleNode implements OBinaryCompareOperator 
     return "LIKE";
   }
 
-  @Override public boolean supportsBasicCalculation() {
+  @Override
+  public boolean supportsBasicCalculation() {
     return true;
   }
 
+  @Override
+  public OLikeOperator copy() {
+    return this;
+  }
 
+  @Override
+  public boolean equals(Object obj) {
+    return obj != null && obj.getClass().equals(this.getClass());
+  }
+
+  @Override
+  public int hashCode() {
+    return getClass().hashCode();
+  }
 }
 /* JavaCC - OriginalChecksum=16d302abf0f85b404e57b964606952ca (do not edit this line) */

@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,10 @@
 package com.orientechnologies.orient.graph.sql;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.record.OEdge;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import com.tinkerpop.blueprints.impls.orient.OrientEdge;
 import com.tinkerpop.blueprints.impls.orient.OrientVertexType;
 import org.junit.After;
 import org.junit.Assert;
@@ -74,10 +74,10 @@ public class SQLUpdateEdgeTest {
     Assert.assertEquals(v4.field("brand"), "fiat");
     Assert.assertEquals(v4.field("name"), "wow");
 
-    List<OrientEdge> edges = database.command(new OCommandSQL("create edge E1 from "+v1.getIdentity()+" to "+v2.getIdentity())).execute();
+    List<OEdge> edges = database.command(new OCommandSQL("create edge E1 from "+v1.getIdentity()+" to "+v2.getIdentity())).execute();
     Assert.assertEquals(edges.size(), 1);
-    OrientEdge edge = edges.get(0);
-    Assert.assertEquals(edge.getLabel(), "E1");
+    OEdge edge = edges.get(0);
+    Assert.assertEquals(edge.getSchemaType().get().getName(), "E1");
 
 
     database.command(new OCommandSQL("update edge E1 set out = "+v3.getIdentity()+", in = "+v4.getIdentity() +" where @rid = "+edge.getIdentity())).execute();
@@ -97,6 +97,29 @@ public class SQLUpdateEdgeTest {
 
     result = database.query(new OSQLSynchQuery("select expand(in('E1')) from " + v2.getIdentity()));
     Assert.assertEquals(result.size(), 0);
+
+  }
+
+  @Test
+  public void testUpdateEdgeOfTypeE(){
+    //issue #6378
+    ODocument v1 = database.command(new OCommandSQL("create vertex")).execute();
+    ODocument v2 = database.command(new OCommandSQL("create vertex")).execute();
+    ODocument v3 = database.command(new OCommandSQL("create vertex")).execute();
+
+    Iterable<OEdge> edges = database.command(new OCommandSQL("create edge E from " + v1.getIdentity() + " to "+v2.getIdentity())).execute();
+    OEdge edge = edges.iterator().next();
+
+    database.command(new OCommandSQL("UPDATE EDGE "+edge.getIdentity()+" SET in = "+v3.getIdentity())).execute();
+
+    Iterable<ODocument> result = database.command(new OSQLSynchQuery<ODocument>("select expand(out()) from "+v1.getIdentity())).execute();
+    Assert.assertEquals(result.iterator().next().getIdentity(), v3.getIdentity());
+
+    result = database.command(new OSQLSynchQuery<ODocument>("select expand(in()) from "+v3.getIdentity())).execute();
+    Assert.assertEquals(result.iterator().next().getIdentity(), v1.getIdentity());
+
+    result = database.command(new OSQLSynchQuery<ODocument>("select expand(in()) from "+v2.getIdentity())).execute();
+    Assert.assertFalse(result.iterator().hasNext());
 
   }
 

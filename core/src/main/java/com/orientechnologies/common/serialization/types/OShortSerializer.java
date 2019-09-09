@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -77,19 +77,27 @@ public class OShortSerializer implements OBinarySerializer<Short> {
 
   @Override
   public void serializeNativeObject(final Short object, final byte[] stream, final int startPosition, final Object... hints) {
+    checkBoundaries(stream, startPosition);
+
     CONVERTER.putShort(stream, startPosition, object, ByteOrder.nativeOrder());
   }
 
   @Override
   public Short deserializeNativeObject(byte[] stream, int startPosition) {
+    checkBoundaries(stream, startPosition);
+
     return CONVERTER.getShort(stream, startPosition, ByteOrder.nativeOrder());
   }
 
   public void serializeNative(final short object, final byte[] stream, final int startPosition, final Object... hints) {
+    checkBoundaries(stream, startPosition);
+
     CONVERTER.putShort(stream, startPosition, object, ByteOrder.nativeOrder());
   }
 
   public short deserializeNative(byte[] stream, int startPosition) {
+    checkBoundaries(stream, startPosition);
+
     return CONVERTER.getShort(stream, startPosition, ByteOrder.nativeOrder());
   }
 
@@ -144,5 +152,12 @@ public class OShortSerializer implements OBinarySerializer<Short> {
   @Override
   public int getObjectSizeInByteBuffer(ByteBuffer buffer, OWALChanges walChanges, int offset) {
     return SHORT_SIZE;
+  }
+
+  private static void checkBoundaries(byte[] stream, int startPosition) {
+    if (startPosition + SHORT_SIZE > stream.length) {
+      throw new IllegalStateException(
+          "Requested stream size is " + (startPosition + SHORT_SIZE) + " but provided stream has size " + stream.length);
+    }
   }
 }

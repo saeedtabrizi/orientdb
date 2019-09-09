@@ -1,5 +1,5 @@
 /*
- * Copyright 1999-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ public class FreezeMultiThreadingTestNonTX {
       ODatabaseDocumentTx database = new ODatabaseDocumentTx(URL);
       database.open("admin", "admin");
       try {
-        ODatabaseRecordThreadLocal.INSTANCE.set(database);
+        ODatabaseRecordThreadLocal.instance().set(database);
         countDownLatch.await();
 
         long value = createCounter.getAndIncrement();
@@ -115,7 +115,7 @@ public class FreezeMultiThreadingTestNonTX {
       ODatabaseDocumentTx database = new ODatabaseDocumentTx(URL);
       database.open("admin", "admin");
       try {
-        ODatabaseRecordThreadLocal.INSTANCE.set(database);
+        ODatabaseRecordThreadLocal.instance().set(database);
         countDownLatch.await();
 
         long value = transactionalCreateCounter.getAndIncrement();
@@ -156,7 +156,7 @@ public class FreezeMultiThreadingTestNonTX {
       ODatabaseDocumentTx database = new ODatabaseDocumentTx(URL);
       database.open("admin", "admin");
       try {
-        ODatabaseRecordThreadLocal.INSTANCE.set(database);
+        ODatabaseRecordThreadLocal.instance().set(database);
 
         countDownLatch.await();
 
@@ -195,7 +195,7 @@ public class FreezeMultiThreadingTestNonTX {
               System.out.println(Thread.currentThread() + " : after search cycle(update) " + updateCounter);
 
             ODocument document = execute.get(0);
-            document.field("counter2", document.field("counter"));
+            document.field("counter2", document.<Object>field("counter"));
             try {
               document.save();
 
@@ -234,7 +234,7 @@ public class FreezeMultiThreadingTestNonTX {
       ODatabaseDocumentTx database = new ODatabaseDocumentTx(URL);
       database.open("admin", "admin");
       try {
-        ODatabaseRecordThreadLocal.INSTANCE.set(database);
+        ODatabaseRecordThreadLocal.instance().set(database);
 
         countDownLatch.await();
 
@@ -275,7 +275,7 @@ public class FreezeMultiThreadingTestNonTX {
             database.begin();
 
             ODocument document = execute.get(0);
-            document.field("counter2", document.field("counter"));
+            document.field("counter2", document.<Object>field("counter"));
             try {
               document.save();
 
@@ -315,7 +315,7 @@ public class FreezeMultiThreadingTestNonTX {
       ODatabaseDocumentTx database = new ODatabaseDocumentTx(URL);
       database.open("admin", "admin");
       try {
-        ODatabaseRecordThreadLocal.INSTANCE.set(database);
+        ODatabaseRecordThreadLocal.instance().set(database);
 
         countDownLatch.await();
 
@@ -372,7 +372,7 @@ public class FreezeMultiThreadingTestNonTX {
       ODatabaseDocumentTx database = new ODatabaseDocumentTx(URL);
       database.open("admin", "admin");
       try {
-        ODatabaseRecordThreadLocal.INSTANCE.set(database);
+        ODatabaseRecordThreadLocal.instance().set(database);
 
         countDownLatch.await();
 
@@ -519,7 +519,6 @@ public class FreezeMultiThreadingTestNonTX {
     transactionalStudent.createIndex("index5", OClass.INDEX_TYPE.NOTUNIQUE, "counter2");
     transactionalStudent.createIndex("index6", OClass.INDEX_TYPE.NOTUNIQUE, "counter", "counter2");
 
-    database.getMetadata().getSchema().save();
 
     System.out.println("*in before***********CLOSE************************************");
     database.close();
@@ -575,7 +574,7 @@ public class FreezeMultiThreadingTestNonTX {
     outer: for (final ODocument firstDoc : firstDocs) {
       for (final ODocument secondDoc : secondDocs) {
         if (firstDoc.equals(secondDoc)) {
-          final ODatabaseDocumentInternal databaseRecord = ODatabaseRecordThreadLocal.INSTANCE.get();
+          final ODatabaseDocumentInternal databaseRecord = ODatabaseRecordThreadLocal.instance().get();
           Assert.assertTrue(ODocumentHelper.hasSameContentOf(firstDoc, databaseRecord, secondDoc, databaseRecord, null));
           continue outer;
         }

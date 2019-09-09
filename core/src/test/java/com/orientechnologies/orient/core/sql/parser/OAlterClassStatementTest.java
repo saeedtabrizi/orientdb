@@ -1,8 +1,6 @@
 package com.orientechnologies.orient.core.sql.parser;
 
-import org.testng.annotations.Test;
-
-@Test
+import org.junit.Test;
 public class OAlterClassStatementTest extends OParserTestAbstract {
 
   @Test
@@ -71,6 +69,9 @@ public class OAlterClassStatementTest extends OParserTestAbstract {
     checkRightSyntax("alter class polymorpicIdsPropagation removecluster 436");
 
     checkRightSyntax("ALTER CLASS Person CUSTOM `onCreate.identityType`=role");
+
+    checkRightSyntax("ALTER CLASS Person DEFAULTCLUSTER foo");
+    checkRightSyntax("ALTER CLASS Person DEFAULTCLUSTER 15");
 
     checkWrongSyntax("ALTER CLASS Foo NAME Bar baz");
 

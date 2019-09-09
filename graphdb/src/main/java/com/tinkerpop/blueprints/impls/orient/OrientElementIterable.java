@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 
@@ -32,7 +32,7 @@ import java.util.Iterator;
 public class OrientElementIterable<T extends Element> implements CloseableIterable<T> {
 
   private final Iterable<?>     iterable;
-  private final OrientBaseGraph graph;
+  protected final OrientBaseGraph graph;
 
   public OrientElementIterable(final OrientBaseGraph graph, final Iterable<?> iterable) {
     this.graph = graph;

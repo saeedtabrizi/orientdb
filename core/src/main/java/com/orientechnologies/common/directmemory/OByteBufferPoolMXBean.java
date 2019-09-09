@@ -24,44 +24,8 @@ package com.orientechnologies.common.directmemory;
  * @author Sergey Sitnikov
  */
 public interface OByteBufferPoolMXBean {
-
   /**
-   * @return the buffer AKA page size in bytes of the associated {@link OByteBufferPool}.
+   * @return Current size of the memory pool
    */
-  int getBufferSize();
-
-  /**
-   * @return the number of the free buffers currently in the pool of the associated {@link OByteBufferPool}.
-   */
-  int getBuffersInThePool();
-
-  /**
-   * @return the number of the allocated buffers of the associated {@link OByteBufferPool},
-   * this does not include the overflow buffers.
-   */
-  long getAllocatedBufferCount();
-
-  /**
-   * @return the number of the allocated overflow buffers of the associated {@link OByteBufferPool}.
-   */
-  long getOverflowBufferCount();
-
-  /**
-   * @return the current total memory allocation size in bytes of the the associated {@link OByteBufferPool},
-   * including the overflow buffer allocations.
-   */
-  long getAllocatedMemory();
-
-  /**
-   * @return the current total memory allocation size in megabytes of the the associated {@link OByteBufferPool},
-   * including the overflow buffer allocations.
-   */
-  long getAllocatedMemoryInMB();
-
-  /**
-   * @return the current total memory allocation size in gigabytes of the the associated {@link OByteBufferPool},
-   * including the overflow buffer allocations.
-   */
-  double getAllocatedMemoryInGB();
-
+  int getPoolSize();
 }

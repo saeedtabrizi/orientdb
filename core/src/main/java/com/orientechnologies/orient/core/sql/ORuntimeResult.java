@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
@@ -45,7 +45,7 @@ import java.util.Map.Entry;
 /**
  * Handles runtime results.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class ORuntimeResult {
   private final Object              fieldValue;
@@ -63,8 +63,8 @@ public class ORuntimeResult {
   public static ODocument createProjectionDocument(final int iProgressive) {
     final ODocument doc = new ODocument().setOrdered(true).setTrackingChanges(false);
     // ASSIGN A TEMPORARY RID TO ALLOW PAGINATION IF ANY
-    ((ORecordId) doc.getIdentity()).clusterId = -2;
-    ((ORecordId) doc.getIdentity()).clusterPosition = iProgressive;
+    ((ORecordId) doc.getIdentity()).setClusterId(-2);
+    ((ORecordId) doc.getIdentity()).setClusterPosition(iProgressive);
     return doc;
   }
 
@@ -114,7 +114,7 @@ public class ORuntimeResult {
             if (inputDocument != null && value != null && inputDocument instanceof ODocument && value instanceof ODocument) {
               // COPY FIELDS WITH PROJECTION NAME AS PREFIX
               for (String fieldName : ((ODocument) value).fieldNames()) {
-                iValue.field(prjName + fieldName, ((ODocument) value).field(fieldName));
+                iValue.field(prjName + fieldName, ((ODocument) value).<Object>field(fieldName));
               }
             }
             projectionValue = null;
@@ -138,7 +138,7 @@ public class ORuntimeResult {
           if (projectionValue instanceof ORidBag)
             iValue.field(prjName, new ORidBag((ORidBag) projectionValue));
           else if (projectionValue instanceof OIdentifiable && !(projectionValue instanceof ORID) && !(projectionValue instanceof ORecord))
-            iValue.field(prjName, ((OIdentifiable) projectionValue).getRecord());
+            iValue.field(prjName, ((OIdentifiable) projectionValue).<ORecord>getRecord());
           else if (projectionValue instanceof Iterator) {
             boolean link = true;
             // make temporary value typical case graph database elemenet's iterator edges
@@ -160,7 +160,7 @@ public class ORuntimeResult {
             }
 
             iValue.field(prjName, iteratorValues, link ? OType.LINKLIST : OType.EMBEDDEDLIST);
-          } else if (projectionValue instanceof ODocument && !((ODocument) projectionValue).getIdentity().isPersistent()) {
+          } else if (projectionValue instanceof ODocument && ((ODocument) projectionValue).getIdentity().getClusterId() < 0) {
             iValue.field(prjName, projectionValue, OType.EMBEDDED);
           } else if (projectionValue instanceof Set<?>) {
             OType type = OType.getTypeByValue(projectionValue);
@@ -178,8 +178,34 @@ public class ORuntimeResult {
               type = OType.EMBEDDEDLIST;
             iValue.field(prjName, projectionValue, type);
 
-          } else
+          } else if (projectionValue instanceof Iterable && !(projectionValue instanceof OIdentifiable)) {
+            Iterator iterator = ((Iterable) projectionValue).iterator();
+            boolean link = true;
+            // make temporary value typical case graph database elemenet's iterator edges
+            if (iterator instanceof OResettable) {
+              ((OResettable) iterator).reset();
+            }
+
+            final List<Object> iteratorValues = new ArrayList<Object>();
+            final Iterator projectionValueIterator = (Iterator) iterator;
+            while (projectionValueIterator.hasNext()) {
+              Object value = projectionValueIterator.next();
+              if (value instanceof OIdentifiable) {
+                value = ((OIdentifiable) value).getRecord();
+                if (value != null && !((OIdentifiable) value).getIdentity().isPersistent()) {
+                  link = false;
+                }
+              }
+
+              if (value != null) {
+                iteratorValues.add(value);
+              }
+            }
+
+            iValue.field(prjName, iteratorValues, link ? OType.LINKLIST : OType.EMBEDDEDLIST);
+          } else {
             iValue.field(prjName, projectionValue);
+          }
       }
     }
 
@@ -191,8 +217,9 @@ public class ORuntimeResult {
       Iterator<OIdentifiable> it = ((ORecordLazyMultiValue) projectionValue).rawIterator();
       while (it.hasNext()) {
         OIdentifiable rec = it.next();
-        if (rec!= null && !rec.getIdentity().isPersistent())
+        if (rec != null && !rec.getIdentity().isPersistent()) {
           return false;
+        }
       }
     } else {
       for (OIdentifiable rec : projectionValue) {

@@ -1,6 +1,6 @@
 /*
  *
- *  * Copyright 2014 Orient Technologies.
+ *  * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  * Licensed under the Apache License, Version 2.0 (the "License");
  *  * you may not use this file except in compliance with the License.
@@ -18,91 +18,114 @@
 
 package com.orientechnologies.lucene.test;
 
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import com.orientechnologies.orient.core.engine.local.OEngineLocalPaginated;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
+import com.orientechnologies.orient.core.db.ODatabaseType;
+import com.orientechnologies.orient.core.db.OrientDB;
+import com.orientechnologies.orient.core.db.OrientDBConfig;
 import com.orientechnologies.orient.core.index.OIndex;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
-import com.orientechnologies.orient.core.metadata.schema.OSchema;
-import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.OCommandSQL;
-import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import com.orientechnologies.orient.core.sql.executor.OResultSet;
+import org.junit.*;
+import org.junit.rules.TestName;
+import org.junit.runner.RunWith;
+import org.junit.runners.JUnit4;
 
-import java.io.*;
-import java.util.List;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.Locale;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Created by Enrico Risa on 07/07/15.
  */
+@RunWith(JUnit4.class)
 public class LuceneBackupRestoreTest {
 
-  @Test
-  public void testExportImport() {
+  @Rule
+  public TestName name = new TestName();
 
-    String property = "java.io.tmpdir";
+  private File tempFolder;
 
-    String file = System.getProperty(property) + "backupRestore.gz";
+  private OrientDB orientDB;
 
-    String buildDirectory = System.getProperty("buildDirectory", ".");
-    String url = OEngineLocalPaginated.NAME + ":" + buildDirectory + "/databases/restoreTest";
+  private ODatabaseDocumentInternal databaseDocumentTx;
 
-    ODatabaseDocumentTx databaseDocumentTx = new ODatabaseDocumentTx(url);
-    try {
-      if (databaseDocumentTx.exists()) {
-        databaseDocumentTx.open("admin", "admin");
-        databaseDocumentTx.drop();
-      }
-      databaseDocumentTx.create();
+  @Before
+  public void setUp() throws Exception {
+    final String os = System.getProperty("os.name").toLowerCase(Locale.ENGLISH);
 
-      OSchema schema = databaseDocumentTx.getMetadata().getSchema();
-      OClass oClass = schema.createClass("City");
+    Assume.assumeFalse(os.contains("win"));
 
-      oClass.createProperty("name", OType.STRING);
-      databaseDocumentTx.command(new OCommandSQL("create index City.name on City (name) FULLTEXT ENGINE LUCENE")).execute();
+    final String buildDirectory = System.getProperty("buildDirectory", "target");
+    final File buildDirectoryFile = new File(buildDirectory);
 
-      ODocument doc = new ODocument("City");
-      doc.field("name", "Rome");
-      databaseDocumentTx.save(doc);
+    tempFolder = new File(buildDirectoryFile, name.getMethodName());
 
-      List<?> query = databaseDocumentTx.query(new OSQLSynchQuery<Object>("select from City where name lucene 'Rome'"));
+    orientDB = new OrientDB("plocal:" + tempFolder.getCanonicalPath(), OrientDBConfig.defaultConfig());
 
-      Assert.assertEquals(query.size(), 1);
+    dropIfExists();
 
-      databaseDocumentTx.backup(new FileOutputStream(new File(file)), null, null, null, 9, 1048576);
+    final String dbName = getClass().getSimpleName();
 
-      databaseDocumentTx.drop();
+    orientDB.create(dbName, ODatabaseType.PLOCAL);
+    databaseDocumentTx = (ODatabaseDocumentInternal) orientDB.open(dbName, "admin", "admin");
 
-      databaseDocumentTx.create();
-      FileInputStream stream = new FileInputStream(file);
+    databaseDocumentTx.command("create class City ");
+    databaseDocumentTx.command("create property City.name string");
+    databaseDocumentTx.command("create index City.name on City (name) FULLTEXT ENGINE LUCENE");
 
-      databaseDocumentTx.restore(stream, null, null, null);
+    ODocument doc = new ODocument("City");
+    doc.field("name", "Rome");
+    databaseDocumentTx.save(doc);
+  }
 
-      databaseDocumentTx.close();
-      databaseDocumentTx.open("admin", "admin");
-      long city = databaseDocumentTx.countClass("City");
+  private void dropIfExists() {
+    final String dbName = getClass().getSimpleName();
 
-      Assert.assertEquals(city, 1);
-
-      OIndex<?> index = databaseDocumentTx.getMetadata().getIndexManager().getIndex("City.name");
-
-      Assert.assertNotNull(index);
-      Assert.assertEquals(index.getType(), "FULLTEXT");
-
-      query = databaseDocumentTx.query(new OSQLSynchQuery<Object>("select from City where name lucene 'Rome'"));
-      Assert.assertEquals(query.size(), 1);
-
-    } catch (FileNotFoundException e) {
-      e.printStackTrace();
-    } catch (IOException e) {
-      e.printStackTrace();
-    } finally {
-      databaseDocumentTx.drop();
-      File f = new File(file);
-      f.delete();
+    if (orientDB.exists(dbName)) {
+      orientDB.drop(dbName);
     }
+  }
+
+  @After
+  public void tearDown() throws Exception {
+    final String os = System.getProperty("os.name").toLowerCase(Locale.ENGLISH);
+    if (!os.contains("win"))
+      dropIfExists();
 
   }
 
+  @Test
+  public void shouldBackupAndRestore() throws IOException {
+    File backupFile = new File(tempFolder, "backupRestore.gz");
+
+    try (OResultSet query = databaseDocumentTx.query("select from City where name lucene 'Rome'")) {
+      assertThat(query).hasSize(1);
+    }
+
+    databaseDocumentTx.backup(new FileOutputStream(backupFile), null, null, null, 9, 1048576);
+
+    orientDB.drop(getClass().getSimpleName());
+    orientDB.create(getClass().getSimpleName(), ODatabaseType.PLOCAL);
+    databaseDocumentTx = (ODatabaseDocumentInternal) orientDB.open(getClass().getSimpleName(), "admin", "admin");
+
+    FileInputStream stream = new FileInputStream(backupFile);
+
+    databaseDocumentTx.restore(stream, null, null, null);
+
+    assertThat(databaseDocumentTx.countClass("City")).isEqualTo(1);
+
+    OIndex<?> index = databaseDocumentTx.getMetadata().getIndexManagerInternal().getIndex(databaseDocumentTx, "City.name");
+
+    assertThat(index).isNotNull();
+    assertThat(index.getType()).isEqualTo(OClass.INDEX_TYPE.FULLTEXT.name());
+
+    try (OResultSet query = databaseDocumentTx.query("select from City where name lucene 'Rome'")) {
+      assertThat(query).hasSize(1);
+    }
+  }
 }

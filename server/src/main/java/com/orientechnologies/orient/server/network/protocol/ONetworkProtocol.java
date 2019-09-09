@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,19 +14,21 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.network.protocol;
 
-import java.io.IOException;
-import java.net.Socket;
-
 import com.orientechnologies.common.thread.OSoftThread;
+import com.orientechnologies.orient.client.binary.OBinaryRequestExecutor;
 import com.orientechnologies.orient.core.config.OContextConfiguration;
 import com.orientechnologies.orient.enterprise.channel.OChannel;
+import com.orientechnologies.orient.server.OClientConnection;
 import com.orientechnologies.orient.server.OServer;
 import com.orientechnologies.orient.server.network.OServerNetworkListener;
+
+import java.io.IOException;
+import java.net.Socket;
 
 public abstract class ONetworkProtocol extends OSoftThread {
   protected OServer server;
@@ -55,4 +57,6 @@ public abstract class ONetworkProtocol extends OSoftThread {
   public OServer getServer() {
     return server;
   }
+
+  public abstract OBinaryRequestExecutor executor(OClientConnection connection);
 }

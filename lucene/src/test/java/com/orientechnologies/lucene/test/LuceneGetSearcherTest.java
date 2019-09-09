@@ -1,6 +1,6 @@
 /*
  *
- *  * Copyright 2014 Orient Technologies.
+ *  * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  * Licensed under the Apache License, Version 2.0 (the "License");
  *  * you may not use this file except in compliance with the License.
@@ -24,12 +24,9 @@ import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OSchema;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.io.IOException;
 
 /**
  * Created by Enrico Risa on 29/04/15.
@@ -38,36 +35,26 @@ public class LuceneGetSearcherTest extends BaseLuceneTest {
 
   @Before
   public void init() {
-    initDB();
-    OSchema schema = databaseDocumentTx.getMetadata().getSchema();
+    OSchema schema = db.getMetadata().getSchema();
     OClass v = schema.getClass("V");
     OClass song = schema.createClass("Person");
     song.setSuperClass(v);
     song.createProperty("isDeleted", OType.BOOLEAN);
 
-    databaseDocumentTx.command(new OCommandSQL("create index Person.isDeleted on Person (isDeleted) FULLTEXT ENGINE LUCENE"))
-        .execute();
+    db.command(new OCommandSQL("create index Person.isDeleted on Person (isDeleted) FULLTEXT ENGINE LUCENE")).execute();
 
-  }
-
-  @After
-  public void deInit() {
-    deInitDB();
   }
 
   @Test
   public void testSearcherInstance() {
 
-    OIndex<?> index = databaseDocumentTx.getMetadata().getIndexManager().getIndex("Person.isDeleted");
+    OIndex<?> index = db.getMetadata().getIndexManagerInternal().getIndex(db,"Person.isDeleted");
 
     Assert.assertEquals(true, index.getInternal() instanceof OLuceneIndexNotUnique);
 
     OLuceneIndexNotUnique idx = (OLuceneIndexNotUnique) index.getInternal();
 
-    try {
-      Assert.assertNotNull(idx.searcher());
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
+    Assert.assertNotNull(idx.searcher());
+
   }
 }

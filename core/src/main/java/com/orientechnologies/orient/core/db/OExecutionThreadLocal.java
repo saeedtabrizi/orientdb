@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.db;
@@ -28,12 +28,12 @@ import com.orientechnologies.orient.core.replication.OAsyncReplicationOk;
 /**
  * Thread Local to store execution setting.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OExecutionThreadLocal extends ThreadLocal<OExecutionThreadLocal.OExecutionThreadData> {
   public class OExecutionThreadData {
-    volatile public OAsyncReplicationOk    onAsyncReplicationOk;
-    volatile public OAsyncReplicationError onAsyncReplicationError;
+    public volatile OAsyncReplicationOk    onAsyncReplicationOk;
+    public volatile OAsyncReplicationError onAsyncReplicationError;
   }
 
   @Override
@@ -52,13 +52,13 @@ public class OExecutionThreadLocal extends ThreadLocal<OExecutionThreadLocal.OEx
 
   public void setInterruptCurrentOperation(final Thread t) {
     if (t instanceof OSoftThread)
-      ((OSoftThread) t).interruptCurrentOperation();
+      ((OSoftThread) t).softShutdown();
   }
 
   public static void setInterruptCurrentOperation() {
     final Thread t = Thread.currentThread();
     if (t instanceof OSoftThread)
-      ((OSoftThread) t).interruptCurrentOperation();
+      ((OSoftThread) t).softShutdown();
   }
 
   static {

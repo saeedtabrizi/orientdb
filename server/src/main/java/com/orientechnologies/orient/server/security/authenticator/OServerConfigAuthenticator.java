@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2016 Orient Technologies LTD (info(at)orientdb.com)
+ *  *  Copyright 2016 OrientDB LTD (info(at)orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -29,17 +29,14 @@ import com.orientechnologies.orient.server.security.OSecurityAuthenticatorAbstra
 
 /**
  * Provides an OSecurityAuthenticator for the users listed in orientdb-server-config.xml.
- * 
+ *
  * @author S. Colin Leister
- * 
  */
 public class OServerConfigAuthenticator extends OSecurityAuthenticatorAbstract {
   // OSecurityComponent
   // Called once the Server is running.
   public void active() {
-    OLogManager.instance().info(this, "******************************************");
-    OLogManager.instance().info(this, "** OServerConfigAuthenticator Is Active **");
-    OLogManager.instance().info(this, "******************************************");
+    OLogManager.instance().info(this, "OServerConfigAuthenticator is active");
   }
 
   // OSecurityAuthenticator
@@ -62,10 +59,10 @@ public class OServerConfigAuthenticator extends OSecurityAuthenticatorAbstract {
           }
         }
       } else {
-        OLogManager.instance().error(this, "OServerConfigAuthenticator.authenticate() ServerConfig is null");
+        OLogManager.instance().error(this, "OServerConfigAuthenticator.authenticate() ServerConfig is null", null);
       }
     } catch (Exception ex) {
-      OLogManager.instance().error(this, "OServerConfigAuthenticator.authenticate() Exception: %s", ex.getMessage());
+      OLogManager.instance().error(this, "OServerConfigAuthenticator.authenticate()", ex);
     }
 
     return principal;
@@ -113,7 +110,7 @@ public class OServerConfigAuthenticator extends OSecurityAuthenticatorAbstract {
         }
       }
     } else {
-      OLogManager.instance().error(this, "OServerConfigAuthenticator.isAuthorized() ServerConfig is null");
+      OLogManager.instance().error(this, "OServerConfigAuthenticator.isAuthorized() ServerConfig is null", null);
     }
 
     return false;

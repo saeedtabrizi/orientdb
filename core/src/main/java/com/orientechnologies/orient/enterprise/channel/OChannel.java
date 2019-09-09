@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.enterprise.channel;
@@ -35,6 +35,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.*;
 import java.util.Enumeration;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public abstract class OChannel extends OListenerManger<OChannelListener> {
@@ -83,10 +84,12 @@ public abstract class OChannel extends OListenerManger<OChannelListener> {
 
     socket = iSocket;
     socket.setTcpNoDelay(true);
-    socket.setSendBufferSize(socketBufferSize);
-    socket.setReceiveBufferSize(socketBufferSize);
-    //THIS TIMEOUT IS CORRECT BUT CREATE SOME PROBLEM ON REMOTE, NEED CHECK BEFORE BE ENABLED
-    //timeout = iConfig.getValueAsLong(OGlobalConfiguration.NETWORK_REQUEST_TIMEOUT);
+    if (socketBufferSize > 0) {
+      socket.setSendBufferSize(socketBufferSize);
+      socket.setReceiveBufferSize(socketBufferSize);
+    }
+    // THIS TIMEOUT IS CORRECT BUT CREATE SOME PROBLEM ON REMOTE, NEED CHECK BEFORE BE ENABLED
+    // timeout = iConfig.getValueAsLong(OGlobalConfiguration.NETWORK_REQUEST_TIMEOUT);
   }
 
   public static String getLocalIpAddress(final boolean iFavoriteIp4) throws SocketException {
@@ -112,6 +115,10 @@ public abstract class OChannel extends OListenerManger<OChannelListener> {
 
   public void acquireWriteLock() {
     lockWrite.lock();
+  }
+
+  public boolean tryAcquireWriteLock(final long iTimeout) {
+    return lockWrite.tryAcquireLock(iTimeout, TimeUnit.MILLISECONDS);
   }
 
   public void releaseWriteLock() {
@@ -187,8 +194,8 @@ public abstract class OChannel extends OListenerManger<OChannelListener> {
   public void connected() {
     final String dictProfilerMetric = PROFILER.getProcessMetric("network.channel.binary.*");
 
-    profilerMetric = PROFILER.getProcessMetric(
-        "network.channel.binary." + socket.getRemoteSocketAddress().toString() + socket.getLocalPort() + "".replace('.', '_'));
+    profilerMetric = PROFILER
+        .getProcessMetric("network.channel.binary." + socket.getRemoteSocketAddress().toString() + ":" + socket.getLocalPort() + "".replace('.', '_'));
 
     PROFILER.registerHookValue(profilerMetric + ".transmittedBytes", "Bytes transmitted to a network channel", METRIC_TYPE.SIZE,
         new OProfilerHookValue() {

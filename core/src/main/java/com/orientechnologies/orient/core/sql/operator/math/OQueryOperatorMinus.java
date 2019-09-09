@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.core.sql.operator.math;
@@ -23,6 +23,7 @@ import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.serialization.serializer.record.binary.ODocumentSerializer;
 import com.orientechnologies.orient.core.sql.filter.OSQLFilterCondition;
 import com.orientechnologies.orient.core.sql.operator.OIndexReuseType;
 import com.orientechnologies.orient.core.sql.operator.OQueryOperator;
@@ -33,7 +34,7 @@ import java.util.Date;
 /**
  * MINUS "-" operator.
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public class OQueryOperatorMinus extends OQueryOperator {
@@ -44,7 +45,7 @@ public class OQueryOperatorMinus extends OQueryOperator {
 
   @Override
   public Object evaluateRecord(final OIdentifiable iRecord, ODocument iCurrentResult, final OSQLFilterCondition iCondition,
-      Object iLeft, Object iRight, OCommandContext iContext) {
+      Object iLeft, Object iRight, OCommandContext iContext, final ODocumentSerializer serializer) {
     if (iRight == null)
       return iLeft;
 
@@ -68,7 +69,7 @@ public class OQueryOperatorMinus extends OQueryOperator {
       else if (Double.class.equals(maxPrecisionClass))
         return l.doubleValue() - r.doubleValue();
       else if (BigDecimal.class.equals(maxPrecisionClass)) {
-          return (OQueryOperatorMultiply.toBigDecimal(l)).subtract(OQueryOperatorMultiply.toBigDecimal(r));
+        return (OQueryOperatorMultiply.toBigDecimal(l)).subtract(OQueryOperatorMultiply.toBigDecimal(r));
       }
     }
 

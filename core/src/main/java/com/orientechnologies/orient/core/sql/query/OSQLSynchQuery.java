@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,33 +14,34 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql.query;
-
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 
 import com.orientechnologies.orient.core.command.OCommandResultListener;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.serialization.OMemoryStream;
+import com.orientechnologies.orient.core.serialization.serializer.record.ORecordSerializer;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  * SQL synchronous query. When executed the caller wait for the result.
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  * @param <T>
  * @see OSQLAsynchQuery
  */
 @SuppressWarnings({ "unchecked", "serial" })
 public class OSQLSynchQuery<T extends Object> extends OSQLAsynchQuery<T> implements OCommandResultListener, Iterable<T> {
-  private final OResultSet<T> result              = new OConcurrentResultSet<T>();
+  private final OLegacyResultSet<T> result = new OConcurrentLegacyResultSet<T>();
   private ORID                nextPageRID;
   private Map<Object, Object> previousQueryParams = new HashMap<Object, Object>();
 
@@ -92,7 +93,7 @@ public class OSQLSynchQuery<T extends Object> extends OSQLAsynchQuery<T> impleme
       }
     }
 
-    ((OResultSet) result).setCompleted();
+    ((OLegacyResultSet) result).setCompleted();
 
     if (!result.isEmpty()) {
       previousQueryParams = new HashMap<Object, Object>(queryParams);
@@ -146,8 +147,8 @@ public class OSQLSynchQuery<T extends Object> extends OSQLAsynchQuery<T> impleme
   }
 
   @Override
-  protected void queryFromStream(final OMemoryStream buffer) {
-    super.queryFromStream(buffer);
+  protected void queryFromStream(final OMemoryStream buffer, ORecordSerializer serializer) {
+    super.queryFromStream(buffer, serializer);
 
     final String rid = buffer.getAsString();
     if ("".equals(rid))
@@ -156,7 +157,7 @@ public class OSQLSynchQuery<T extends Object> extends OSQLAsynchQuery<T> impleme
       nextPageRID = new ORecordId(rid);
 
     final byte[] serializedPrevParams = buffer.getAsByteArray();
-    previousQueryParams = deserializeQueryParameters(serializedPrevParams);
+    previousQueryParams = deserializeQueryParameters(serializedPrevParams, serializer);
 
   }
 

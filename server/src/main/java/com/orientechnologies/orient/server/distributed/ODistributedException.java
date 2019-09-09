@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,28 +14,27 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.distributed;
 
-import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.common.exception.OSystemException;
 
 /**
  * Exception thrown during distributed operation between cluster nodes.
  *
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  *
  */
 public class ODistributedException extends OSystemException {
   private static final long serialVersionUID = 1L;
 
-  public ODistributedException(ODistributedException exception) {
+  public ODistributedException(final ODistributedException exception) {
     super(exception);
   }
 
-  public ODistributedException(String message) {
+  public ODistributedException(final String message) {
     super(message);
   }
 
@@ -44,8 +43,8 @@ public class ODistributedException extends OSystemException {
     if (obj == null || !obj.getClass().equals(getClass()))
       return false;
 
-    String message = ((ODistributedException) obj).getMessage();
-    return (getMessage() == message) || (getMessage() != null && getMessage().equals(message));
+    final String message = ((ODistributedException) obj).getMessage();
+    return getMessage() != null && getMessage().equals(message);
   }
 
   @Override

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -30,33 +30,69 @@ import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.storage.OStorage;
 import com.orientechnologies.orient.core.storage.cache.OReadCache;
 import com.orientechnologies.orient.core.storage.cache.OWriteCache;
-import com.orientechnologies.orient.core.storage.impl.local.paginated.OLocalPaginatedStorage;
+import com.orientechnologies.orient.core.storage.disk.OLocalPaginatedStorage;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import java.io.File;
 import java.io.PrintStream;
 import java.lang.management.ManagementFactory;
-import java.util.*;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class OAbstractProfiler extends OSharedResourceAbstract
     implements OProfiler, OOrientStartupListener, OProfilerMXBean {
 
-  protected final Map<String, OProfilerHookValue>        hooks         = new ConcurrentHashMap<String, OProfilerHookValue>();
+  protected final Map<String, OProfilerHookRuntime>      hooks         = new ConcurrentHashMap<String, OProfilerHookRuntime>();
   protected final ConcurrentHashMap<String, String>      dictionary    = new ConcurrentHashMap<String, String>();
   protected final ConcurrentHashMap<String, METRIC_TYPE> types         = new ConcurrentHashMap<String, METRIC_TYPE>();
-  protected long                                         recordingFrom = -1;
-  protected TimerTask                                    autoDumpTask;
-  protected List<OProfilerListener>                      listeners     = new ArrayList<OProfilerListener>();
+  protected       long                                   recordingFrom = -1;
+  protected       TimerTask                              autoDumpTask;
+  protected       List<OProfilerListener>                listeners     = new ArrayList<OProfilerListener>();
+
+  private static long statsCreateRecords = 0;
+  private static long statsReadRecords   = 0;
+  private static long statsUpdateRecords = 0;
+  private static long statsDeleteRecords = 0;
+  private static long statsCommands      = 0;
+  private static long statsTxCommit      = 0;
+  private static long statsTxRollback    = 0;
+  private static long statsLastAutoDump  = 0;
 
   public interface OProfilerHookValue {
     Object getValue();
   }
 
-  private static final class MemoryChecker extends TimerTask {
+  public class OProfilerHookRuntime {
+    public OProfilerHookValue hook;
+    public METRIC_TYPE        type;
+
+    public OProfilerHookRuntime(final OProfilerHookValue hook, final METRIC_TYPE type) {
+      this.hook = hook;
+      this.type = type;
+    }
+  }
+
+  public class OProfilerHookStatic {
+    public Object      value;
+    public METRIC_TYPE type;
+
+    public OProfilerHookStatic(final Object value, final METRIC_TYPE type) {
+      this.value = value;
+      this.type = type;
+    }
+  }
+
+  private static final class MemoryChecker implements Runnable {
     @Override
     public void run() {
       try {
@@ -78,8 +114,8 @@ public abstract class OAbstractProfiler extends OSharedResourceAbstract
             if ((jvmTotMemory * 140 / 100) < jvmMaxMemory && (totalDiskCacheUsedMemory * 120 / 100) > maxDiskCacheUsedMemory) {
 
               final long suggestedMaxHeap = jvmTotMemory * 120 / 100;
-              final long suggestedDiskCache = OGlobalConfiguration.DISK_CACHE_SIZE.getValueAsLong()
-                  + (jvmMaxMemory - suggestedMaxHeap) / OFileUtils.MEGABYTE;
+              final long suggestedDiskCache =
+                  OGlobalConfiguration.DISK_CACHE_SIZE.getValueAsLong() + (jvmMaxMemory - suggestedMaxHeap) / OFileUtils.MEGABYTE;
 
               OLogManager.instance().info(this,
                   "Database '%s' uses %,dMB/%,dMB of DISKCACHE memory, while Heap is not completely used (usedHeap=%dMB maxHeap=%dMB). To improve performance set maxHeap to %dMB and DISKCACHE to %dMB",
@@ -92,14 +128,23 @@ public abstract class OAbstractProfiler extends OSharedResourceAbstract
             }
           }
         }
-      } catch (Throwable e) {
+      } catch (Exception e) {
         OLogManager.instance().debug(this, "Error on memory checker task", e);
+      } catch (Error e) {
+        OLogManager.instance().debug(this, "Error on memory checker task", e);
+        throw e;
       }
     }
   }
 
   public OAbstractProfiler() {
-    Orient.instance().registerWeakOrientStartupListener(this);
+    this(true);
+  }
+
+  public OAbstractProfiler(boolean registerListener) {
+    if (registerListener) {
+      Orient.instance().registerWeakOrientStartupListener(this);
+    }
   }
 
   public OAbstractProfiler(final OAbstractProfiler profiler) {
@@ -114,7 +159,7 @@ public abstract class OAbstractProfiler extends OSharedResourceAbstract
 
   protected abstract AtomicInteger getTip(String iMessage);
 
-  public static String dumpEnvironment() {
+  public static String dumpEnvironment(final String dumpType) {
     final StringBuilder buffer = new StringBuilder();
 
     final Runtime runtime = Runtime.getRuntime();
@@ -139,23 +184,141 @@ public abstract class OAbstractProfiler extends OSharedResourceAbstract
         final long osTotalMem = ((Number) mbs.getAttribute(osMBeanName, "TotalPhysicalMemorySize")).longValue();
         final long osUsedMem = osTotalMem - ((Number) mbs.getAttribute(osMBeanName, "FreePhysicalMemorySize")).longValue();
 
-        buffer.append(
-            String.format("OrientDB Memory profiler: HEAP=%s of %s - DISKCACHE (%s dbs)=%s of %s - OS=%s of %s - FS=%s of %s",
+        buffer.append(String
+            .format("OrientDB Memory profiler: HEAP=%s of %s - DISKCACHE (%s dbs)=%s of %s - OS=%s of %s - FS=%s of %s",
                 OFileUtils.getSizeAsString(runtime.totalMemory() - runtime.freeMemory()),
                 OFileUtils.getSizeAsString(runtime.maxMemory()), stgs, OFileUtils.getSizeAsString(diskCacheUsed),
                 OFileUtils.getSizeAsString(diskCacheTotal), OFileUtils.getSizeAsString(osUsedMem),
                 OFileUtils.getSizeAsString(osTotalMem), OFileUtils.getSizeAsString(freeSpaceInMB),
                 OFileUtils.getSizeAsString(totalSpaceInMB)));
-        return buffer.toString();
       }
+
     } catch (Exception e) {
-      // Nothing to do. Proceed with default output
+      // JMX NOT AVAILABLE, AVOID OS DATA
+      buffer.append(String.format("OrientDB Memory profiler: HEAP=%s of %s - DISKCACHE (%s dbs)=%s of %s - FS=%s of %s",
+          OFileUtils.getSizeAsString(runtime.totalMemory() - runtime.freeMemory()), OFileUtils.getSizeAsString(runtime.maxMemory()),
+          stgs, OFileUtils.getSizeAsString(diskCacheUsed), OFileUtils.getSizeAsString(diskCacheTotal),
+          OFileUtils.getSizeAsString(freeSpaceInMB), OFileUtils.getSizeAsString(totalSpaceInMB)));
     }
 
-    buffer.append(String.format("OrientDB Memory profiler: Heap=%s of %s - DiskCache (%s dbs)=%s of %s - FS=%s of %s",
-        OFileUtils.getSizeAsString(runtime.totalMemory() - runtime.freeMemory()), OFileUtils.getSizeAsString(runtime.maxMemory()),
-        stgs, OFileUtils.getSizeAsString(diskCacheUsed), OFileUtils.getSizeAsString(diskCacheTotal),
-        OFileUtils.getSizeAsString(freeSpaceInMB), OFileUtils.getSizeAsString(totalSpaceInMB)));
+    if ("performance".equalsIgnoreCase(dumpType)) {
+      try {
+        long lastCreateRecords = 0;
+        long lastReadRecords = 0;
+        long lastUpdateRecords = 0;
+        long lastDeleteRecords = 0;
+        long lastCommands = 0;
+        long lastTxCommit = 0;
+        long lastTxRollback = 0;
+
+        if (statsLastAutoDump > 0) {
+          final long msFromLastDump = System.currentTimeMillis() - statsLastAutoDump;
+
+          final String[] hooks = Orient.instance().getProfiler().getHookAsString();
+          for (String h : hooks) {
+            if (h.startsWith("db.") && h.endsWith("createRecord"))
+              lastCreateRecords += (Long) Orient.instance().getProfiler().getHookValue(h);
+            else if (h.startsWith("db.") && h.endsWith("readRecord"))
+              lastReadRecords += (Long) Orient.instance().getProfiler().getHookValue(h);
+            else if (h.startsWith("db.") && h.endsWith("updateRecord"))
+              lastUpdateRecords += (Long) Orient.instance().getProfiler().getHookValue(h);
+            else if (h.startsWith("db.") && h.endsWith("deleteRecord"))
+              lastDeleteRecords += (Long) Orient.instance().getProfiler().getHookValue(h);
+            else if (h.startsWith("db.") && h.endsWith("txCommit"))
+              lastTxCommit += (Long) Orient.instance().getProfiler().getHookValue(h);
+            else if (h.startsWith("db.") && h.endsWith("txRollback"))
+              lastTxRollback += (Long) Orient.instance().getProfiler().getHookValue(h);
+          }
+
+          final List<String> chronos = Orient.instance().getProfiler().getChronos();
+          for (String c : chronos) {
+            final OProfilerEntry chrono = Orient.instance().getProfiler().getChrono(c);
+            if (chrono != null) {
+              if (c.startsWith("db.") && c.contains(".command."))
+                lastCommands += chrono.entries;
+            }
+          }
+
+          long lastCreateRecordsSec;
+          if (lastCreateRecords == 0) {
+            lastCreateRecordsSec = msFromLastDump < 1000 ? 1 : 0;
+          } else {
+            lastCreateRecordsSec = (lastCreateRecords - statsCreateRecords) / (msFromLastDump / 1000);
+          }
+
+          long lastReadRecordsSec;
+          if (msFromLastDump < 1000) {
+            lastReadRecordsSec = lastReadRecords == 0 ? 0 : 1;
+          } else if (lastReadRecords == 0) {
+            lastReadRecordsSec = 0;
+          } else {
+            lastReadRecordsSec = (lastReadRecords - statsReadRecords) / (msFromLastDump / 1000);
+          }
+
+          long lastUpdateRecordsSec;
+          if (lastUpdateRecords == 0 || msFromLastDump < 1000) {
+            lastUpdateRecordsSec = 0;
+          } else {
+            lastUpdateRecordsSec = (lastUpdateRecords - statsUpdateRecords) / (msFromLastDump / 1000);
+          }
+
+          long lastDeleteRecordsSec;
+          if (lastDeleteRecords == 0) {
+            lastDeleteRecordsSec = 0;
+          } else if (msFromLastDump < 1000) {
+            lastDeleteRecordsSec = 1;
+          } else {
+            lastDeleteRecordsSec = (lastDeleteRecords - statsDeleteRecords) / (msFromLastDump / 1000);
+          }
+
+          long lastCommandsSec;
+          if (lastCommands == 0) {
+            lastCommandsSec = 0;
+          } else if (msFromLastDump < 1000) {
+            lastCommandsSec = 1;
+          } else {
+            lastCommandsSec = (lastCommands - statsCommands) / (msFromLastDump / 1000);
+          }
+
+          long lastTxCommitSec;
+          if (lastTxCommit == 0) {
+            lastTxCommitSec = 0;
+          } else if (msFromLastDump < 1000) {
+            lastTxCommitSec = 1;
+          } else {
+            lastTxCommitSec = (lastTxCommit - statsTxCommit) / (msFromLastDump / 1000);
+          }
+
+          long lastTxRollbackSec;
+          if (lastTxRollback == 0) {
+            lastTxRollbackSec = 0;
+          } else if (msFromLastDump < 1000) {
+            lastTxRollbackSec = 1;
+          } else {
+            lastTxRollbackSec = (lastTxRollback - statsTxRollback) / (msFromLastDump / 1000);
+
+          }
+
+          buffer.append(String.format(
+              "\nCRUD: C(%d %d/sec) R(%d %d/sec) U(%d %d/sec) D(%d %d/sec) - COMMANDS (%d %d/sec) - TX: COMMIT(%d %d/sec) ROLLBACK(%d %d/sec)",
+              lastCreateRecords, lastCreateRecordsSec, lastReadRecords, lastReadRecordsSec, lastUpdateRecords, lastUpdateRecordsSec,
+              lastDeleteRecords, lastDeleteRecordsSec, lastCommands, lastCommandsSec, lastTxCommit, lastTxCommitSec, lastTxRollback,
+              lastTxRollbackSec));
+        }
+
+        statsLastAutoDump = System.currentTimeMillis();
+        statsCreateRecords = lastCreateRecords;
+        statsReadRecords = lastReadRecords;
+        statsUpdateRecords = lastUpdateRecords;
+        statsDeleteRecords = lastDeleteRecords;
+        statsCommands = lastCommands;
+        statsTxCommit = lastTxCommit;
+        statsTxRollback = lastTxRollback;
+
+      } catch (Exception e) {
+        // IGNORE IT
+      }
+    }
 
     return buffer.toString();
   }
@@ -222,12 +385,17 @@ public abstract class OAbstractProfiler extends OSharedResourceAbstract
 
   @Override
   public String dump() {
-    return dumpEnvironment();
+    return dumpEnvironment(OGlobalConfiguration.PROFILER_AUTODUMP_TYPE.getValueAsString());
   }
 
   @Override
   public void dump(final PrintStream out) {
-    out.println(dumpEnvironment());
+    out.println(dumpEnvironment(OGlobalConfiguration.PROFILER_AUTODUMP_TYPE.getValueAsString()));
+  }
+
+  @Override
+  public String dump(final String type) {
+    return dumpEnvironment(type);
   }
 
   @Override
@@ -288,24 +456,20 @@ public abstract class OAbstractProfiler extends OSharedResourceAbstract
 
       final int ms = iSeconds * 1000;
 
-      autoDumpTask = new TimerTask() {
+      autoDumpTask = Orient.instance().scheduleTask(() -> {
+        final StringBuilder output = new StringBuilder();
 
-        @Override
-        public void run() {
-          final StringBuilder output = new StringBuilder();
+        final String dumpType = OGlobalConfiguration.PROFILER_AUTODUMP_TYPE.getValueAsString();
 
-          output.append(
-              "\n*******************************************************************************************************************************************");
-          output.append("\nPROFILER AUTO DUMP OUTPUT (to disabled it set 'profiler.autoDump.interval' = 0):\n");
-          output.append(dump());
-          output.append(
-              "\n*******************************************************************************************************************************************");
+        output.append(
+            "\n*******************************************************************************************************************************************");
+        output.append("\nPROFILER AUTO DUMP '" + dumpType + "' OUTPUT (to disabled it set 'profiler.autoDump.interval' = 0):\n");
+        output.append(dump(dumpType));
+        output.append(
+            "\n*******************************************************************************************************************************************");
 
-          OLogManager.instance().info(null, output.toString());
-        }
-      };
-
-      Orient.instance().scheduleTask(autoDumpTask, ms, ms);
+        OLogManager.instance().info(null, output.toString());
+      }, ms, ms);
     } else
       OLogManager.instance().info(this, "Auto dump of profiler disabled", iSeconds);
 
@@ -324,6 +488,13 @@ public abstract class OAbstractProfiler extends OSharedResourceAbstract
     return metadata;
   }
 
+  @Override
+  public String[] getHookAsString() {
+    final List<String> keys = new ArrayList<String>(hooks.keySet());
+    final String[] array = new String[keys.size()];
+    return keys.toArray(array);
+  }
+
   public void registerHookValue(final String iName, final String iDescription, final METRIC_TYPE iType,
       final OProfilerHookValue iHookValue) {
     registerHookValue(iName, iDescription, iType, iHookValue, iName);
@@ -334,7 +505,7 @@ public abstract class OAbstractProfiler extends OSharedResourceAbstract
     if (iName != null) {
       unregisterHookValue(iName);
       updateMetadata(iMetadataName, iDescription, iType);
-      hooks.put(iName, iHookValue);
+      hooks.put(iName, new OProfilerHookRuntime(iHookValue, iType));
     }
   }
 
@@ -376,7 +547,10 @@ public abstract class OAbstractProfiler extends OSharedResourceAbstract
   }
 
   protected void installMemoryChecker() {
-    Orient.instance().scheduleTask(new MemoryChecker(), 120000, 120000);
+    final long memoryCheckInterval = OGlobalConfiguration.PROFILER_MEMORYCHECK_INTERVAL.getValueAsLong();
+
+    if (memoryCheckInterval > 0)
+      Orient.instance().scheduleTask(new MemoryChecker(), memoryCheckInterval, memoryCheckInterval);
   }
 
   /**
@@ -395,5 +569,33 @@ public abstract class OAbstractProfiler extends OSharedResourceAbstract
   @Override
   public void unregisterListener(OProfilerListener listener) {
     listeners.remove(listener);
+  }
+
+  @Override
+  public String threadDump() {
+    final StringBuilder dump = new StringBuilder();
+    dump.append("THREAD DUMP\n");
+    final ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
+    final ThreadInfo[] threadInfos = threadMXBean.getThreadInfo(threadMXBean.getAllThreadIds(), 100);
+    for (ThreadInfo threadInfo : threadInfos) {
+      dump.append('"');
+      dump.append(threadInfo.getThreadName());
+      dump.append("\" ");
+      final Thread.State state = threadInfo.getThreadState();
+      dump.append("\n   java.lang.Thread.State: ");
+      dump.append(state);
+      final StackTraceElement[] stackTraceElements = threadInfo.getStackTrace();
+      for (final StackTraceElement stackTraceElement : stackTraceElements) {
+        dump.append("\n        at ");
+        dump.append(stackTraceElement);
+      }
+      dump.append("\n\n");
+    }
+    return dump.toString();
+  }
+
+  @Override
+  public METRIC_TYPE getType(final String k) {
+    return types.get(k);
   }
 }

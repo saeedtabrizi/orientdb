@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,91 +14,55 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.tx;
 
-import com.orientechnologies.common.exception.OException;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
-import com.orientechnologies.orient.core.db.record.ORecordElement;
 import com.orientechnologies.orient.core.db.record.ORecordOperation;
 import com.orientechnologies.orient.core.exception.OTransactionException;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.index.OCompositeKey;
 import com.orientechnologies.orient.core.index.OIndex;
+import com.orientechnologies.orient.core.index.OIndexDefinition;
+import com.orientechnologies.orient.core.index.OIndexManagerAbstract;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.ORecordInternal;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.record.impl.ODocumentInternal;
-import com.orientechnologies.orient.core.record.impl.ORecordBytes;
-import com.orientechnologies.orient.core.serialization.OSerializableStream;
-import com.orientechnologies.orient.core.serialization.serializer.stream.OStreamSerializerAnyStreamable;
+import com.orientechnologies.orient.core.storage.OBasicTransaction;
 import com.orientechnologies.orient.core.tx.OTransactionIndexChanges.OPERATION;
 import com.orientechnologies.orient.core.tx.OTransactionIndexChangesPerKey.OTransactionIndexEntry;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 
-public abstract class OTransactionRealAbstract extends OTransactionAbstract {
-  /**
-   * USE THIS AS RESPONSE TO REPORT A DELETED RECORD IN TX
-   */
-  public static final ORecord                                           DELETED_RECORD        = new ORecordBytes();
-  protected           Map<ORID, ORID>                                   updatedRids           = new HashMap<ORID, ORID>();
-  protected           Map<ORID, ORecordOperation>                       allEntries            = new LinkedHashMap<ORID, ORecordOperation>();
-  protected           Map<String, OTransactionIndexChanges>             indexEntries          = new LinkedHashMap<String, OTransactionIndexChanges>();
-  protected           Map<ORID, List<OTransactionRecordIndexOperation>> recordIndexOperations = new HashMap<ORID, List<OTransactionRecordIndexOperation>>();
-  protected int                                               id;
-  protected int                                               newObjectCounter      = -2;
-  protected Map<String, Object>                               userData              = new HashMap<String, Object>();
+public abstract class OTransactionRealAbstract extends OTransactionAbstract implements OTransactionInternal {
+  protected       Map<ORID, ORID>                                   updatedRids           = new HashMap<ORID, ORID>();
+  protected       Map<ORID, ORecordOperation>                       allEntries            = new LinkedHashMap<ORID, ORecordOperation>();
+  protected       Map<String, OTransactionIndexChanges>             indexEntries          = new LinkedHashMap<String, OTransactionIndexChanges>();
+  protected       Map<ORID, List<OTransactionRecordIndexOperation>> recordIndexOperations = new HashMap<ORID, List<OTransactionRecordIndexOperation>>();
+  protected       int                                               id;
+  protected       int                                               newObjectCounter      = -2;
+  protected       Map<String, Object>                               userData              = new HashMap<String, Object>();
+  private         Map<ORID, LockedRecordMetadata>                   noTxLocks;
   /**
    * This set is used to track which documents are changed during tx, if documents are changed but not saved all changes are made
    * during tx will be undone.
    */
-  protected final Set<ODocument>                              changedDocuments      = new HashSet<ODocument>();
+  protected final Set<ODocument>                                    changedDocuments      = new HashSet<ODocument>();
 
-  /**
-   * Represents information for each index operation for each record in DB.
-   */
-  public static final class OTransactionRecordIndexOperation {
-    public String    index;
-    public Object    key;
-    public OPERATION operation;
-
-    public OTransactionRecordIndexOperation(String index, Object key, OPERATION operation) {
-      this.index = index;
-      this.key = key;
-      this.operation = operation;
-    }
-  }
-
-  protected OTransactionRealAbstract(ODatabaseDocumentTx database, int id) {
+  protected OTransactionRealAbstract(ODatabaseDocumentInternal database, int id) {
     super(database);
     this.id = id;
   }
 
   @Override
-  public boolean hasRecordCreation() {
-    for (ORecordOperation op : allEntries.values()) {
-      if (op.type == ORecordOperation.CREATED)
-        return true;
-    }
-    return false;
-  }
-
   public void addChangedDocument(ODocument document) {
     if (getRecord(document.getIdentity()) == null) {
       changedDocuments.add(document);
@@ -108,7 +72,7 @@ public abstract class OTransactionRealAbstract extends OTransactionAbstract {
   public void close() {
     super.close();
 
-    for (final ORecordOperation recordOperation : getAllRecordEntries()) {
+    for (final ORecordOperation recordOperation : getRecordOperations()) {
       final ORecord record = recordOperation.getRecord();
       if (record instanceof ODocument) {
         final ODocument document = (ODocument) record;
@@ -122,7 +86,8 @@ public abstract class OTransactionRealAbstract extends OTransactionAbstract {
     }
 
     for (ODocument changedDocument : changedDocuments) {
-      changedDocument.undo();
+      if (!changedDocument.isEmbedded())
+        changedDocument.undo();
     }
 
     changedDocuments.clear();
@@ -133,7 +98,7 @@ public abstract class OTransactionRealAbstract extends OTransactionAbstract {
     newObjectCounter = -2;
     status = TXSTATUS.INVALID;
 
-    database.setDefaultTransactionMode();
+    database.setDefaultTransactionMode(getNoTxLocks());
 
     userData.clear();
   }
@@ -157,29 +122,26 @@ public abstract class OTransactionRealAbstract extends OTransactionAbstract {
     return allEntries.values();
   }
 
-  public Collection<ORecordOperation> getAllRecordEntries() {
+  public Collection<ORecordOperation> getRecordOperations() {
     return allEntries.values();
   }
 
   public ORecordOperation getRecordEntry(ORID rid) {
-    ORecordOperation e = allEntries.get(rid);
-    if (e != null)
-      return e;
-
-    if (!updatedRids.isEmpty()) {
-      ORID r = updatedRids.get(rid);
-      if (r != null)
-        return allEntries.get(r);
-    }
-
-    return null;
+    ORecordOperation entry;
+    do {
+      entry = allEntries.get(rid);
+      if (entry == null) {
+        rid = updatedRids.get(rid);
+      }
+    } while (entry == null && rid != null);
+    return entry;
   }
 
   public ORecord getRecord(final ORID rid) {
     final ORecordOperation e = getRecordEntry(rid);
     if (e != null)
       if (e.type == ORecordOperation.DELETED)
-        return DELETED_RECORD;
+        return OBasicTransaction.DELETED_RECORD;
       else
         return e.getRecord();
     return null;
@@ -273,8 +235,10 @@ public abstract class OTransactionRealAbstract extends OTransactionAbstract {
       indexDoc.field("entries", entries, OType.EMBEDDEDLIST);
 
       // STORE INDEX ENTRIES
-      for (OTransactionIndexChangesPerKey entry : indexEntry.getValue().changesPerKey.values())
-        entries.add(serializeIndexChangeEntry(entry, indexDoc));
+      for (OTransactionIndexChangesPerKey entry : indexEntry.getValue().changesPerKey.values()) {
+        if (!entry.clientTrackOnly)
+          entries.add(serializeIndexChangeEntry(entry, indexDoc));
+      }
 
       indexDoc.field("nullEntries", serializeIndexChangeEntry(indexEntry.getValue().nullKeyChanges, indexDoc));
     }
@@ -284,20 +248,35 @@ public abstract class OTransactionRealAbstract extends OTransactionAbstract {
     return result;
   }
 
+  public Map<String, OTransactionIndexChanges> getIndexOperations() {
+    return indexEntries;
+  }
+
   /**
    * Bufferizes index changes to be flushed at commit time.
-   * 
+   *
    * @return
    */
   public OTransactionIndexChanges getIndexChanges(final String iIndexName) {
     return indexEntries.get(iIndexName);
   }
 
+  public OTransactionIndexChanges getIndexChangesInternal(final String indexName) {
+    if (getDatabase().getStorage().isRemote())
+      return null;
+    return getIndexChanges(indexName);
+  }
+
+  public void addIndexEntry(final OIndex<?> delegate, final String iIndexName, final OTransactionIndexChanges.OPERATION iOperation,
+      final Object key, final OIdentifiable iValue) {
+    addIndexEntry(delegate, iIndexName, iOperation, key, iValue, false);
+  }
+
   /**
    * Bufferizes index changes to be flushed at commit time.
    */
   public void addIndexEntry(final OIndex<?> delegate, final String iIndexName, final OTransactionIndexChanges.OPERATION iOperation,
-      final Object key, final OIdentifiable iValue) {
+      final Object key, final OIdentifiable iValue, boolean clientTrackOnly) {
     OTransactionIndexChanges indexEntry = indexEntries.get(iIndexName);
     if (indexEntry == null) {
       indexEntry = new OTransactionIndexChanges();
@@ -307,19 +286,8 @@ public abstract class OTransactionRealAbstract extends OTransactionAbstract {
     if (iOperation == OPERATION.CLEAR)
       indexEntry.setCleared();
     else {
-      if (iOperation == OPERATION.REMOVE && iValue != null && iValue.getIdentity().isTemporary()) {
-
-        // TEMPORARY RECORD: JUST REMOVE IT
-        for (OTransactionIndexChangesPerKey changes : indexEntry.changesPerKey.values())
-          for (int i = 0; i < changes.entries.size(); ++i)
-            if (changes.entries.get(i).value.equals(iValue)) {
-              changes.entries.remove(i);
-              break;
-            }
-      }
-
       OTransactionIndexChangesPerKey changes = indexEntry.getChangesPerKey(key);
-
+      changes.clientTrackOnly = clientTrackOnly;
       changes.add(iValue, iOperation);
 
       if (iValue == null)
@@ -341,9 +309,37 @@ public abstract class OTransactionRealAbstract extends OTransactionAbstract {
       // NO CHANGE, IGNORE IT
       return;
 
+    // XXX: Identity update may mutate the index keys, so we have to identify and reinsert potentially affected index keys to keep
+    // the OTransactionIndexChanges.changesPerKey in a consistent state.
+
+    final List<KeyChangesUpdateRecord> keyRecordsToReinsert = new ArrayList<KeyChangesUpdateRecord>();
+    final ODatabaseDocumentInternal database = getDatabase();
+    final OIndexManagerAbstract indexManager = database.getMetadata().getIndexManagerInternal();
+    for (Entry<String, OTransactionIndexChanges> entry : indexEntries.entrySet()) {
+      final OIndex<?> index = indexManager.getIndex(database, entry.getKey());
+      if (index == null)
+        throw new OTransactionException("Cannot find index '" + entry.getValue() + "' while committing transaction");
+
+      final Dependency[] fieldRidDependencies = getIndexFieldRidDependencies(index);
+      if (!isIndexMayDependOnRids(fieldRidDependencies))
+        continue;
+
+      final OTransactionIndexChanges indexChanges = entry.getValue();
+      for (final Iterator<OTransactionIndexChangesPerKey> iterator = indexChanges.changesPerKey.values().iterator(); iterator
+          .hasNext(); ) {
+        final OTransactionIndexChangesPerKey keyChanges = iterator.next();
+        if (isIndexKeyMayDependOnRid(keyChanges.key, oldRid, fieldRidDependencies)) {
+          keyRecordsToReinsert.add(new KeyChangesUpdateRecord(keyChanges, indexChanges));
+          iterator.remove();
+        }
+      }
+    }
+
+    // Update the identity.
+
     final ORecordOperation rec = getRecordEntry(oldRid);
     if (rec != null) {
-      updatedRids.put(newRid, oldRid.copy());
+      updatedRids.put(newRid.copy(), oldRid.copy());
 
       if (!rec.getRecord().getIdentity().equals(newRid)) {
         ORecordInternal.onBeforeIdentityChanged(rec.getRecord());
@@ -352,24 +348,37 @@ public abstract class OTransactionRealAbstract extends OTransactionAbstract {
         if (recordId == null) {
           ORecordInternal.setIdentity(rec.getRecord(), new ORecordId(newRid));
         } else {
-          recordId.clusterPosition = newRid.getClusterPosition();
-          recordId.clusterId = newRid.getClusterId();
+          recordId.setClusterPosition(newRid.getClusterPosition());
+          recordId.setClusterId(newRid.getClusterId());
         }
 
         ORecordInternal.onAfterIdentityChanged(rec.getRecord());
       }
     }
 
-    // UPDATE INDEXES
-    final List<OTransactionRecordIndexOperation> transactionIndexOperations = recordIndexOperations.get(oldRid);
+    // Reinsert the potentially affected index keys.
+
+    for (KeyChangesUpdateRecord record : keyRecordsToReinsert)
+      record.indexChanges.changesPerKey.put(record.keyChanges.key, record.keyChanges);
+
+    // Update the indexes.
+
+    ORecordOperation val = getRecordEntry(oldRid);
+    final List<OTransactionRecordIndexOperation> transactionIndexOperations = recordIndexOperations
+        .get(val != null ? val.getRID() : null);
     if (transactionIndexOperations != null) {
       for (final OTransactionRecordIndexOperation indexOperation : transactionIndexOperations) {
         OTransactionIndexChanges indexEntryChanges = indexEntries.get(indexOperation.index);
         if (indexEntryChanges == null)
           continue;
-
-        final OTransactionIndexChangesPerKey changesPerKey = indexEntryChanges.getChangesPerKey(indexOperation.key);
-        updateChangesIdentity(oldRid, newRid, changesPerKey);
+        final OTransactionIndexChangesPerKey keyChanges;
+        if (indexOperation.key == null) {
+          keyChanges = indexEntryChanges.nullKeyChanges;
+        } else {
+          keyChanges = indexEntryChanges.changesPerKey.get(indexOperation.key);
+        }
+        if (keyChanges != null)
+          updateChangesIdentity(oldRid, newRid, keyChanges);
       }
     }
   }
@@ -385,32 +394,26 @@ public abstract class OTransactionRealAbstract extends OTransactionAbstract {
     ODocument keyContainer = new ODocument();
     keyContainer.setTrackingChanges(false);
 
-    try {
-      if (entry.key != null) {
-        if (entry.key instanceof OCompositeKey) {
-          final List<Object> keys = ((OCompositeKey) entry.key).getKeys();
+    if (entry.key != null) {
+      if (entry.key instanceof OCompositeKey) {
+        final List<Object> keys = ((OCompositeKey) entry.key).getKeys();
 
-          keyContainer.field("key", keys, OType.EMBEDDEDLIST);
-          keyContainer.field("binary", false);
-        } else if (!(entry.key instanceof ORecordElement) && (entry.key instanceof OSerializableStream)) {
-          keyContainer.field("key", OStreamSerializerAnyStreamable.INSTANCE.toStream(entry.key), OType.BINARY);
-          keyContainer.field("binary", true);
-        } else {
-          keyContainer.field("key", entry.key);
-          keyContainer.field("binary", false);
-        }
+        keyContainer.field("key", keys, OType.EMBEDDEDLIST);
+        keyContainer.field("binary", false);
+      } else {
+        keyContainer.field("key", entry.key);
+        keyContainer.field("binary", false);
+      }
 
-      } else
-        keyContainer = null;
-    } catch (IOException ioe) {
-      throw OException.wrapException(new OTransactionException("Error during index changes serialization. "), ioe);
-    }
+    } else
+      keyContainer = null;
 
     final List<ODocument> operations = new ArrayList<ODocument>();
 
     // SERIALIZE VALUES
     if (entry.entries != null && !entry.entries.isEmpty()) {
       for (OTransactionIndexEntry e : entry.entries) {
+
         final ODocument changeDoc = new ODocument().setAllowChainedAccess(false);
         ODocumentInternal.addOwner((ODocument) changeDoc, indexDoc);
 
@@ -453,5 +456,114 @@ public abstract class OTransactionRealAbstract extends OTransactionAbstract {
   @Override
   public Object getCustomData(String iName) {
     return userData.get(iName);
+  }
+
+  private static Dependency[] getIndexFieldRidDependencies(OIndex<?> index) {
+    final OIndexDefinition definition = index.getDefinition();
+
+    if (definition == null) // type for untyped index is still not resolved
+      return null;
+
+    final OType[] types = definition.getTypes();
+    final Dependency[] dependencies = new Dependency[types.length];
+
+    for (int i = 0; i < types.length; ++i)
+      dependencies[i] = getTypeRidDependency(types[i]);
+
+    return dependencies;
+  }
+
+  private static boolean isIndexMayDependOnRids(Dependency[] fieldDependencies) {
+    if (fieldDependencies == null)
+      return true;
+
+    for (Dependency dependency : fieldDependencies)
+      switch (dependency) {
+      case Unknown:
+        return true;
+      case Yes:
+        return true;
+      case No:
+        break; // do nothing
+      }
+
+    return false;
+  }
+
+  private static boolean isIndexKeyMayDependOnRid(Object key, ORID rid, Dependency[] keyDependencies) {
+    if (key instanceof OCompositeKey) {
+      final List<Object> subKeys = ((OCompositeKey) key).getKeys();
+      for (int i = 0; i < subKeys.size(); ++i)
+        if (isIndexKeyMayDependOnRid(subKeys.get(i), rid, keyDependencies == null ? null : keyDependencies[i]))
+          return true;
+      return false;
+    }
+
+    return isIndexKeyMayDependOnRid(key, rid, keyDependencies == null ? null : keyDependencies[0]);
+  }
+
+  private static boolean isIndexKeyMayDependOnRid(Object key, ORID rid, Dependency dependency) {
+    if (dependency == Dependency.No)
+      return false;
+
+    if (key instanceof OIdentifiable)
+      return key.equals(rid);
+
+    return dependency == Dependency.Unknown || dependency == null;
+  }
+
+  private static Dependency getTypeRidDependency(OType type) {
+    switch (type) {
+    case CUSTOM:
+    case ANY:
+      return Dependency.Unknown;
+
+    case EMBEDDED:
+    case LINK:
+      return Dependency.Yes;
+
+    case LINKLIST:
+    case LINKSET:
+    case LINKMAP:
+    case LINKBAG:
+    case EMBEDDEDLIST:
+    case EMBEDDEDSET:
+    case EMBEDDEDMAP:
+      assert false; // under normal conditions, collection field type is already resolved to its component type
+      return Dependency.Unknown; // fallback to the safest variant, just in case
+
+    default: // all other primitive types which doesn't depend on rids
+      return Dependency.No;
+    }
+  }
+
+  private enum Dependency {
+    Unknown, Yes, No
+  }
+
+  private static class KeyChangesUpdateRecord {
+    public final OTransactionIndexChangesPerKey keyChanges;
+    public final OTransactionIndexChanges       indexChanges;
+
+    public KeyChangesUpdateRecord(OTransactionIndexChangesPerKey keyChanges, OTransactionIndexChanges indexChanges) {
+      this.keyChanges = keyChanges;
+      this.indexChanges = indexChanges;
+    }
+  }
+
+  public Map<ORID, ORID> getUpdatedRids() {
+    return updatedRids;
+  }
+
+  public int getNewObjectCounter() {
+    return newObjectCounter;
+  }
+
+  public void setNoTxLocks(Map<ORID, LockedRecordMetadata> noTxLocks) {
+    this.noTxLocks = noTxLocks;
+  }
+
+  public Map<ORID, LockedRecordMetadata> getNoTxLocks() {
+    return noTxLocks;
   }
 }

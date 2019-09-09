@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql.filter;
@@ -26,10 +26,12 @@ import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.exception.OQueryParsingException;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 
+import java.util.Locale;
+
 /**
  * Parsed query. It's built once a query is parsed.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OSQLFilter extends OSQLPredicate implements OCommandPredicate {
   public OSQLFilter(final String iText, final OCommandContext iContext, final String iFilterKeyword) {
@@ -41,7 +43,7 @@ public class OSQLFilter extends OSQLPredicate implements OCommandPredicate {
 
     context = iContext;
     parserText = iText;
-    parserTextUpperCase = iText.toUpperCase();
+    parserTextUpperCase = iText.toUpperCase(Locale.ENGLISH);
 
     try {
       final int lastPos = parserGetCurrentPosition();

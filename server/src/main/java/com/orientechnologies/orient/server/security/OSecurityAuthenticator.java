@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2016 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2016 OrientDB LTD (info(-at-)orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.security;
@@ -28,26 +28,24 @@ import com.orientechnologies.orient.server.config.OServerUserConfiguration;
 
 /**
  * Provides an interface for creating security authenticators.
- * 
+ *
  * @author S. Colin Leister
- * 
  */
-public interface OSecurityAuthenticator extends OSecurityComponent
-{
-	// Returns the actual username if successful, null otherwise.
-	// Some token-based authentication (e.g., SPNEGO tokens have the user's name embedded in the service ticket).
-	String authenticate(final String username, final String password);
-	
-	String getAuthenticationHeader(final String databaseName);
-	
-	Subject getClientSubject();
-	
-	// Returns the name of this OSecurityAuthenticator.
-	String getName();
-	
-	OServerUserConfiguration getUser(final String username);
+public interface OSecurityAuthenticator extends OSecurityComponent {
+  // Returns the actual username if successful, null otherwise.
+  // Some token-based authentication (e.g., SPNEGO tokens have the user's name embedded in the service ticket).
+  String authenticate(final String username, final String password);
 
-	boolean isAuthorized(final String username, final String resource);
+  String getAuthenticationHeader(final String databaseName);
 
-	boolean isSingleSignOnSupported();
+  Subject getClientSubject();
+
+  // Returns the name of this OSecurityAuthenticator.
+  String getName();
+
+  OServerUserConfiguration getUser(final String username);
+
+  boolean isAuthorized(final String username, final String resource);
+
+  boolean isSingleSignOnSupported();
 }

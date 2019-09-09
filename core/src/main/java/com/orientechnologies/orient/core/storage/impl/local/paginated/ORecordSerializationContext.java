@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,15 +14,13 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.orientechnologies.orient.core.storage.impl.local.paginated;
 
 import com.orientechnologies.orient.core.OOrientListenerAbstract;
-import com.orientechnologies.orient.core.OOrientShutdownListener;
-import com.orientechnologies.orient.core.OOrientStartupListener;
 import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.storage.impl.local.OAbstractPaginatedStorage;
 
@@ -30,7 +28,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 
 /**
- * @author Andrey Lomakin (a.lomakin-at-orientechnologies.com)
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 11/26/13
  */
 public class ORecordSerializationContext {
@@ -51,7 +49,8 @@ public class ORecordSerializationContext {
       }
     });
   }
-  private final Deque<ORecordSerializationOperation>                      operations                  = new ArrayDeque<ORecordSerializationOperation>();
+
+  private final Deque<ORecordSerializationOperation> operations = new ArrayDeque<>();
 
   public static int getDepth() {
     return ORecordSerializationContext.SERIALIZATION_CONTEXT_STACK.get().size();
@@ -94,7 +93,7 @@ public class ORecordSerializationContext {
   private static class SerializationContextThreadLocal extends ThreadLocal<Deque<ORecordSerializationContext>> {
     @Override
     protected Deque<ORecordSerializationContext> initialValue() {
-      return new ArrayDeque<ORecordSerializationContext>();
+      return new ArrayDeque<>();
     }
   }
 }

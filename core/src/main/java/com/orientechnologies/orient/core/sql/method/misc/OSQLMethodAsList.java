@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Orient Technologies.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  * Copyright 2013 Geomatys.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,8 +29,8 @@ import java.util.List;
 
 /**
  * Transforms current value in a List.
- * 
- * @author Luca Garulli
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OSQLMethodAsList extends OAbstractSQLMethod {
 
@@ -62,10 +62,14 @@ public class OSQLMethodAsList extends OAbstractSQLMethod {
     }
 
     if (ioResult instanceof Iterator<?>) {
-      final List<Object> list = ioResult instanceof OSizeable ? new ArrayList<Object>(((OSizeable) ioResult).size())
-          : new ArrayList<Object>();
+      final List<Object> list;
+      if (ioResult instanceof OSizeable) {
+        list = new ArrayList<Object>(((OSizeable) ioResult).size());
+      } else {
+        list = new ArrayList<Object>();
+      }
 
-      for (Iterator<Object> iter = (Iterator<Object>) ioResult; iter.hasNext();) {
+      for (Iterator<Object> iter = (Iterator<Object>) ioResult; iter.hasNext(); ) {
         list.add(iter.next());
       }
       return list;

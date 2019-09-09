@@ -13,12 +13,13 @@ import org.junit.Test;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
  * Test suite for OrientDB graph implementation.
  * 
- * @author Luca Garulli (http://www.orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com) (http://orientdb.com)
  */
 public abstract class OrientGraphTest extends GraphTest {
 
@@ -94,9 +95,14 @@ public abstract class OrientGraphTest extends GraphTest {
 
   @Test
   public void testTransactionalGraphTestSuite() throws Exception {
-    this.stopWatch();
-    doTestSuite(new TransactionalGraphTestSuite(this));
-    printTestPerformance("TransactionGraphTestSuite", this.stopWatch());
+    try {
+      this.stopWatch();
+      doTestSuite(new TransactionalGraphTestSuite(this));
+      printTestPerformance("TransactionGraphTestSuite", this.stopWatch());
+    } catch (Exception e) {
+      e.printStackTrace();
+      throw e;
+    }
   }
 
   @Test
@@ -143,7 +149,7 @@ public abstract class OrientGraphTest extends GraphTest {
       if (graph.isClosed())
         currentGraphs.remove(url);
       else {
-        ODatabaseRecordThreadLocal.INSTANCE.set(graph.getRawGraph());
+        ODatabaseRecordThreadLocal.instance().set(graph.getRawGraph());
         return graph;
       }
     }
@@ -197,7 +203,7 @@ public abstract class OrientGraphTest extends GraphTest {
   }
 
   public static ENV getEnvironment() {
-    String envName = System.getProperty("orientdb.test.env", "dev").toUpperCase();
+    String envName = System.getProperty("orientdb.test.env", "dev").toUpperCase(Locale.ENGLISH);
     ENV result = null;
     try {
       result = ENV.valueOf(envName);

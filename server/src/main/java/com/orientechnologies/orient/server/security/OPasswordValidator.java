@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2016 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2016 OrientDB LTD (info(-at-)orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.security;
@@ -23,11 +23,9 @@ import com.orientechnologies.orient.core.security.OInvalidPasswordException;
 
 /**
  * Provides a simple interface for validating passwords.
- * 
+ *
  * @author S. Colin Leister
- * 
  */
-public interface OPasswordValidator extends OSecurityComponent
-{
-	void validatePassword(final String password) throws OInvalidPasswordException;
+public interface OPasswordValidator extends OSecurityComponent {
+  void validatePassword(final String password) throws OInvalidPasswordException;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2014 Orient Technologies LTD (info--at--orientechnologies.com)
+ * Copyright 2010-2014 OrientDB LTD (info--at--orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import com.orientechnologies.orient.core.metadata.schema.OImmutableClass;
 /**
  * Represents an Edge class.
  * 
- * @author Luca Garulli (http://www.orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com) (http://orientdb.com)
  */
 public class OrientEdgeType extends OrientElementType {
   // Keeping the name in Immutable class because i cannot do the other way around
@@ -46,6 +46,7 @@ public class OrientEdgeType extends OrientElementType {
   }
 
   @Override
+  @Deprecated
   public OrientEdgeType getSuperClass() {
     return new OrientEdgeType(graph, super.getSuperClass());
   }
@@ -56,11 +57,13 @@ public class OrientEdgeType extends OrientElementType {
     return this;
   }
 
-  @Override public boolean isEdgeType() {
+  @Override
+  public boolean isEdgeType() {
     return true;
   }
 
-  @Override public boolean isVertexType() {
+  @Override
+  public boolean isVertexType() {
     return false;
   }
 

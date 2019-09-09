@@ -7,6 +7,7 @@ import com.orientechnologies.orient.core.command.OCommandContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class OMatchFilter extends SimpleNode {
   // TODO transform in a map
@@ -30,7 +31,7 @@ public class OMatchFilter extends SimpleNode {
   public String getAlias() {
     for (OMatchFilterItem item : items) {
       if (item.alias != null) {
-        return item.alias.getValue();
+        return item.alias.getStringValue();
       }
     }
     return null;
@@ -40,16 +41,14 @@ public class OMatchFilter extends SimpleNode {
     boolean found = false;
     for (OMatchFilterItem item : items) {
       if (item.alias != null) {
-        item.alias = new OIdentifier(-1);
-        item.alias.setValue(alias);
+        item.alias = new OIdentifier(alias);
         found = true;
         break;
       }
     }
     if (!found) {
       OMatchFilterItem newItem = new OMatchFilterItem(-1);
-      newItem.alias = new OIdentifier(-1);
-      newItem.alias.setValue(alias);
+      newItem.alias = new OIdentifier(alias);
       items.add(newItem);
     }
   }
@@ -99,8 +98,32 @@ public class OMatchFilter extends SimpleNode {
           ((SimpleNode) item.className.value).toString(context == null ? null : context.getInputParameters(), builder);
           return builder.toString();
         } else {
-          return item.className.value.toString();
+          return item.className.toString();
         }
+      }
+    }
+    return null;
+  }
+
+  public String getClusterName(OCommandContext context) {
+    for (OMatchFilterItem item : items) {
+      if (item.clusterName != null) {
+        return item.clusterName.getStringValue();
+      } else if (item.clusterId != null) {
+        int cid = item.clusterId.value.intValue();
+        String clusterName = context.getDatabase().getClusterNameById(cid);
+        if (clusterName != null) {
+          return clusterName;
+        }
+      }
+    }
+    return null;
+  }
+
+  public ORid getRid(OCommandContext context) {
+    for (OMatchFilterItem item : items) {
+      if (item.rid != null) {
+        return item.rid;
       }
     }
     return null;
@@ -110,6 +133,33 @@ public class OMatchFilter extends SimpleNode {
     for (OMatchFilterItem item : items) {
       if (item.maxDepth != null) {
         return item.maxDepth.value.intValue();
+      }
+    }
+    return null;
+  }
+
+  public boolean isOptional() {
+    for (OMatchFilterItem item : items) {
+      if (Boolean.TRUE.equals(item.optional)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  public String getDepthAlias() {
+    for (OMatchFilterItem item : items) {
+      if (item.depthAlias != null) {
+        return item.depthAlias.getStringValue();
+      }
+    }
+    return null;
+  }
+
+  public String getPathAlias() {
+    for (OMatchFilterItem item : items) {
+      if (item.pathAlias != null) {
+        return item.pathAlias.getStringValue();
       }
     }
     return null;
@@ -126,6 +176,33 @@ public class OMatchFilter extends SimpleNode {
       first = false;
     }
     builder.append("}");
+  }
+
+  @Override
+  public OMatchFilter copy() {
+    OMatchFilter result = new OMatchFilter(-1);
+    result.items = items == null ? null : items.stream().map(x -> x.copy()).collect(Collectors.toList());
+    return result;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OMatchFilter that = (OMatchFilter) o;
+
+    if (items != null ? !items.equals(that.items) : that.items != null)
+      return false;
+
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    return items != null ? items.hashCode() : 0;
   }
 
 }

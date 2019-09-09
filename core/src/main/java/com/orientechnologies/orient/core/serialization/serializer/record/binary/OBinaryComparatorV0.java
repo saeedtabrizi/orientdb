@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -29,16 +29,21 @@ import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.metadata.schema.OType;
+import com.orientechnologies.orient.core.util.ODateHelper;
 
 import java.math.BigDecimal;
+import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.TimeZone;
+
+import static com.orientechnologies.orient.core.serialization.serializer.record.binary.HelperClasses.*;
 
 /**
  * Implementation v0 of comparator based on protocol v0.
- * 
- * @author Luca Garulli
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OBinaryComparatorV0 implements OBinaryComparator {
 
@@ -69,10 +74,9 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
   /**
    * Compares if 2 field values are the same.
    *
-   * @param iField1
-   *          First value to compare
-   * @param iField2
-   *          Second value to compare
+   * @param iField1 First value to compare
+   * @param iField2 Second value to compare
+   *
    * @return true if they match, otherwise false
    */
   @Override
@@ -99,7 +103,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1 == value2;
         }
         case DATE: {
-          final long value2 = (OVarIntSerializer.readAsLong(fieldValue2) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY);
+          final long value2 = (OVarIntSerializer.readAsLong(fieldValue2) * MILLISEC_PER_DAY);
           return value1 == value2;
         }
         case SHORT: {
@@ -107,19 +111,19 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1 == value2;
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return value1 == value2;
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return value1 == value2;
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return value1 == value2;
         }
         case STRING: {
-          return Integer.parseInt(ORecordSerializerBinaryV0.readString(fieldValue2)) == value1;
+          return Integer.parseInt(readString(fieldValue2)) == value1;
         }
         case DECIMAL: {
           final BigDecimal value2 = ODecimalSerializer.INSTANCE.deserialize(fieldValue2.bytes, fieldValue2.offset);
@@ -143,7 +147,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1 == value2;
         }
         case DATE: {
-          final long value2 = (OVarIntSerializer.readAsLong(fieldValue2) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY);
+          final long value2 = (OVarIntSerializer.readAsLong(fieldValue2) * MILLISEC_PER_DAY);
           return value1 == value2;
         }
         case SHORT: {
@@ -151,19 +155,19 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1 == value2;
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return value1 == value2;
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return value1 == value2;
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return value1 == value2;
         }
         case STRING: {
-          return Long.parseLong(ORecordSerializerBinaryV0.readString(fieldValue2)) == value1;
+          return Long.parseLong(readString(fieldValue2)) == value1;
         }
         case DECIMAL: {
           final BigDecimal value2 = ODecimalSerializer.INSTANCE.deserialize(fieldValue2.bytes, fieldValue2.offset);
@@ -187,7 +191,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1 == value2;
         }
         case DATE: {
-          final long value2 = (OVarIntSerializer.readAsLong(fieldValue2) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY);
+          final long value2 = (OVarIntSerializer.readAsLong(fieldValue2) * MILLISEC_PER_DAY);
           return value1 == value2;
         }
         case SHORT: {
@@ -195,19 +199,19 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1 == value2;
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return value1 == value2;
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return value1 == value2;
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return value1 == value2;
         }
         case STRING: {
-          return Short.parseShort(ORecordSerializerBinaryV0.readString(fieldValue2)) == value1;
+          return Short.parseShort(readString(fieldValue2)) == value1;
         }
         case DECIMAL: {
           final BigDecimal value2 = ODecimalSerializer.INSTANCE.deserialize(fieldValue2.bytes, fieldValue2.offset);
@@ -221,32 +225,32 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
         switch (iField2.type) {
         case INTEGER: {
           final int value2 = OVarIntSerializer.readAsInteger(fieldValue2);
-          return Integer.parseInt(ORecordSerializerBinaryV0.readString(fieldValue1)) == value2;
+          return Integer.parseInt(readString(fieldValue1)) == value2;
         }
         case LONG:
         case DATETIME: {
           final long value2 = OVarIntSerializer.readAsLong(fieldValue2);
-          return Long.parseLong(ORecordSerializerBinaryV0.readString(fieldValue1)) == value2;
+          return Long.parseLong(readString(fieldValue1)) == value2;
         }
         case DATE: {
-          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY;
-          return Long.parseLong(ORecordSerializerBinaryV0.readString(fieldValue1)) == value2;
+          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * MILLISEC_PER_DAY;
+          return Long.parseLong(readString(fieldValue1)) == value2;
         }
         case SHORT: {
           final short value2 = OVarIntSerializer.readAsShort(fieldValue2);
-          return Short.parseShort(ORecordSerializerBinaryV0.readString(fieldValue1)) == value2;
+          return Short.parseShort(readString(fieldValue1)) == value2;
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
-          return Byte.parseByte(ORecordSerializerBinaryV0.readString(fieldValue1)) == value2;
+          final byte value2 = readByte(fieldValue2);
+          return Byte.parseByte(readString(fieldValue1)) == value2;
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
-          return Float.parseFloat(ORecordSerializerBinaryV0.readString(fieldValue1)) == value2;
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
+          return Float.parseFloat(readString(fieldValue1)) == value2;
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
-          return Double.parseDouble(ORecordSerializerBinaryV0.readString(fieldValue1)) == value2;
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
+          return Double.parseDouble(readString(fieldValue1)) == value2;
         }
         case STRING: {
           final int len1 = OVarIntSerializer.readAsInteger(fieldValue1);
@@ -255,14 +259,18 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           if (len1 != len2)
             return false;
 
-          final OCollate collate = (iField1.collate != null && !ODefaultCollate.NAME.equals(iField1.collate.getName())) ? iField1.collate
-              : (iField2.collate != null && !ODefaultCollate.NAME.equals(iField2.collate.getName()) ? iField2.collate : null);
+          final OCollate collate;
+          if (iField1.collate != null && !ODefaultCollate.NAME.equals(iField1.collate.getName())) {
+            collate = iField1.collate;
+          } else if (iField2.collate != null && !ODefaultCollate.NAME.equals(iField2.collate.getName())) {
+            collate = iField2.collate;
+          } else {
+            collate = null;
+          }
 
           if (collate != null) {
-            final String str1 = (String) collate.transform(ORecordSerializerBinaryV0.stringFromBytes(fieldValue1.bytes,
-                fieldValue1.offset, len1));
-            final String str2 = (String) collate.transform(ORecordSerializerBinaryV0.stringFromBytes(fieldValue2.bytes,
-                fieldValue2.offset, len2));
+            final String str1 = (String) collate.transform(stringFromBytes(fieldValue1.bytes, fieldValue1.offset, len1));
+            final String str2 = (String) collate.transform(stringFromBytes(fieldValue2.bytes, fieldValue2.offset, len2));
 
             return str1.equals(str2);
 
@@ -276,18 +284,18 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
         }
         case DECIMAL: {
           final BigDecimal value2 = ODecimalSerializer.INSTANCE.deserialize(fieldValue2.bytes, fieldValue2.offset);
-          return new BigDecimal(ORecordSerializerBinaryV0.readString(fieldValue1)).equals(value2);
+          return new BigDecimal(readString(fieldValue1)).equals(value2);
         }
         case BOOLEAN: {
-          final boolean value2 = ORecordSerializerBinaryV0.readByte(fieldValue2) == 1;
-          return Boolean.parseBoolean(ORecordSerializerBinaryV0.readString(fieldValue1)) == value2;
+          final boolean value2 = readByte(fieldValue2) == 1;
+          return Boolean.parseBoolean(readString(fieldValue1)) == value2;
         }
         }
         break;
       }
 
       case DOUBLE: {
-        final long value1AsLong = ORecordSerializerBinaryV0.readLong(fieldValue1);
+        final long value1AsLong = readLong(fieldValue1);
 
         switch (iField2.type) {
         case INTEGER: {
@@ -308,21 +316,21 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
         }
         case BYTE: {
           final double value1 = Double.longBitsToDouble(value1AsLong);
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return value1 == value2;
         }
         case FLOAT: {
           final double value1 = Double.longBitsToDouble(value1AsLong);
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return value1 == value2;
         }
         case DOUBLE: {
-          final double value2AsLong = ORecordSerializerBinaryV0.readLong(fieldValue2);
+          final double value2AsLong = readLong(fieldValue2);
           return value1AsLong == value2AsLong;
         }
         case STRING: {
           final double value1 = Double.longBitsToDouble(value1AsLong);
-          return Double.parseDouble(ORecordSerializerBinaryV0.readString(fieldValue2)) == value1;
+          return Double.parseDouble(readString(fieldValue2)) == value1;
         }
         case DECIMAL: {
           final double value1 = Double.longBitsToDouble(value1AsLong);
@@ -334,7 +342,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
       }
 
       case FLOAT: {
-        final int value1AsInt = ORecordSerializerBinaryV0.readInteger(fieldValue1);
+        final int value1AsInt = readInteger(fieldValue1);
 
         switch (iField2.type) {
         case INTEGER: {
@@ -355,21 +363,21 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
         }
         case BYTE: {
           final float value1 = Float.intBitsToFloat(value1AsInt);
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return value1 == value2;
         }
         case FLOAT: {
-          final float value2AsInt = ORecordSerializerBinaryV0.readInteger(fieldValue2);
+          final float value2AsInt = readInteger(fieldValue2);
           return value1AsInt == value2AsInt;
         }
         case DOUBLE: {
           final float value1 = Float.intBitsToFloat(value1AsInt);
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return value1 == value2;
         }
         case STRING: {
           final float value1 = Float.intBitsToFloat(value1AsInt);
-          return Float.parseFloat(ORecordSerializerBinaryV0.readString(fieldValue2)) == value1;
+          return Float.parseFloat(readString(fieldValue2)) == value1;
         }
         case DECIMAL: {
           final float value1 = Float.intBitsToFloat(value1AsInt);
@@ -381,7 +389,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
       }
 
       case BYTE: {
-        final byte value1 = ORecordSerializerBinaryV0.readByte(fieldValue1);
+        final byte value1 = readByte(fieldValue1);
 
         switch (iField2.type) {
         case INTEGER: {
@@ -398,19 +406,19 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1 == value2;
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return value1 == value2;
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return value1 == value2;
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return value1 == value2;
         }
         case STRING: {
-          final byte value2 = Byte.parseByte((ORecordSerializerBinaryV0.readString(fieldValue2)));
+          final byte value2 = Byte.parseByte((readString(fieldValue2)));
           return value1 == value2;
         }
         case DECIMAL: {
@@ -422,15 +430,15 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
       }
 
       case BOOLEAN: {
-        final boolean value1 = ORecordSerializerBinaryV0.readByte(fieldValue1) == 1;
+        final boolean value1 = readByte(fieldValue1) == 1;
 
         switch (iField2.type) {
         case BOOLEAN: {
-          final boolean value2 = ORecordSerializerBinaryV0.readByte(fieldValue2) == 1;
+          final boolean value2 = readByte(fieldValue2) == 1;
           return value1 == value2;
         }
         case STRING: {
-          final String str = ORecordSerializerBinaryV0.readString(fieldValue2);
+          final String str = readString(fieldValue2);
           return Boolean.parseBoolean(str) == value1;
         }
         }
@@ -438,7 +446,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
       }
 
       case DATE: {
-        final long value1 = OVarIntSerializer.readAsLong(fieldValue1) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY;
+        final long value1 = OVarIntSerializer.readAsLong(fieldValue1) * MILLISEC_PER_DAY;
 
         switch (iField2.type) {
         case INTEGER: {
@@ -447,11 +455,12 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
         }
         case LONG:
         case DATETIME: {
-          final long value2 = OVarIntSerializer.readAsLong(fieldValue2);
+          long value2 = OVarIntSerializer.readAsLong(fieldValue2);
+          value2 = convertDayToTimezone(ODateHelper.getDatabaseTimeZone(), TimeZone.getTimeZone("GMT"), value2);
           return value1 == value2;
         }
         case DATE: {
-          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY;
+          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * MILLISEC_PER_DAY;
           return value1 == value2;
         }
         case SHORT: {
@@ -459,11 +468,11 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1 == value2;
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return value1 == value2;
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return value1 == value2;
         }
         case STRING: {
@@ -491,7 +500,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1 == value2;
         }
         case DATE: {
-          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY;
+          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * MILLISEC_PER_DAY;
           return value1 == value2;
         }
         case SHORT: {
@@ -499,38 +508,46 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1 == value2;
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return value1 == value2;
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return value1 == value2;
         }
         case STRING: {
-          final String value2AsString = ORecordSerializerBinaryV0.readString(fieldValue2);
+          final String value2AsString = readString(fieldValue2);
 
           if (OIOUtils.isLong(value2AsString)) {
             final long value2 = Long.parseLong(value2AsString);
             return value1 == value2;
           }
 
-          final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.INSTANCE.getIfDefined();
+          final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.instance().getIfDefined();
           try {
-            final SimpleDateFormat dateFormat = db != null ? db.getStorage().getConfiguration().getDateTimeFormatInstance()
-                : new SimpleDateFormat(OStorageConfiguration.DEFAULT_DATETIME_FORMAT);
+            final SimpleDateFormat dateFormat;
+            if (db != null) {
+              dateFormat = db.getStorage().getConfiguration().getDateTimeFormatInstance();
+            } else {
+              dateFormat = new SimpleDateFormat(OStorageConfiguration.DEFAULT_DATETIME_FORMAT);
+            }
 
             final Date value2AsDate = dateFormat.parse(value2AsString);
             final long value2 = value2AsDate.getTime();
             return value1 == value2;
-          } catch (ParseException e) {
+          } catch (ParseException ignore) {
             try {
-              final SimpleDateFormat dateFormat = db != null ? db.getStorage().getConfiguration().getDateFormatInstance()
-                  : new SimpleDateFormat(OStorageConfiguration.DEFAULT_DATE_FORMAT);
+              final SimpleDateFormat dateFormat;
+              if (db != null) {
+                dateFormat = db.getStorage().getConfiguration().getDateFormatInstance();
+              } else {
+                dateFormat = new SimpleDateFormat(OStorageConfiguration.DEFAULT_DATE_FORMAT);
+              }
 
               final Date value2AsDate = dateFormat.parse(value2AsString);
               final long value2 = value2AsDate.getTime();
               return value1 == value2;
-            } catch (ParseException e1) {
+            } catch (ParseException ignored) {
               return new Date(value1).toString().equals(value2AsString);
             }
           }
@@ -573,10 +590,10 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           final long clusterPos2 = OVarIntSerializer.readAsLong(fieldValue2);
           if (clusterPos1 == clusterPos2)
             return true;
+          break;
         }
         case STRING: {
-          return ORecordSerializerBinaryV0.readOptimizedLink(fieldValue1).toString()
-              .equals(ORecordSerializerBinaryV0.readString(fieldValue2));
+          return readOptimizedLink(fieldValue1, false).toString().equals(readString(fieldValue2));
         }
         }
         break;
@@ -600,15 +617,15 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1.equals(new BigDecimal(value2));
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return value1.equals(new BigDecimal(value2));
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return value1.equals(new BigDecimal(value2));
         }
         case STRING: {
-          return value1.toString().equals(ORecordSerializerBinaryV0.readString(fieldValue2));
+          return value1.toString().equals(readString(fieldValue2));
         }
         case DECIMAL: {
           final BigDecimal value2 = ODecimalSerializer.INSTANCE.deserialize(fieldValue2.bytes, fieldValue2.offset);
@@ -629,10 +646,9 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
   /**
    * Compares two values executing also conversion between types.
    *
-   * @param iField1
-   *          First value to compare
-   * @param iField2
-   *          Second value to compare
+   * @param iField1 First value to compare
+   * @param iField2 Second value to compare
+   *
    * @return 0 if they matches, >0 if first value is major than second, <0 in case is minor
    */
   @Override
@@ -659,7 +675,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case DATE: {
-          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY;
+          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * MILLISEC_PER_DAY;
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case SHORT: {
@@ -667,19 +683,19 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case STRING: {
-          final String value2 = ORecordSerializerBinaryV0.readString(fieldValue2);
+          final String value2 = readString(fieldValue2);
           return Integer.toString(value1).compareTo(value2);
         }
         case DECIMAL: {
@@ -704,7 +720,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case DATE: {
-          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY;
+          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * MILLISEC_PER_DAY;
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case SHORT: {
@@ -712,19 +728,19 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case STRING: {
-          final String value2 = ORecordSerializerBinaryV0.readString(fieldValue2);
+          final String value2 = readString(fieldValue2);
           return Long.toString(value1).compareTo(value2);
         }
         case DECIMAL: {
@@ -749,7 +765,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case DATE: {
-          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY;
+          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * MILLISEC_PER_DAY;
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case SHORT: {
@@ -757,19 +773,19 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case STRING: {
-          final String value2 = ORecordSerializerBinaryV0.readString(fieldValue2);
+          final String value2 = readString(fieldValue2);
           return Short.toString(value1).compareTo(value2);
         }
         case DECIMAL: {
@@ -781,7 +797,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
       }
 
       case STRING: {
-        final String value1 = ORecordSerializerBinaryV0.readString(fieldValue1);
+        final String value1 = readString(fieldValue1);
 
         switch (iField2.type) {
         case INTEGER: {
@@ -794,7 +810,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1.compareTo(Long.toString(value2));
         }
         case DATE: {
-          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY;
+          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * MILLISEC_PER_DAY;
           return value1.compareTo(Long.toString(value2));
         }
         case SHORT: {
@@ -802,22 +818,28 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1.compareTo(Short.toString(value2));
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return value1.compareTo(Byte.toString(value2));
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return value1.compareTo(Float.toString(value2));
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return value1.compareTo(Double.toString(value2));
         }
         case STRING: {
-          final String value2 = ORecordSerializerBinaryV0.readString(fieldValue2);
+          final String value2 = readString(fieldValue2);
 
-          final OCollate collate = (iField1.collate != null && !ODefaultCollate.NAME.equals(iField1.collate.getName())) ? iField1.collate
-              : (iField2.collate != null && !ODefaultCollate.NAME.equals(iField2.collate.getName()) ? iField2.collate : null);
+          final OCollate collate;
+          if (iField1.collate != null && !ODefaultCollate.NAME.equals(iField1.collate.getName())) {
+            collate = iField1.collate;
+          } else if (iField2.collate != null && !ODefaultCollate.NAME.equals(iField2.collate.getName())) {
+            collate = iField2.collate;
+          } else {
+            collate = null;
+          }
 
           if (collate != null) {
             final String str1 = (String) collate.transform(value1);
@@ -828,7 +850,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1.compareTo(value2);
         }
         case BOOLEAN: {
-          final boolean value2 = ORecordSerializerBinaryV0.readByte(fieldValue2) == 1;
+          final boolean value2 = readByte(fieldValue2) == 1;
           return value1.compareTo(Boolean.toString(value2));
         }
         case DECIMAL: {
@@ -840,7 +862,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
       }
 
       case DOUBLE: {
-        final double value1 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue1));
+        final double value1 = Double.longBitsToDouble(readLong(fieldValue1));
 
         switch (iField2.type) {
         case INTEGER: {
@@ -857,19 +879,19 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case STRING: {
-          final String value2 = ORecordSerializerBinaryV0.readString(fieldValue2);
+          final String value2 = readString(fieldValue2);
           return Double.toString(value1).compareTo(value2);
         }
         case DECIMAL: {
@@ -881,7 +903,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
       }
 
       case FLOAT: {
-        final float value1 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue1));
+        final float value1 = Float.intBitsToFloat(readInteger(fieldValue1));
 
         switch (iField2.type) {
         case INTEGER: {
@@ -898,23 +920,23 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case STRING: {
-          final String value2 = ORecordSerializerBinaryV0.readString(fieldValue2);
+          final String value2 = readString(fieldValue2);
           return Float.toString(value1).compareTo(value2);
         }
         case DECIMAL: {
-          final String value2 = ORecordSerializerBinaryV0.readString(fieldValue2);
+          final String value2 = readString(fieldValue2);
           return Float.toString(value1).compareTo(value2);
         }
         }
@@ -922,7 +944,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
       }
 
       case BYTE: {
-        final byte value1 = ORecordSerializerBinaryV0.readByte(fieldValue1);
+        final byte value1 = readByte(fieldValue1);
 
         switch (iField2.type) {
         case INTEGER: {
@@ -939,19 +961,19 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case STRING: {
-          final String value2 = ORecordSerializerBinaryV0.readString(fieldValue2);
+          final String value2 = readString(fieldValue2);
           return Byte.toString(value1).compareTo(value2);
         }
         case DECIMAL: {
@@ -963,15 +985,15 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
       }
 
       case BOOLEAN: {
-        final boolean value1 = ORecordSerializerBinaryV0.readByte(fieldValue1) == 1;
+        final boolean value1 = readByte(fieldValue1) == 1;
 
         switch (iField2.type) {
         case BOOLEAN: {
-          final boolean value2 = ORecordSerializerBinaryV0.readByte(fieldValue2) == 1;
+          final boolean value2 = readByte(fieldValue2) == 1;
           return (value1 == value2) ? 0 : value1 ? 1 : -1;
         }
         case STRING: {
-          final boolean value2 = Boolean.parseBoolean(ORecordSerializerBinaryV0.readString(fieldValue2));
+          final boolean value2 = Boolean.parseBoolean(readString(fieldValue2));
           return (value1 == value2) ? 0 : value1 ? 1 : -1;
         }
         }
@@ -992,7 +1014,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case DATE: {
-          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY;
+          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * MILLISEC_PER_DAY;
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case SHORT: {
@@ -1000,42 +1022,50 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case STRING: {
-          final String value2AsString = ORecordSerializerBinaryV0.readString(fieldValue2);
+          final String value2AsString = readString(fieldValue2);
 
           if (OIOUtils.isLong(value2AsString)) {
             final long value2 = Long.parseLong(value2AsString);
             return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
           }
 
-          final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.INSTANCE.getIfDefined();
+          final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.instance().getIfDefined();
           try {
-            final SimpleDateFormat dateFormat = db != null ? db.getStorage().getConfiguration().getDateTimeFormatInstance()
-                : new SimpleDateFormat(OStorageConfiguration.DEFAULT_DATETIME_FORMAT);
+            final SimpleDateFormat dateFormat;
+            if (db != null) {
+              dateFormat = db.getStorage().getConfiguration().getDateTimeFormatInstance();
+            } else {
+              dateFormat = new SimpleDateFormat(OStorageConfiguration.DEFAULT_DATETIME_FORMAT);
+            }
 
             final Date value2AsDate = dateFormat.parse(value2AsString);
             final long value2 = value2AsDate.getTime();
             return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
-          } catch (ParseException e) {
+          } catch (ParseException ignored) {
             try {
-              final SimpleDateFormat dateFormat = db != null ? db.getStorage().getConfiguration().getDateFormatInstance()
-                  : new SimpleDateFormat(OStorageConfiguration.DEFAULT_DATE_FORMAT);
+              final SimpleDateFormat dateFormat;
+              if (db != null) {
+                dateFormat = db.getStorage().getConfiguration().getDateFormatInstance();
+              } else {
+                dateFormat = new SimpleDateFormat(OStorageConfiguration.DEFAULT_DATE_FORMAT);
+              }
 
               final Date value2AsDate = dateFormat.parse(value2AsString);
               final long value2 = value2AsDate.getTime();
               return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
-            } catch (ParseException e1) {
+            } catch (ParseException ignore) {
               return new Date(value1).toString().compareTo(value2AsString);
             }
           }
@@ -1049,7 +1079,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
       }
 
       case DATE: {
-        final long value1 = OVarIntSerializer.readAsLong(fieldValue1) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY;
+        final long value1 = OVarIntSerializer.readAsLong(fieldValue1) * MILLISEC_PER_DAY;
 
         switch (iField2.type) {
         case INTEGER: {
@@ -1062,7 +1092,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case DATE: {
-          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * ORecordSerializerBinaryV0.MILLISEC_PER_DAY;
+          final long value2 = OVarIntSerializer.readAsLong(fieldValue2) * MILLISEC_PER_DAY;
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case SHORT: {
@@ -1070,37 +1100,47 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
         }
         case STRING: {
-          final String value2AsString = ORecordSerializerBinaryV0.readString(fieldValue2);
+          final String value2AsString = readString(fieldValue2);
 
           if (OIOUtils.isLong(value2AsString)) {
             final long value2 = Long.parseLong(value2AsString);
             return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
           }
 
-          final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.INSTANCE.getIfDefined();
+          final ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.instance().getIfDefined();
           try {
-            final SimpleDateFormat dateFormat = db != null ? db.getStorage().getConfiguration().getDateFormatInstance()
-                : new SimpleDateFormat(OStorageConfiguration.DEFAULT_DATE_FORMAT);
+            final SimpleDateFormat dateFormat;
+            if (db != null) {
+              dateFormat = db.getStorage().getConfiguration().getDateFormatInstance();
+            } else {
+              dateFormat = new SimpleDateFormat(OStorageConfiguration.DEFAULT_DATE_FORMAT);
+            }
             final Date value2AsDate = dateFormat.parse(value2AsString);
-            final long value2 = value2AsDate.getTime();
+            long value2 = value2AsDate.getTime();
+            value2 = convertDayToTimezone(ODateHelper.getDatabaseTimeZone(), TimeZone.getTimeZone("GMT"), value2);
             return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
-          } catch (ParseException e) {
+          } catch (ParseException ignore) {
             try {
-              final SimpleDateFormat dateFormat = db != null ? db.getStorage().getConfiguration().getDateFormatInstance()
-                  : new SimpleDateFormat(OStorageConfiguration.DEFAULT_DATETIME_FORMAT);
+              final SimpleDateFormat dateFormat;
+              if (db != null) {
+                dateFormat = db.getStorage().getConfiguration().getDateFormatInstance();
+              } else {
+                dateFormat = new SimpleDateFormat(OStorageConfiguration.DEFAULT_DATETIME_FORMAT);
+              }
 
               final Date value2AsDate = dateFormat.parse(value2AsString);
-              final long value2 = value2AsDate.getTime();
+              long value2 = value2AsDate.getTime();
+              value2 = convertDayToTimezone(ODateHelper.getDatabaseTimeZone(), TimeZone.getTimeZone("GMT"), value2);
               return (value1 < value2) ? -1 : ((value1 == value2) ? 0 : 1);
-            } catch (ParseException e1) {
+            } catch (ParseException ignored) {
               return new Date(value1).toString().compareTo(value2AsString);
             }
           }
@@ -1163,8 +1203,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
         }
 
         case STRING: {
-          return ORecordSerializerBinaryV0.readOptimizedLink(fieldValue1).compareTo(
-              new ORecordId(ORecordSerializerBinaryV0.readString(fieldValue2)));
+          return readOptimizedLink(fieldValue1, false).compareTo(new ORecordId(readString(fieldValue2)));
         }
         }
         break;
@@ -1188,15 +1227,15 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1.compareTo(new BigDecimal(value2));
         }
         case FLOAT: {
-          final float value2 = Float.intBitsToFloat(ORecordSerializerBinaryV0.readInteger(fieldValue2));
+          final float value2 = Float.intBitsToFloat(readInteger(fieldValue2));
           return value1.compareTo(new BigDecimal(value2));
         }
         case DOUBLE: {
-          final double value2 = Double.longBitsToDouble(ORecordSerializerBinaryV0.readLong(fieldValue2));
+          final double value2 = Double.longBitsToDouble(readLong(fieldValue2));
           return value1.compareTo(new BigDecimal(value2));
         }
         case STRING: {
-          final String value2 = ORecordSerializerBinaryV0.readString(fieldValue2);
+          final String value2 = readString(fieldValue2);
           return value1.toString().compareTo(value2);
         }
         case DECIMAL: {
@@ -1204,7 +1243,7 @@ public class OBinaryComparatorV0 implements OBinaryComparator {
           return value1.compareTo(value2);
         }
         case BYTE: {
-          final byte value2 = ORecordSerializerBinaryV0.readByte(fieldValue2);
+          final byte value2 = readByte(fieldValue2);
           return value1.compareTo(new BigDecimal(value2));
         }
         }

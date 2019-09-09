@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,64 +14,60 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.storage.cache;
 
-import java.nio.ByteBuffer;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import com.orientechnologies.common.directmemory.OByteBufferPool;
+import com.orientechnologies.common.directmemory.OPointer;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OLogSequenceNumber;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 /**
- * @author Andrey Lomakin
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 05.08.13
  */
-public class OCachePointer {
-  private static final int              WRITERS_OFFSET         = 32;
-  private static final int              READERS_MASK           = 0xFFFFFFFF;
+public final class OCachePointer {
+  private static final int WRITERS_OFFSET = 32;
+  private static final int READERS_MASK   = 0xFFFFFFFF;
 
-  private final ReadWriteLock           readWriteLock          = new ReentrantReadWriteLock();
+  private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
-  private final AtomicInteger           referrersCount         = new AtomicInteger();
-  private final AtomicLong              readersWritersReferrer = new AtomicLong();
+  private final AtomicInteger referrersCount         = new AtomicInteger();
+  private final AtomicLong    readersWritersReferrer = new AtomicLong();
 
-  private final AtomicInteger           usagesCounter          = new AtomicInteger();
+  private final AtomicInteger usagesCounter = new AtomicInteger();
 
-  private volatile OLogSequenceNumber   lastFlushedLsn;
+  private volatile WritersListener writersListener;
 
-  private volatile WritersListener      writersListener;
+  private final OPointer        pointer;
+  private final OByteBufferPool bufferPool;
 
-  private final ByteBuffer              buffer;
-  private final OByteBufferPool         bufferPool;
+  private long version;
 
-  private final ThreadLocal<ByteBuffer> threadLocalBuffer      = new ThreadLocal<ByteBuffer>() {
-                                                                 @Override
-                                                                 protected ByteBuffer initialValue() {
-                                                                   if (buffer != null) {
-                                                                     final ByteBuffer b = buffer.duplicate();
-                                                                     b.position(0);
-                                                                     b.order(buffer.order());
-                                                                     return b;
-                                                                   }
+  private final long fileId;
+  private final int pageIndex;
 
-                                                                   return null;
-                                                                 }
-                                                               };
+  private OLogSequenceNumber endLSN;
 
-  private final long                    fileId;
-  private final long                    pageIndex;
-
-  public OCachePointer(final ByteBuffer buffer, final OByteBufferPool bufferPool, final OLogSequenceNumber lastFlushedLsn,
-      final long fileId, final long pageIndex) {
-    this.lastFlushedLsn = lastFlushedLsn;
-    this.buffer = buffer;
+  public OCachePointer(final OPointer pointer, final OByteBufferPool bufferPool, final long fileId, final int pageIndex) {
+    this.pointer = pointer;
     this.bufferPool = bufferPool;
+
+    if (fileId < 0) {
+      throw new IllegalStateException("File id has invalid value " + fileId);
+    }
+
+    if (pageIndex < 0) {
+      throw new IllegalStateException("Page index has invalid value " + pageIndex);
+    }
+
 
     this.fileId = fileId;
     this.pageIndex = pageIndex;
@@ -85,16 +81,8 @@ public class OCachePointer {
     return fileId;
   }
 
-  public long getPageIndex() {
+  public int getPageIndex() {
     return pageIndex;
-  }
-
-  public OLogSequenceNumber getLastFlushedLsn() {
-    return lastFlushedLsn;
-  }
-
-  public void setLastFlushedLsn(final OLogSequenceNumber lastFlushedLsn) {
-    this.lastFlushedLsn = lastFlushedLsn;
   }
 
   public void incrementReadersReferrer() {
@@ -112,8 +100,9 @@ public class OCachePointer {
 
     final WritersListener wl = writersListener;
     if (wl != null) {
-      if (writers > 0 && readers == 1)
+      if (writers > 0 && readers == 1) {
         wl.removeOnlyWriters(fileId, pageIndex);
+      }
     }
 
     incrementReferrer();
@@ -138,8 +127,9 @@ public class OCachePointer {
 
     final WritersListener wl = writersListener;
     if (wl != null) {
-      if (writers > 0 && readers == 0)
+      if (writers > 0 && readers == 0) {
         wl.addOnlyWriters(fileId, pageIndex);
+      }
     }
 
     decrementReferrer();
@@ -180,11 +170,21 @@ public class OCachePointer {
 
     final WritersListener wl = writersListener;
     if (wl != null) {
-      if (readers == 0 && writers == 0)
+      if (readers == 0 && writers == 0) {
         wl.removeOnlyWriters(fileId, pageIndex);
+      }
     }
 
     decrementReferrer();
+  }
+
+  /**
+   * DEBUG only !!!
+   *
+   * @return Whether pointer lock (read or write )is acquired
+   */
+  boolean isLockAcquiredByCurrentThread() {
+    return readWriteLock.getReadHoldCount() > 0 || readWriteLock.isWriteLockedByCurrentThread();
   }
 
   public void incrementReferrer() {
@@ -193,28 +193,45 @@ public class OCachePointer {
 
   public void decrementReferrer() {
     final int rf = referrersCount.decrementAndGet();
-    if (rf == 0 && buffer != null) {
-      bufferPool.release(buffer);
+    if (rf == 0 && pointer != null) {
+      bufferPool.release(pointer);
     }
 
-    if (rf < 0)
+    if (rf < 0) {
       throw new IllegalStateException("Invalid direct memory state, number of referrers cannot be negative " + rf);
+    }
   }
 
-  public ByteBuffer getSharedBuffer() {
-    return threadLocalBuffer.get();
+  public ByteBuffer getBuffer() {
+    if (pointer == null) {
+      return null;
+    }
+
+    return pointer.getNativeByteBuffer();
   }
 
-  public ByteBuffer getExclusiveBuffer() {
-    return buffer;
+  public OPointer getPointer() {
+    return pointer;
+  }
+
+  public ByteBuffer getBufferDuplicate() {
+    if (pointer == null) {
+      return null;
+    }
+
+    final ByteBuffer duplicate = pointer.getNativeByteBuffer().duplicate().order(ByteOrder.nativeOrder());
+    duplicate.rewind();
+
+    return duplicate;
   }
 
   public void acquireExclusiveLock() {
     readWriteLock.writeLock().lock();
+    version++;
   }
 
-  public boolean tryAcquireExclusiveLock() {
-    return readWriteLock.writeLock().tryLock();
+  public long getVersion() {
+    return version;
   }
 
   public void releaseExclusiveLock() {
@@ -234,35 +251,26 @@ public class OCachePointer {
   }
 
   @Override
-  protected void finalize() throws Throwable {
-    super.finalize();
-
-    if (referrersCount.get() > 0 && buffer != null) {
-      bufferPool.release(buffer);
-    }
-  }
-
-  @Override
   public boolean equals(Object o) {
-    if (this == o)
+    if (this == o) {
       return true;
-    if (o == null || getClass() != o.getClass())
+    }
+    if (o == null || getClass() != o.getClass()) {
       return false;
+    }
 
     OCachePointer that = (OCachePointer) o;
 
-    buffer.position(0);
-    that.buffer.position(0);
-
-    if (buffer != null ? !buffer.equals(that.buffer) : that.buffer != null)
+    if (!pointer.equals(that.pointer)) {
       return false;
+    }
 
     return true;
   }
 
   @Override
   public int hashCode() {
-    return buffer != null ? buffer.hashCode() : 0;
+    return pointer != null ? pointer.hashCode() : 0;
   }
 
   @Override
@@ -270,15 +278,15 @@ public class OCachePointer {
     return "OCachePointer{" + "referrersCount=" + referrersCount + ", usagesCount=" + usagesCounter + '}';
   }
 
-  private long composeReadersWriters(int readers, int writers) {
+  private static long composeReadersWriters(int readers, int writers) {
     return ((long) writers) << WRITERS_OFFSET | readers;
   }
 
-  private int getReaders(long readersWriters) {
+  private static int getReaders(long readersWriters) {
     return (int) (readersWriters & READERS_MASK);
   }
 
-  private int getWriters(long readersWriters) {
+  private static int getWriters(long readersWriters) {
     return (int) (readersWriters >>> WRITERS_OFFSET);
   }
 
@@ -288,4 +296,11 @@ public class OCachePointer {
     void removeOnlyWriters(long fileId, long pageIndex);
   }
 
+  public OLogSequenceNumber getEndLSN() {
+    return endLSN;
+  }
+
+  void setEndLSN(OLogSequenceNumber endLSN) {
+    this.endLSN = endLSN;
+  }
 }

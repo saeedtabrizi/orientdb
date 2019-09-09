@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.network.protocol.http;
@@ -23,6 +23,7 @@ import com.orientechnologies.common.concur.resource.OSharedResourceAbstract;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
+import com.orientechnologies.orient.server.OServer;
 
 import java.security.SecureRandom;
 import java.util.HashMap;
@@ -30,23 +31,22 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
-import java.util.TimerTask;
 
 /**
  * Handles the HTTP sessions such as a real HTTP Server.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OHttpSessionManager extends OSharedResourceAbstract {
-  private static final OHttpSessionManager instance = new OHttpSessionManager();
-  private Map<String, OHttpSession>        sessions = new HashMap<String, OHttpSession>();
-  private int                              expirationTime;
-  private Random                           random   = new SecureRandom();
+  private Map<String, OHttpSession> sessions = new HashMap<String, OHttpSession>();
+  private int                       expirationTime;
+  private Random                    random   = new SecureRandom();
 
-  protected OHttpSessionManager() {
-    expirationTime = OGlobalConfiguration.NETWORK_HTTP_SESSION_EXPIRE_TIMEOUT.getValueAsInteger() * 1000;
+  public OHttpSessionManager(OServer server) {
+    expirationTime =
+        server.getContextConfiguration().getValueAsInteger(OGlobalConfiguration.NETWORK_HTTP_SESSION_EXPIRE_TIMEOUT) * 1000;
 
-    Orient.instance().scheduleTask(new TimerTask() {
+    Orient.instance().scheduleTask(new Runnable() {
       @Override
       public void run() {
         final int expired = checkSessionsValidity();
@@ -64,7 +64,7 @@ public class OHttpSessionManager extends OSharedResourceAbstract {
       final long now = System.currentTimeMillis();
 
       Entry<String, OHttpSession> s;
-      for (Iterator<Map.Entry<String, OHttpSession>> it = sessions.entrySet().iterator(); it.hasNext();) {
+      for (Iterator<Map.Entry<String, OHttpSession>> it = sessions.entrySet().iterator(); it.hasNext(); ) {
         s = it.next();
 
         if (now - s.getValue().getUpdatedOn() > expirationTime) {
@@ -85,7 +85,7 @@ public class OHttpSessionManager extends OSharedResourceAbstract {
     acquireSharedLock();
     try {
 
-      return (OHttpSession[]) sessions.values().toArray(new OHttpSession[sessions.size()]);
+      return sessions.values().toArray(new OHttpSession[sessions.size()]);
 
     } finally {
       releaseSharedLock();
@@ -136,7 +136,7 @@ public class OHttpSessionManager extends OSharedResourceAbstract {
     this.expirationTime = expirationTime;
   }
 
-  public static OHttpSessionManager getInstance() {
-    return instance;
+  public void shutdown() {
+    sessions.clear();
   }
 }

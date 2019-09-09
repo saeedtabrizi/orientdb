@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,29 +14,38 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.db.record;
 
+import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.ORecord;
+import com.orientechnologies.orient.core.storage.ORecordCallback;
+
+import java.util.Locale;
 
 /**
  * Contains the information about a database operation.
  *
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class ORecordOperation implements Comparable {
 
   private static final long serialVersionUID = 1L;
 
-  public static final byte  LOADED           = 0;
-  public static final byte  UPDATED          = 1;
-  public static final byte  DELETED          = 2;
-  public static final byte  CREATED          = 3;
+  public static final byte LOADED  = 0;
+  public static final byte UPDATED = 1;
+  public static final byte DELETED = 2;
+  public static final byte CREATED = 3;
 
-  public byte               type;
-  public OIdentifiable      record;
+  public byte          type;
+  public OIdentifiable record;
+
+  public ORecordCallback<Long>    createdCallback = null;
+  public ORecordCallback<Integer> updatedCallback = null;
+
+  private Object resultData;
 
   public ORecordOperation() {
   }
@@ -75,6 +84,14 @@ public class ORecordOperation implements Comparable {
     return record != null ? record.getRecord() : null;
   }
 
+  public OIdentifiable getRecordContainer() {
+    return record;
+  }
+
+  public ORID getRID() {
+    return record != null ? record.getIdentity() : null;
+  }
+
   public static String getName(final int type) {
     String operation = "?";
     switch (type) {
@@ -95,7 +112,7 @@ public class ORecordOperation implements Comparable {
   }
 
   public static byte getId(String iName) {
-    iName = iName.toUpperCase();
+    iName = iName.toUpperCase(Locale.ENGLISH);
 
     if (iName.startsWith("CREAT"))
       return ORecordOperation.CREATED;
@@ -108,8 +125,21 @@ public class ORecordOperation implements Comparable {
     return -1;
   }
 
+  public byte getType() {
+    return type;
+  }
+
   @Override
   public int compareTo(Object o) {
     return record.compareTo(((ORecordOperation) o).record);
   }
+
+  public Object getResultData() {
+    return resultData;
+  }
+
+  public void setResultData(Object resultData) {
+    this.resultData = resultData;
+  }
+
 }

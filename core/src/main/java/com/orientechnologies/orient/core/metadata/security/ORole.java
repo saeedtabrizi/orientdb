@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,13 +14,12 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.metadata.security;
 
 import com.orientechnologies.common.log.OLogManager;
-import com.orientechnologies.orient.core.annotation.OBeforeDeserialization;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 
@@ -43,24 +42,25 @@ import java.util.Set;
  */
 @SuppressWarnings("unchecked")
 public class ORole extends OIdentity implements OSecurityRole {
-  public static final String                ADMIN             = "admin";
-  public static final String                CLASS_NAME        = "ORole";
-  public final static int                   PERMISSION_NONE   = 0;
-  public final static int                   PERMISSION_CREATE = registerPermissionBit(0, "Create");
-  public final static int                   PERMISSION_READ   = registerPermissionBit(1, "Read");
-  public final static int                   PERMISSION_UPDATE = registerPermissionBit(2, "Update");
-  public final static int                   PERMISSION_DELETE = registerPermissionBit(3, "Delete");
-  public final static int                   PERMISSION_ALL    = PERMISSION_CREATE + PERMISSION_READ + PERMISSION_UPDATE
-                                                                  + PERMISSION_DELETE;
-  protected final static byte               STREAM_DENY       = 0;
-  protected final static byte               STREAM_ALLOW      = 1;
-  private static final long                 serialVersionUID  = 1L;
+  public static final String                ADMIN              = "admin";
+  public static final String                CLASS_NAME         = "ORole";
+  public static final int                   PERMISSION_NONE    = 0;
+  public static final int                   PERMISSION_CREATE  = registerPermissionBit(0, "Create");
+  public static final int                   PERMISSION_READ    = registerPermissionBit(1, "Read");
+  public static final int                   PERMISSION_UPDATE  = registerPermissionBit(2, "Update");
+  public static final int                   PERMISSION_DELETE  = registerPermissionBit(3, "Delete");
+  public static final int                   PERMISSION_EXECUTE = registerPermissionBit(4, "Execute");
+  public static final int                   PERMISSION_ALL     = PERMISSION_CREATE + PERMISSION_READ + PERMISSION_UPDATE
+                                                                  + PERMISSION_DELETE + PERMISSION_EXECUTE;
+  protected static final byte               STREAM_DENY        = 0;
+  protected static final byte               STREAM_ALLOW       = 1;
+  private static final long                 serialVersionUID   = 1L;
   // CRUD OPERATIONS
   private static Map<Integer, String>       PERMISSION_BIT_NAMES;
-  protected ALLOW_MODES                     mode              = ALLOW_MODES.DENY_ALL_BUT;
+  protected ALLOW_MODES                     mode               = ALLOW_MODES.DENY_ALL_BUT;
   protected ORole                           parentRole;
 
-  private Map<ORule.ResourceGeneric, ORule> rules             = new HashMap<ORule.ResourceGeneric, ORule>();
+  private Map<ORule.ResourceGeneric, ORule> rules              = new HashMap<ORule.ResourceGeneric, ORule>();
 
   /**
    * Constructor used in unmarshalling.
@@ -130,7 +130,6 @@ public class ORole extends OIdentity implements OSecurityRole {
   }
 
   @Override
-  @OBeforeDeserialization
   public void fromStream(final ODocument iSource) {
     if (document != null)
       return;
@@ -142,7 +141,7 @@ public class ORole extends OIdentity implements OSecurityRole {
       mode = modeField == null ? ALLOW_MODES.DENY_ALL_BUT : modeField.byteValue() == STREAM_ALLOW ? ALLOW_MODES.ALLOW_ALL_BUT
           : ALLOW_MODES.DENY_ALL_BUT;
     } catch (Exception ex) {
-      OLogManager.instance().error(this, "illegal mode " + ex.getMessage());
+      OLogManager.instance().error(this, "illegal mode " + ex.getMessage(), ex);
       mode = ALLOW_MODES.DENY_ALL_BUT;
     }
 
@@ -157,8 +156,10 @@ public class ORole extends OIdentity implements OSecurityRole {
       final Set<ODocument> storedRules = (Set<ODocument>) loadedRules;
       if (storedRules != null) {
         for (ODocument ruleDoc : storedRules) {
-          final ORule.ResourceGeneric resourceGeneric = ORule.ResourceGeneric.valueOf(ruleDoc.<String> field("resourceGeneric"));
-          if(resourceGeneric==null) continue;
+          final ORule.ResourceGeneric resourceGeneric = ORule.ResourceGeneric.valueOf(ruleDoc.<String>field("resourceGeneric"));
+          if (resourceGeneric == null) {
+            continue;
+          }
           final Map<String, Byte> specificResources = ruleDoc.field("specificResources");
           final Byte access = ruleDoc.field("access");
 

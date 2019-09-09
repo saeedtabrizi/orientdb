@@ -1,44 +1,26 @@
 /**
- * Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
+ * <p>
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- * 	http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * For more information: http://www.orientechnologies.com
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS"
+ * BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language
+ * governing permissions and limitations under the License.
+ * <p>
+ * For more information: http://orientdb.com
  */
 package com.orientechnologies.orient.jdbc;
 
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
-import com.orientechnologies.orient.core.db.ODatabase;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentPool;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.*;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
+import com.orientechnologies.orient.core.util.OURLConnection;
+import com.orientechnologies.orient.core.util.OURLHelper;
 
-import java.sql.Array;
-import java.sql.Blob;
-import java.sql.CallableStatement;
-import java.sql.Clob;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.NClob;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLClientInfoException;
-import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
-import java.sql.SQLWarning;
-import java.sql.SQLXML;
-import java.sql.Savepoint;
-import java.sql.Statement;
-import java.sql.Struct;
+import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
@@ -49,40 +31,57 @@ import java.util.concurrent.Executor;
  */
 public class OrientJdbcConnection implements Connection {
 
-  private final String     dbUrl;
-  private final Properties info;
-  private final boolean    usePool;
+  private ODatabaseDocument database;
+  private String            dbUrl;
+  private Properties        info;
+  private OrientDB          orientDB;
+  private boolean           readOnly;
+  private boolean           autoCommit;
+  private ODatabase.STATUS  status;
 
-  private ODatabaseDocumentTx database;
-  private boolean             readOnly;
-  private boolean             autoCommit;
-  private ODatabase.STATUS    status;
+  private boolean orientDBisPrivate;
 
-  public OrientJdbcConnection(final String dbUrl, final Properties info) {
-    this.dbUrl = dbUrl.replace("jdbc:orient:", "");
+  public OrientJdbcConnection(final String jdbcdDUrl, final Properties info) {
+
+    this.dbUrl = jdbcdDUrl.replace("jdbc:orient:", "");
 
     this.info = info;
 
     readOnly = false;
+
     final String username = info.getProperty("user", "admin");
     final String password = info.getProperty("password", "admin");
+    final String serverUsername = info.getProperty("serverUser", "");
+    final String serverPassword = info.getProperty("serverPassword", "");
 
-    usePool = Boolean.parseBoolean(info.getProperty("db.usePool", "false"));
-    if (usePool) {
-      final int poolMinSize = Integer
-          .parseInt(info.getProperty("db.pool.min", OGlobalConfiguration.DB_POOL_MAX.getValueAsString()));
-      final int poolMaxSize = Integer
-          .parseInt(info.getProperty("db.pool.max", OGlobalConfiguration.DB_POOL_MAX.getValueAsString()));
+    OURLConnection connUrl = OURLHelper.parseNew(dbUrl);
+    orientDB = new OrientDB(connUrl.getType() + ":" + connUrl.getPath(), serverUsername, serverPassword,
+        OrientDBConfig.defaultConfig());
 
-      database = ODatabaseDocumentPool.global(poolMinSize, poolMaxSize).acquire(this.dbUrl, username, password);
-    } else {
-      database = new ODatabaseDocumentTx(this.dbUrl);
-      database.open(username, password);
+    if (!serverUsername.isEmpty() && !serverPassword.isEmpty()) {
+      orientDB.createIfNotExists(connUrl.getDbName(), connUrl.getDbType().orElse(ODatabaseType.MEMORY));
     }
+
+    database = orientDB.open(connUrl.getDbName(), username, password);
+
+    orientDBisPrivate = true;
     status = ODatabase.STATUS.OPEN;
   }
 
+  public OrientJdbcConnection(ODatabaseDocument database, OrientDB orientDB, Properties info) {
+    this.database = database;
+    this.orientDB = orientDB;
+    this.info = info;
+    orientDBisPrivate = false;
+    status = ODatabase.STATUS.OPEN;
+  }
+
+  protected OrientDB getOrientDB() {
+    return orientDB;
+  }
+
   public Statement createStatement() throws SQLException {
+
     return new OrientJdbcStatement(this);
   }
 
@@ -121,6 +120,10 @@ public class OrientJdbcConnection implements Connection {
       database.activateOnCurrentThread();
       database.close();
       database = null;
+    }
+    if (orientDBisPrivate) {
+
+      orientDB.close();
     }
   }
 
@@ -225,7 +228,7 @@ public class OrientJdbcConnection implements Connection {
   }
 
   public DatabaseMetaData getMetaData() throws SQLException {
-    return new OrientJdbcDatabaseMetaData(this, getDatabase());
+    return new OrientJdbcDatabaseMetaData(this, (ODatabaseDocumentInternal) getDatabase());
   }
 
   public int getTransactionIsolation() throws SQLException {
@@ -300,7 +303,7 @@ public class OrientJdbcConnection implements Connection {
     return null;
   }
 
-  public ODatabaseDocumentTx getDatabase() {
+  public ODatabaseDocument getDatabase() {
     return database;
   }
 
@@ -324,5 +327,9 @@ public class OrientJdbcConnection implements Connection {
 
   public void setNetworkTimeout(Executor arg0, int arg1) throws SQLException {
     OGlobalConfiguration.NETWORK_SOCKET_TIMEOUT.setValue(arg1);
+  }
+
+  public Properties getInfo() {
+    return info;
   }
 }

@@ -1,6 +1,6 @@
 /*
  *
- *  * Copyright 2010-2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  * Copyright 2010-2016 OrientDB LTD (info(-at-)orientdb.com)
  *  *
  *  * Licensed under the Apache License, Version 2.0 (the "License");
  *  * you may not use this file except in compliance with the License.
@@ -18,53 +18,63 @@
 
 package com.orientechnologies.orient.etl;
 
+import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.tinkerpop.blueprints.impls.orient.OrientGraph;
+import com.orientechnologies.orient.etl.context.OETLContext;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
+import org.junit.rules.TestName;
 
 import java.util.List;
 
 /**
  * Tests ETL JSON Extractor.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public abstract class OETLBaseTest {
+  @Rule
+  public TestName name = new TestName();
+
   protected String[] names    = new String[] { "Jay", "Luca", "Bill", "Steve", "Jill", "Luigi", "Enrico", "Emanuele" };
   protected String[] surnames = new String[] { "Miner", "Ferguson", "Cancelli", "Lavori", "Raggio", "Eagles", "Smiles",
       "Ironcutter" };
-
-  protected OrientGraph   graph;
-  protected OETLProcessor proc;
+  protected OETLProcessor             proc;
+  private   OETLProcessorConfigurator configurator;
 
   @Before
-  public void setUp() {
-    graph = new OrientGraph("memory:OETLBaseTest");
-    graph.setUseLightweightEdges(false);
-    proc = new OETLProcessor();
-    proc.getFactory().registerLoader(OETLStubLoader.class);
+  public void configureProcessor() throws Throwable {
+
+    OLogManager.instance().installCustomFormatter();
+    OETLComponentFactory factory = new OETLComponentFactory()
+        .registerLoader(OETLStubLoader.class)
+        .registerExtractor(OETLStubRandomExtractor.class);
+
+    configurator = new OETLProcessorConfigurator(factory);
+
   }
 
   @After
-  public void tearDown() {
-    graph.drop();
+  public void closeResources() {
+    if (proc != null)
+      proc.close();
   }
 
   protected List<ODocument> getResult() {
     return ((OETLStubLoader) proc.getLoader()).loadedRecords;
   }
 
-  protected void process(final String cfgJson) {
-    ODocument cfg = new ODocument().fromJSON(cfgJson, "noMap");
-    proc.parse(cfg, null);
-    proc.execute();
+  protected void configure(final String cfgJson) {
+
+    configure(cfgJson, new OETLContext());
   }
 
-  protected void process(final String cfgJson, final OCommandContext iContext) {
+  protected void configure(final String cfgJson, final OCommandContext iContext) {
     ODocument cfg = new ODocument().fromJSON(cfgJson, "noMap");
-    proc.parse(cfg, iContext);
-    proc.execute();
+
+    proc = configurator.parse(cfg, iContext);
+
   }
 }

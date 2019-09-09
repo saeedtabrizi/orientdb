@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,17 +14,23 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.orientechnologies.orient.core.record.impl;
 
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.record.ORecordElement;
+import com.orientechnologies.orient.core.delta.ODocumentDelta;
 import com.orientechnologies.orient.core.metadata.schema.OGlobalProperty;
 import com.orientechnologies.orient.core.metadata.schema.OImmutableClass;
+import com.orientechnologies.orient.core.metadata.schema.OImmutableSchema;
 import com.orientechnologies.orient.core.metadata.schema.OType;
+import com.orientechnologies.orient.core.metadata.security.OPropertyAccess;
+import com.orientechnologies.orient.core.metadata.security.OPropertyEncryption;
+import com.orientechnologies.orient.core.record.OElement;
+import com.orientechnologies.orient.core.record.ORecord;
 
 import java.util.Map.Entry;
 import java.util.Set;
@@ -52,11 +58,25 @@ public class ODocumentInternal {
     return oDocument.rawContainsField(iFiledName);
   }
 
+  public static OImmutableClass getImmutableSchemaClass(final ODatabaseDocumentInternal database, final ODocument oDocument) {
+    if (oDocument == null) {
+      return null;
+    }
+    return oDocument.getImmutableSchemaClass(database);
+  }
+
   public static OImmutableClass getImmutableSchemaClass(final ODocument oDocument) {
     if (oDocument == null) {
       return null;
     }
     return oDocument.getImmutableSchemaClass();
+  }
+
+  public static OImmutableSchema getImmutableSchema(final ODocument oDocument) {
+    if (oDocument == null) {
+      return null;
+    }
+    return oDocument.getImmutableSchema();
   }
 
   public static OGlobalProperty getGlobalPropertyById(final ODocument oDocument, final int id) {
@@ -75,9 +95,49 @@ public class ODocumentInternal {
     document.clearTrackData();
   }
 
-  public static void checkClass(ODocument doc, ODatabaseDocumentTx database) {
+  public static void checkClass(ODocument doc, ODatabaseDocumentInternal database) {
     doc.checkClass(database);
-
   }
 
+  public static void autoConvertValueToClass(ODatabaseDocumentInternal database, ODocument doc) {
+    doc.autoConvertFieldsToClass(database);
+  }
+
+  public static Object getRawProperty(ODocument doc, String propertyName) {
+    if (doc == null) {
+      return null;
+    }
+    return doc.getRawProperty(propertyName);
+  }
+
+  public static ODocument toRawDocument(OElement element) {
+    if (element instanceof ODocument) {
+      return (ODocument) element;
+    } else if (element instanceof OVertexDelegate) {
+      return ((OVertexDelegate) element).element;
+    } else if (element instanceof OEdgeDelegate) {
+      return ((OEdgeDelegate) element).element;
+    }
+    return null;
+  }
+
+  public static void setPropertyAccess(ODocument doc, OPropertyAccess propertyAccess) {
+    doc.propertyAccess = propertyAccess;
+  }
+
+  public static void setPropertyEncryption(ODocument doc, OPropertyEncryption propertyEncryption) {
+    doc.propertyEncryption = propertyEncryption;
+  }
+
+  public static ODocumentDelta getDeltaFromOriginal(ODocument doc) {
+    return doc.getDeltaFromOriginal();
+  }
+
+  public static OPropertyEncryption getPropertyEncryption(ODocument doc) {
+    return doc.propertyEncryption;
+  }
+
+  public static void clearTransactionTrackData(ODocument doc) {
+    doc.clearTransactionTrackData();
+  }
 }

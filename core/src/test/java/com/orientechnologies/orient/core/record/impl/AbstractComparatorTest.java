@@ -1,20 +1,17 @@
 package com.orientechnologies.orient.core.record.impl;
 
-import org.testng.Assert;
-
 import com.orientechnologies.orient.core.collate.OCollate;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
+import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
+import com.orientechnologies.orient.core.metadata.schema.OImmutableSchema;
 import com.orientechnologies.orient.core.metadata.schema.OType;
-import com.orientechnologies.orient.core.serialization.serializer.record.binary.BytesContainer;
-import com.orientechnologies.orient.core.serialization.serializer.record.binary.OBinaryComparator;
-import com.orientechnologies.orient.core.serialization.serializer.record.binary.OBinaryField;
-import com.orientechnologies.orient.core.serialization.serializer.record.binary.ODocumentSerializer;
-import com.orientechnologies.orient.core.serialization.serializer.record.binary.ORecordSerializerBinary;
+import com.orientechnologies.orient.core.serialization.serializer.record.binary.*;
+import org.junit.Assert;
 
 public abstract class AbstractComparatorTest {
 
   protected ODocumentSerializer serializer = ORecordSerializerBinary.INSTANCE.getCurrentSerializer();
   protected OBinaryComparator   comparator = serializer.getComparator();
-
 
   protected void testEquals(OType sourceType) {
     OType[] numberTypes = new OType[] { OType.BYTE, OType.DOUBLE, OType.FLOAT, OType.SHORT, OType.INTEGER, OType.LONG };
@@ -45,7 +42,11 @@ public abstract class AbstractComparatorTest {
 
   protected OBinaryField field(final OType type, final Object value, OCollate collate) {
     BytesContainer bytes = new BytesContainer();
-    bytes.offset = serializer.serializeValue(bytes, value, type, null);
+    ODatabaseDocumentInternal db = ODatabaseRecordThreadLocal.instance().getIfDefined();
+    OImmutableSchema schema = null;
+    if (db != null)
+      schema = db.getMetadata().getImmutableSchemaSnapshot();
+    bytes.offset = serializer.serializeValue(bytes, value, type, null, schema, null);
     return new OBinaryField(null, type, bytes, collate);
   }
 }

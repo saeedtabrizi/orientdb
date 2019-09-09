@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,59 +14,60 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
 
+import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.common.util.OPair;
 import com.orientechnologies.orient.core.command.OCommandDistributedReplicateRequest;
 import com.orientechnologies.orient.core.command.OCommandRequest;
 import com.orientechnologies.orient.core.command.OCommandRequestText;
 import com.orientechnologies.orient.core.command.OCommandResultListener;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.exception.OCommandExecutionException;
 import com.orientechnologies.orient.core.exception.OQueryParsingException;
+import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.index.OIndex;
+import com.orientechnologies.orient.core.index.OIndexAbstract;
+import com.orientechnologies.orient.core.index.OIndexMultiValues;
 import com.orientechnologies.orient.core.metadata.OMetadataInternal;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
+import com.orientechnologies.orient.core.record.OElement;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.serialization.serializer.OStringSerializerHelper;
 import com.orientechnologies.orient.core.sql.filter.OSQLFilterItemField;
 import com.orientechnologies.orient.core.sql.query.OSQLAsynchQuery;
+import com.orientechnologies.orient.core.storage.OCluster;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * SQL INSERT command.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * @author Johann Sorel (Geomatys)
  */
-public class OCommandExecutorSQLInsert extends OCommandExecutorSQLSetAware implements OCommandDistributedReplicateRequest,
-    OCommandResultListener {
-  public static final String             KEYWORD_INSERT   = "INSERT";
-  protected static final String          KEYWORD_RETURN   = "RETURN";
-  private static final String            KEYWORD_VALUES   = "VALUES";
-  private String                         className        = null;
-  private OClass                         clazz            = null;
-  private String                         clusterName      = null;
-  private String                         indexName        = null;
-  private List<Map<String, Object>>      newRecords;
-  private OSQLAsynchQuery<OIdentifiable> subQuery         = null;
-  private AtomicLong                     saved            = new AtomicLong(0);
-  private Object                         returnExpression = null;
-  private List<ODocument>                queryResult      = null;
-  private boolean                        unsafe           = false;
+public class OCommandExecutorSQLInsert extends OCommandExecutorSQLSetAware
+    implements OCommandDistributedReplicateRequest, OCommandResultListener {
+  public static final    String                         KEYWORD_INSERT   = "INSERT";
+  protected static final String                         KEYWORD_RETURN   = "RETURN";
+  private static final   String                         KEYWORD_VALUES   = "VALUES";
+  private                String                         className        = null;
+  private                OClass                         clazz            = null;
+  private                String                         clusterName      = null;
+  private                String                         indexName        = null;
+  private                List<Map<String, Object>>      newRecords;
+  private                OSQLAsynchQuery<OIdentifiable> subQuery         = null;
+  private                AtomicLong                     saved            = new AtomicLong(0);
+  private                Object                         returnExpression = null;
+  private                List<ODocument>                queryResult      = null;
+  private                boolean                        unsafe           = false;
 
   @SuppressWarnings("unchecked")
   public OCommandExecutorSQLInsert parse(final OCommandRequest iRequest) {
@@ -75,9 +76,7 @@ public class OCommandExecutorSQLInsert extends OCommandExecutorSQLSetAware imple
     String queryText = textRequest.getText();
     String originalQuery = queryText;
     try {
-      // System.out.println("NEW PARSER FROM: " + queryText);
       queryText = preParse(queryText, iRequest);
-      // System.out.println("NEW PARSER   TO: " + queryText);
       textRequest.setText(queryText);
 
       final ODatabaseDocument database = getDatabase();
@@ -97,18 +96,19 @@ public class OCommandExecutorSQLInsert extends OCommandExecutorSQLSetAware imple
       parserRequiredKeyword("INSERT");
       parserRequiredKeyword("INTO");
 
-      String subjectName = parserRequiredWord(true, "Invalid subject name. Expected cluster, class or index");
-      if (subjectName.startsWith(OCommandExecutorSQLAbstract.CLUSTER_PREFIX))
+      String subjectName = parserRequiredWord(false, "Invalid subject name. Expected cluster, class or index");
+      String subjectNameUpper = subjectName.toUpperCase(Locale.ENGLISH);
+      if (subjectNameUpper.startsWith(OCommandExecutorSQLAbstract.CLUSTER_PREFIX))
         // CLUSTER
         clusterName = subjectName.substring(OCommandExecutorSQLAbstract.CLUSTER_PREFIX.length());
 
-      else if (subjectName.startsWith(OCommandExecutorSQLAbstract.INDEX_PREFIX))
+      else if (subjectNameUpper.startsWith(OCommandExecutorSQLAbstract.INDEX_PREFIX))
         // INDEX
         indexName = subjectName.substring(OCommandExecutorSQLAbstract.INDEX_PREFIX.length());
 
       else {
         // CLASS
-        if (subjectName.startsWith(OCommandExecutorSQLAbstract.CLASS_PREFIX))
+        if (subjectNameUpper.startsWith(OCommandExecutorSQLAbstract.CLASS_PREFIX))
           subjectName = subjectName.substring(OCommandExecutorSQLAbstract.CLASS_PREFIX.length());
 
         final OClass cls = ((OMetadataInternal) database.getMetadata()).getImmutableSchemaSnapshot().getClass(subjectName);
@@ -124,6 +124,17 @@ public class OCommandExecutorSQLInsert extends OCommandExecutorSQLSetAware imple
         clazz = database.getMetadata().getSchema().getClass(className);
         if (clazz == null)
           throw new OQueryParsingException("Class '" + className + "' was not found");
+      }
+
+      if (clusterName != null && className == null) {
+        ODatabaseDocumentInternal db = getDatabase();
+        OCluster cluster = db.getStorage().getClusterByName(clusterName);
+        if (cluster != null) {
+          clazz = db.getMetadata().getSchema().getClassByClusterId(cluster.getId());
+          if (clazz != null) {
+            className = clazz.getName();
+          }
+        }
       }
 
       parserSkipWhiteSpaces();
@@ -196,7 +207,10 @@ public class OCommandExecutorSQLInsert extends OCommandExecutorSQLSetAware imple
       if (newRecords == null)
         throw new OCommandExecutionException("No key/value found");
 
-      final OIndex<?> index = getDatabase().getMetadata().getIndexManager().getIndex(indexName);
+      OIndexAbstract.manualIndexesWarning();
+
+      final ODatabaseDocumentInternal database = getDatabase();
+      final OIndex<?> index = database.getMetadata().getIndexManagerInternal().getIndex(database, indexName);
       if (index == null)
         throw new OCommandExecutionException("Target index '" + indexName + "' not found");
 
@@ -206,7 +220,16 @@ public class OCommandExecutorSQLInsert extends OCommandExecutorSQLSetAware imple
       for (Map<String, Object> candidate : newRecords) {
         Object indexKey = getIndexKeyValue(commandParameters, candidate);
         OIdentifiable indexValue = getIndexValue(commandParameters, candidate);
-        index.put(indexKey, indexValue);
+
+        if (index instanceof OIndexMultiValues) {
+          final Collection<ORID> rids = ((OIndexMultiValues) index).get(indexKey);
+          if (!rids.contains(indexValue.getIdentity())) {
+            index.put(indexKey, indexValue);
+          }
+        } else {
+          index.put(indexKey, indexValue);
+        }
+
         result.put(KEYWORD_KEY, indexKey);
         result.put(KEYWORD_RID, indexValue);
       }
@@ -253,7 +276,7 @@ public class OCommandExecutorSQLInsert extends OCommandExecutorSQLSetAware imple
   @Override
   public Set<String> getInvolvedClusters() {
     if (className != null) {
-      final OClass clazz = ((OMetadataInternal) getDatabase().getMetadata()).getImmutableSchemaSnapshot().getClass(className);
+      final OClass clazz = getDatabase().getMetadata().getImmutableSchemaSnapshot().getClass(className);
       return Collections.singleton(getDatabase().getClusterNameById(clazz.getClusterSelection().getCluster(clazz, null)));
     } else if (clusterName != null)
       return getInvolvedClustersOfClusters(Collections.singleton(clusterName));
@@ -263,19 +286,62 @@ public class OCommandExecutorSQLInsert extends OCommandExecutorSQLSetAware imple
 
   @Override
   public String getSyntax() {
-    return "INSERT INTO [class:]<class>|cluster:<cluster>|index:<index> [(<field>[,]*) VALUES (<expression>[,]*)[,]*]|[SET <field> = <expression>|<sub-command>[,]*]|CONTENT {<JSON>} [RETURN <expression>] [FROM select-query]";
+    return "INSERT INTO [class:]<class>|cluster:<cluster>|index:<index> "
+        + "[(<field>[,]*) VALUES (<expression>[,]*)[,]*]|[SET <field> = <expression>|<sub-command>[,]*]|CONTENT {<JSON>} "
+        + "[RETURN <expression>] [FROM select-query]";
   }
 
   @Override
   public boolean result(final Object iRecord) {
-    final ORecord rec = ((OIdentifiable) iRecord).getRecord().copy();
+    OClass oldClass = null;
+    ORecord oldRecord = ((OIdentifiable) iRecord).getRecord();
+    if (oldRecord instanceof ODocument) {
+      oldClass = ((ODocument) oldRecord).getSchemaClass();
+    }
+    final ORecord rec = oldRecord.copy();
 
     // RESET THE IDENTITY TO AVOID UPDATE
     rec.getIdentity().reset();
 
-    if (rec instanceof ODocument && className != null)
-      ((ODocument) rec).setClassName(className);
+    if (rec instanceof ODocument) {
 
+      ODocument doc = (ODocument) rec;
+      if (className != null) {
+        doc.setClassName(className);
+        doc.setTrackingChanges(true);
+      }
+    }
+
+    if (rec instanceof OElement) {
+      OElement doc = (OElement) rec;
+
+      if (oldClass != null && oldClass.isSubClassOf("V")) {
+        OLogManager.instance()
+            .warn(this, "WARNING: copying vertex record " + doc + " with INSERT/SELECT, the edge pointers won't be copied");
+        String[] fields = ((ODocument) rec).fieldNames();
+        for (String field : fields) {
+          if (field.startsWith("out_") || field.startsWith("in_")) {
+            Object edges = doc.getProperty(field);
+            if (edges instanceof OIdentifiable) {
+              ODocument edgeRec = ((OIdentifiable) edges).getRecord();
+              if (edgeRec.getSchemaClass() != null && edgeRec.getSchemaClass().isSubClassOf("E")) {
+                doc.removeProperty(field);
+              }
+            } else if (edges instanceof Iterable) {
+              for (Object edge : (Iterable) edges) {
+                if (edge instanceof OIdentifiable) {
+                  OElement edgeRec = ((OIdentifiable) edge).getRecord();
+                  if (edgeRec.getSchemaType().isPresent() && edgeRec.getSchemaType().get().isSubClassOf("E")) {
+                    doc.removeProperty(field);
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
     rec.setDirty();
     synchronized (this) {
       saveRecord(rec);
@@ -295,7 +361,7 @@ public class OCommandExecutorSQLInsert extends OCommandExecutorSQLSetAware imple
     if (returnExpression == null)
       return res;// No transformation
     final ArrayList<Object> ret = new ArrayList<Object>();
-    for (ODocument resItem : (List<ODocument>) res)
+    for (ODocument resItem : res)
       ret.add(prepareReturnItem(resItem));
     return ret;
   }
@@ -308,7 +374,7 @@ public class OCommandExecutorSQLInsert extends OCommandExecutorSQLSetAware imple
     final Object res = OSQLHelper.getValue(returnExpression, item, this.getContext());
     if (res instanceof OIdentifiable)
       return res;
-    else {// wrapping doc
+    else { // wrapping doc
       final ODocument wrappingDoc = new ODocument("result", res);
       wrappingDoc.field("rid", item.getIdentity());// passing record id.In many cases usable on client side
       wrappingDoc.field("version", item.getVersion());// passing record version
@@ -334,7 +400,7 @@ public class OCommandExecutorSQLInsert extends OCommandExecutorSQLSetAware imple
     final ArrayList<String> fieldNamesQuoted = new ArrayList<String>();
     parserSetCurrentPosition(OStringSerializerHelper.getParameters(parserText, beginFields, endFields, fieldNamesQuoted));
     final ArrayList<String> fieldNames = new ArrayList<String>();
-    for(String fieldName:fieldNamesQuoted){
+    for (String fieldName : fieldNamesQuoted) {
       fieldNames.add(decodeClassName(fieldName));
     }
 
@@ -354,8 +420,8 @@ public class OCommandExecutorSQLInsert extends OCommandExecutorSQLSetAware imple
     int blockStart = parserGetCurrentPosition();
     int blockEnd = parserGetCurrentPosition();
 
-    final List<String> records = OStringSerializerHelper.smartSplit(parserText, new char[] { ',' }, blockStart, -1, true, true,
-        false, false);
+    final List<String> records = OStringSerializerHelper
+        .smartSplit(parserText, new char[] { ',' }, blockStart, -1, true, true, false, false);
     for (String record : records) {
 
       final List<String> values = new ArrayList<String>();

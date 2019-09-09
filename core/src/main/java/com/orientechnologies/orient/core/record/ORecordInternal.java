@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,13 +14,15 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.orientechnologies.orient.core.record;
 
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
+import com.orientechnologies.orient.core.db.record.ORecordElement;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.record.impl.ODirtyManager;
@@ -35,6 +37,13 @@ public class ORecordInternal {
       final boolean iDirty) {
     final ORecordAbstract rec = (ORecordAbstract) record;
     rec.fill(iRid, iVersion, iBuffer, iDirty);
+    return rec;
+  }
+
+  public static ORecordAbstract fill(final ORecord record, final ORID iRid, final int iVersion, final byte[] iBuffer,
+      final boolean iDirty, ODatabaseDocumentInternal db) {
+    final ORecordAbstract rec = (ORecordAbstract) record;
+    rec.fill(iRid, iVersion, iBuffer, iDirty, db);
     return rec;
   }
 
@@ -76,7 +85,10 @@ public class ORecordInternal {
    * Internal only. Return the record type.
    */
   public static byte getRecordType(final ORecord record) {
-    final ORecordAbstract rec = (ORecordAbstract) record;
+    if (record instanceof ORecordAbstract) {
+      return ((ORecordAbstract) record).getRecordType();
+    }
+    final ORecordAbstract rec = (ORecordAbstract) record.getRecord();
     return rec.getRecordType();
   }
 
@@ -95,8 +107,14 @@ public class ORecordInternal {
     rec.clearSource();
   }
 
-  public static void addIdentityChangeListener(final ORecord record, final OIdentityChangeListener identityChangeListener) {
-    ((ORecordAbstract) record).addIdentityChangeListener(identityChangeListener);
+  public static void addIdentityChangeListener(ORecord record, final OIdentityChangeListener identityChangeListener) {
+    if (!(record instanceof ORecordAbstract)) {
+      //manage O*Delegate
+      record = record.getRecord();
+    }
+    if (record instanceof ORecordAbstract) {
+      ((ORecordAbstract) record).addIdentityChangeListener(identityChangeListener);
+    }
   }
 
   public static void removeIdentityChangeListener(final ORecord record, final OIdentityChangeListener identityChangeListener) {
@@ -112,22 +130,40 @@ public class ORecordInternal {
   }
 
   public static void setRecordSerializer(final ORecord record, final ORecordSerializer serializer) {
-    ((ORecordAbstract) record)._recordFormat = serializer;
+    ((ORecordAbstract) record).recordFormat = serializer;
   }
 
-  public static ODirtyManager getDirtyManager(final ORecord record) {
+  public static ODirtyManager getDirtyManager(ORecord record) {
+    if (!(record instanceof ORecordAbstract)) {
+      record = record.getRecord();
+    }
     return ((ORecordAbstract) record).getDirtyManager();
   }
 
-  public static void setDirtyManager(final ORecord record, final ODirtyManager dirtyManager) {
+  public static void setDirtyManager(ORecord record, final ODirtyManager dirtyManager) {
+    if (!(record instanceof ORecordAbstract)) {
+      record = record.getRecord();
+    }
     ((ORecordAbstract) record).setDirtyManager(dirtyManager);
   }
 
-  public static void track(final ORecord pointer, final OIdentifiable pointed) {
-    ((ORecordAbstract) pointer).track(pointed);
+  public static void track(final ORecordElement pointer, final OIdentifiable pointed) {
+    ORecordElement firstRecord = pointer;
+    while (!(firstRecord instanceof ORecord)) {
+      firstRecord = pointer.getOwner();
+    }
+    ((ORecordAbstract) firstRecord).track(pointed);
   }
 
-  public static void unTrack(final ORecord pointer, final OIdentifiable pointed) {
-    ((ORecordAbstract) pointer).unTrack(pointed);
+  public static void unTrack(final ORecordElement pointer, final OIdentifiable pointed) {
+    ORecordElement firstRecord = pointer;
+    while (!(firstRecord instanceof ORecord)) {
+      firstRecord = pointer.getOwner();
+    }
+    ((ORecordAbstract) firstRecord).unTrack(pointed);
+  }
+
+  public static ORecordSerializer getRecordSerializer(ORecord iRecord) {
+    return ((ORecordAbstract) iRecord).recordFormat;
   }
 }

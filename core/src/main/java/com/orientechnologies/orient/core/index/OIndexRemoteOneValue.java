@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,68 +14,52 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.index;
 
-import com.orientechnologies.orient.core.command.OCommandRequest;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.executor.OResultSet;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Proxied single value index.
- * 
- * @author Luca Garulli
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OIndexRemoteOneValue extends OIndexRemote<OIdentifiable> {
-  protected final static String QUERY_GET = "select rid from index:%s where key = ?";
+  protected static final String QUERY_GET = "select rid from index:`%s` where key = ?";
 
   public OIndexRemoteOneValue(final String iName, final String iWrappedType, final String algorithm, final ORID iRid,
-      final OIndexDefinition iIndexDefinition, final ODocument iConfiguration, final Set<String> clustersToIndex) {
-    super(iName, iWrappedType, algorithm, iRid, iIndexDefinition, iConfiguration, clustersToIndex);
+      final OIndexDefinition iIndexDefinition, final ODocument iConfiguration, final Set<String> clustersToIndex, String database) {
+    super(iName, iWrappedType, algorithm, iRid, iIndexDefinition, iConfiguration, clustersToIndex, database);
   }
 
   public OIdentifiable get(final Object iKey) {
-    final OCommandRequest cmd = formatCommand(QUERY_GET, name);
-    final List<OIdentifiable> result = getDatabase().command(cmd).execute(iKey);
-    if (result != null && !result.isEmpty())
-      return ((OIdentifiable) ((ODocument) result.get(0).getRecord()).field("rid")).getIdentity();
-    return null;
-    // return (OIdentifiable) ((OStorageProxy) getDatabase().getStorage()).indexGet(name, iKey, null);
+    try (final OResultSet result = getDatabase().indexQuery(getName(), String.format(QUERY_GET, name), iKey)) {
+      if (result != null && result.hasNext())
+        return ((OIdentifiable) result.next().getProperty("rid"));
+      return null;
+    }
   }
 
   public Iterator<Entry<Object, OIdentifiable>> iterator() {
-    final OCommandRequest cmd = formatCommand(QUERY_ENTRIES, name);
-    final Collection<ODocument> result = getDatabase().command(cmd).execute();
+    try (final OResultSet result = getDatabase().indexQuery(getName(), String.format(QUERY_ENTRIES, name))) {
 
-    final Map<Object, OIdentifiable> map = new LinkedHashMap<Object, OIdentifiable>();
-    for (final ODocument d : result) {
-      d.setLazyLoad(false);
-      map.put(d.field("key"), (OIdentifiable) d.field("rid"));
+      final Map<Object, OIdentifiable> map = result.stream()
+          .collect(Collectors.toMap((res) -> res.getProperty("key"), (res) -> res.getProperty("rid")));
+
+      return map.entrySet().iterator();
     }
-
-    return map.entrySet().iterator();
-  }
-
-  public Iterator<Entry<Object, OIdentifiable>> inverseIterator() {
-    final OCommandRequest cmd = formatCommand(QUERY_ENTRIES, name);
-    final List<ODocument> result = getDatabase().command(cmd).execute();
-
-    final Map<Object, OIdentifiable> map = new LinkedHashMap<Object, OIdentifiable>();
-
-    for (ListIterator<ODocument> it = result.listIterator(); it.hasPrevious();) {
-      ODocument d = it.previous();
-      d.setLazyLoad(false);
-      map.put(d.field("key"), (OIdentifiable) d.field("rid"));
-    }
-
-    return map.entrySet().iterator();
   }
 
   @Override

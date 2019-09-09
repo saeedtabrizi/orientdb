@@ -8,12 +8,13 @@ import com.orientechnologies.orient.core.exception.OValidationException;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OType;
-import org.testng.Assert;
-import org.testng.AssertJUnit;
-import org.testng.annotations.Test;
+import org.junit.Assert;
+import org.junit.Test;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
+
+import static org.junit.Assert.fail;
 
 public class ODocumentValidationTest {
 
@@ -23,7 +24,7 @@ public class ODocumentValidationTest {
     db.create();
     try {
       ODocument doc = new ODocument();
-      OIdentifiable id = db.save(doc).getIdentity();
+      OIdentifiable id = db.save(doc, db.getClusterNameById(db.getDefaultClusterId())).getIdentity();
 
       OClass embeddedClazz = db.getMetadata().getSchema().createClass("EmbeddedValidation");
       embeddedClazz.createProperty("int", OType.INTEGER).setMandatory(true);
@@ -152,7 +153,7 @@ public class ODocumentValidationTest {
       d.field("embedded", new ODocument("EmbeddedValidation").field("test", "test"));
       try {
         d.validate();
-        Assert.fail("Validation doesn't throw exception");
+        fail("Validation doesn't throw exception");
       } catch (OValidationException e) {
         Assert.assertTrue(e.toString().contains("EmbeddedValidation.int"));
       }
@@ -193,7 +194,7 @@ public class ODocumentValidationTest {
 
       try {
         d.validate();
-        Assert.fail("Validation doesn't throw exception");
+        fail("Validation doesn't throw exception");
       } catch (OValidationException e) {
         Assert.assertTrue(e.toString().contains("EmbeddedValidation.long"));
       }
@@ -234,7 +235,7 @@ public class ODocumentValidationTest {
 
       try {
         d.validate();
-        Assert.fail("Validation doesn't throw exception");
+        fail("Validation doesn't throw exception");
       } catch (OValidationException e) {
         Assert.assertTrue(e.toString().contains("EmbeddedValidation.long"));
       }
@@ -276,7 +277,7 @@ public class ODocumentValidationTest {
 
       try {
         d.validate();
-        Assert.fail("Validation doesn't throw exception");
+        fail("Validation doesn't throw exception");
       } catch (OValidationException e) {
         Assert.assertTrue(e.toString().contains("EmbeddedValidation.long"));
       }
@@ -292,7 +293,7 @@ public class ODocumentValidationTest {
       ODocument newD = toCheck.copy();
       newD.removeField(fieldName);
       newD.validate();
-      AssertJUnit.fail();
+      fail();
     } catch (OValidationException v) {
     }
   }
@@ -332,6 +333,7 @@ public class ODocumentValidationTest {
       clazz.createProperty("linkList", OType.LINKLIST).setMax("2");
       clazz.createProperty("linkSet", OType.LINKSET).setMax("2");
       clazz.createProperty("linkMap", OType.LINKMAP).setMax("2");
+      clazz.createProperty("linkBag", OType.LINKBAG).setMax("2");
 
       ODocument d = new ODocument(clazz);
       d.field("int", 11);
@@ -357,6 +359,10 @@ public class ODocumentValidationTest {
       cont1.put("one", new ORecordId(30, 30));
       cont1.put("two", new ORecordId(30, 30));
       d.field("linkMap", cont1);
+      ORidBag bag1 = new ORidBag();
+      bag1.add(new ORecordId(40, 30));
+      bag1.add(new ORecordId(40, 33));
+      d.field("linkBag", bag1);
       d.validate();
 
       checkField(d, "int", 12);
@@ -391,6 +397,12 @@ public class ODocumentValidationTest {
       cont3.put("three", new ORecordId(30, 30));
       checkField(d, "linkMap", cont3);
 
+      ORidBag bag2 = new ORidBag();
+      bag2.add(new ORecordId(40, 30));
+      bag2.add(new ORecordId(40, 33));
+      bag2.add(new ORecordId(40, 31));
+      checkField(d, "linkBag", bag2);
+
     } finally {
       db.drop();
     }
@@ -403,7 +415,7 @@ public class ODocumentValidationTest {
     db.create();
     try {
       ODocument doc = new ODocument();
-      OIdentifiable id = db.save(doc).getIdentity();
+      OIdentifiable id = db.save(doc, db.getClusterNameById(db.getDefaultClusterId())).getIdentity();
       OClass clazz = db.getMetadata().getSchema().createClass("Validation");
       clazz.createProperty("int", OType.INTEGER).setMin("11");
       clazz.createProperty("long", OType.LONG).setMin("11");
@@ -434,6 +446,7 @@ public class ODocumentValidationTest {
       clazz.createProperty("linkList", OType.LINKLIST).setMin("1");
       clazz.createProperty("linkSet", OType.LINKSET).setMin("1");
       clazz.createProperty("linkMap", OType.LINKMAP).setMin("1");
+      clazz.createProperty("linkBag", OType.LINKBAG).setMin("1");
 
       ODocument d = new ODocument(clazz);
       d.field("int", 11);
@@ -462,6 +475,9 @@ public class ODocumentValidationTest {
       HashMap<String, ORecordId> map1 = new HashMap<String, ORecordId>();
       map1.put("some", new ORecordId(40, 50));
       d.field("linkMap", map1);
+      ORidBag bag1 = new ORidBag();
+      bag1.add(new ORecordId(40, 50));
+      d.field("linkBag", bag1);
       d.validate();
 
       checkField(d, "int", 10);
@@ -484,6 +500,7 @@ public class ODocumentValidationTest {
       checkField(d, "linkList", new ArrayList<ORecordId>());
       checkField(d, "linkSet", new HashSet<ORecordId>());
       checkField(d, "linkMap", new HashMap<String, ORecordId>());
+      checkField(d, "linkBag", new ORidBag());
 
     } finally {
       db.drop();
@@ -497,7 +514,7 @@ public class ODocumentValidationTest {
     db.create();
     try {
       ODocument doc = new ODocument();
-      OIdentifiable id = db.save(doc).getIdentity();
+      OIdentifiable id = db.save(doc, db.getClusterNameById(db.getDefaultClusterId())).getIdentity();
       OClass clazz = db.getMetadata().getSchema().createClass("Validation");
       clazz.createProperty("int", OType.INTEGER).setNotNull(true);
       clazz.createProperty("long", OType.LONG).setNotNull(true);
@@ -637,6 +654,8 @@ public class ODocumentValidationTest {
       clazz.createProperty("link", OType.LINK).setLinkedClass(clazz1);
       clazz.createProperty("embedded", OType.EMBEDDED).setLinkedClass(clazz1);
       clazz.createProperty("linkList", OType.LINKLIST).setLinkedClass(clazz1);
+      clazz.createProperty("embeddedList", OType.EMBEDDEDLIST).setLinkedClass(clazz1);
+      clazz.createProperty("embeddedSet", OType.EMBEDDEDSET).setLinkedClass(clazz1);
       clazz.createProperty("linkSet", OType.LINKSET).setLinkedClass(clazz1);
       clazz.createProperty("linkMap", OType.LINKMAP).setLinkedClass(clazz1);
       clazz.createProperty("linkBag", OType.LINKBAG).setLinkedClass(clazz1);
@@ -647,6 +666,10 @@ public class ODocumentValidationTest {
       d.field("linkList", list);
       Set<ODocument> set = new HashSet<ODocument>(list);
       d.field("linkSet", set);
+      List<ODocument> embeddedList = Arrays.asList(new ODocument(clazz1), null);
+      d.field("embeddedList", embeddedList);
+      Set<ODocument> embeddedSet = new HashSet<ODocument>(embeddedList);
+      d.field("embeddedSet", embeddedSet);
 
       Map<String, ODocument> map = new HashMap<String, ODocument>();
       map.put("a", new ODocument(clazz1));
@@ -667,6 +690,8 @@ public class ODocumentValidationTest {
 
       checkField(d, "linkList", Arrays.asList(new ODocument(clazz)));
       checkField(d, "linkSet", new HashSet<ODocument>(Arrays.asList(new ODocument(clazz))));
+      checkField(d, "embeddedList", Arrays.asList(new ODocument(clazz)));
+      checkField(d, "embeddedSet", Arrays.asList(new ODocument(clazz)));
       ORidBag bag = new ORidBag();
       bag.add(new ODocument(clazz));
       checkField(d, "linkBag", bag);
@@ -680,7 +705,7 @@ public class ODocumentValidationTest {
   }
 
   @Test
-  public void testValidLinkCollectionsUpdate(){
+  public void testValidLinkCollectionsUpdate() {
     ODatabaseDocument db = new ODatabaseDocumentTx("memory:" + ODocumentValidationTest.class.getSimpleName());
     db.create();
     try {
@@ -706,31 +731,31 @@ public class ODocumentValidationTest {
 
       try {
         ODocument newD = d.copy();
-        ((Collection)newD.field("linkList")).add(new ODocument(clazz));
+        ((Collection) newD.field("linkList")).add(new ODocument(clazz));
         newD.validate();
-        AssertJUnit.fail();
+        fail();
       } catch (OValidationException v) {
       }
 
       try {
         ODocument newD = d.copy();
-        ((Collection)newD.field("linkSet")).add(new ODocument(clazz));
+        ((Collection) newD.field("linkSet")).add(new ODocument(clazz));
         newD.validate();
-        AssertJUnit.fail();
+        fail();
       } catch (OValidationException v) {
       }
       try {
         ODocument newD = d.copy();
-        ((ORidBag)newD.field("linkBag")).add(new ODocument(clazz));
+        ((ORidBag) newD.field("linkBag")).add(new ODocument(clazz));
         newD.validate();
-        AssertJUnit.fail();
+        fail();
       } catch (OValidationException v) {
       }
       try {
         ODocument newD = d.copy();
-        ((Map<String, ODocument> )newD.field("linkMap")).put("a",new ODocument(clazz));
+        ((Map<String, ODocument>) newD.field("linkMap")).put("a", new ODocument(clazz));
         newD.validate();
-        AssertJUnit.fail();
+        fail();
       } catch (OValidationException v) {
       }
     } finally {
@@ -744,7 +769,7 @@ public class ODocumentValidationTest {
       ODocument newD = toCheck.copy();
       newD.field(field, newValue);
       newD.validate();
-      AssertJUnit.fail();
+      fail();
     } catch (OValidationException v) {
     }
   }

@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,11 +14,12 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.core.sql;
 
+import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.orient.core.command.OCommandRequest;
 import com.orientechnologies.orient.core.command.OCommandRequestText;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
@@ -34,54 +35,65 @@ import java.util.Set;
 
 /**
  * FIND REFERENCES command: Finds references to records in all or part of database
- * 
+ *
  * @author Luca Molino
- * 
  */
 @SuppressWarnings("unchecked")
 public class OCommandExecutorSQLFindReferences extends OCommandExecutorSQLEarlyResultsetAbstract {
   public static final String KEYWORD_FIND       = "FIND";
   public static final String KEYWORD_REFERENCES = "REFERENCES";
 
-  private Set<ORID>          recordIds          = new HashSet<ORID>();
-  private String             classList;
-  private StringBuilder      subQuery;
+  private Set<ORID> recordIds = new HashSet<ORID>();
+  private String        classList;
+  private StringBuilder subQuery;
 
   public OCommandExecutorSQLFindReferences parse(final OCommandRequest iRequest) {
-    init((OCommandRequestText) iRequest);
+    final OCommandRequestText textRequest = (OCommandRequestText) iRequest;
+    String queryText = textRequest.getText();
+    String originalQuery = queryText;
+    try {
+      queryText = preParse(queryText, iRequest);
+      textRequest.setText(queryText);
 
-    parserRequiredKeyword(KEYWORD_FIND);
-    parserRequiredKeyword(KEYWORD_REFERENCES);
-    final String target = parserRequiredWord(true, "Expected <target>", " =><,\r\n");
+      init((OCommandRequestText) iRequest);
 
-    if (target.charAt(0) == '(') {
-      subQuery = new StringBuilder();
-      parserSetCurrentPosition(OStringSerializerHelper.getEmbedded(parserText, parserGetPreviousPosition(), -1, subQuery));
-    } else {
-      try {
-        final ORecordId rid = new ORecordId(target);
-        if (!rid.isValid())
-          throwParsingException("Record ID " + target + " is not valid");
-        recordIds.add(rid);
+      parserRequiredKeyword(KEYWORD_FIND);
+      parserRequiredKeyword(KEYWORD_REFERENCES);
+      final String target = parserRequiredWord(true, "Expected <target>", " =><,\r\n");
 
-      } catch (IllegalArgumentException iae) {
-        throw new OCommandSQLParsingException("Error reading record Id", parserText, parserGetPreviousPosition());
+      if (target.charAt(0) == '(') {
+        subQuery = new StringBuilder();
+        parserSetCurrentPosition(OStringSerializerHelper.getEmbedded(parserText, parserGetPreviousPosition(), -1, subQuery));
+      } else {
+        try {
+          final ORecordId rid = new ORecordId(target);
+          if (!rid.isValid())
+            throwParsingException("Record ID " + target + " is not valid");
+          recordIds.add(rid);
+
+        } catch (IllegalArgumentException iae) {
+          throw OException
+              .wrapException(new OCommandSQLParsingException("Error reading record Id", parserText, parserGetPreviousPosition()),
+                  iae);
+        }
       }
-    }
 
-    parserSkipWhiteSpaces();
-    classList = parserOptionalWord(true);
-    if (classList != null) {
-      classList = parserTextUpperCase.substring(parserGetPreviousPosition());
+      parserSkipWhiteSpaces();
+      classList = parserOptionalWord(true);
+      if (classList != null) {
+        classList = parserTextUpperCase.substring(parserGetPreviousPosition());
 
-      if (!classList.startsWith("[") || !classList.endsWith("]")) {
-        throwParsingException("Class list must be contained in []");
+        if (!classList.startsWith("[") || !classList.endsWith("]")) {
+          throwParsingException("Class list must be contained in []");
+        }
+        // GET THE CLUSTER LIST TO SEARCH, IF NULL WILL SEARCH ENTIRE DATABASE
+        classList = classList.substring(1, classList.length() - 1);
       }
-      // GET THE CLUSTER LIST TO SEARCH, IF NULL WILL SEARCH ENTIRE DATABASE
-      classList = classList.substring(1, classList.length() - 1);
-    }
 
-    return this;
+      return this;
+    } finally {
+      textRequest.setText(originalQuery);
+    }
   }
 
   /**

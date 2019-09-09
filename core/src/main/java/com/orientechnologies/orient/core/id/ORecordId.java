@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,15 +14,10 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.id;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.util.List;
 
 import com.orientechnologies.common.util.OPatternConst;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
@@ -35,22 +30,25 @@ import com.orientechnologies.orient.core.serialization.OMemoryStream;
 import com.orientechnologies.orient.core.serialization.serializer.OStringSerializerHelper;
 import com.orientechnologies.orient.core.storage.OStorage;
 
+import java.io.*;
+import java.util.List;
+
 public class ORecordId implements ORID {
-  public static final ORecordId EMPTY_RECORD_ID        = new ORecordId();
-  public static final byte[]    EMPTY_RECORD_ID_STREAM = EMPTY_RECORD_ID.toStream();
-  public static final int       PERSISTENT_SIZE        = OBinaryProtocol.SIZE_SHORT + OBinaryProtocol.SIZE_LONG;
-  private static final long     serialVersionUID       = 247070594054408657L;
+  public static final  ORecordId EMPTY_RECORD_ID        = new ORecordId();
+  public static final  byte[]    EMPTY_RECORD_ID_STREAM = EMPTY_RECORD_ID.toStream();
+  public static final  int       PERSISTENT_SIZE        = OBinaryProtocol.SIZE_SHORT + OBinaryProtocol.SIZE_LONG;
+  private static final long      serialVersionUID       = 247070594054408657L;
   // INT TO AVOID JVM PENALTY, BUT IT'S STORED AS SHORT
-  public int                    clusterId              = CLUSTER_ID_INVALID;
-  public long                   clusterPosition        = CLUSTER_POS_INVALID;
+  private              int       clusterId              = CLUSTER_ID_INVALID;
+  private              long      clusterPosition        = CLUSTER_POS_INVALID;
 
   public ORecordId() {
   }
 
-  public ORecordId(final int iClusterId, final long iPosition) {
-    clusterId = iClusterId;
+  public ORecordId(final int clusterId, final long position) {
+    this.clusterId = clusterId;
     checkClusterLimits();
-    clusterPosition = iPosition;
+    clusterPosition = position;
   }
 
   public ORecordId(final int iClusterIdId) {
@@ -64,9 +62,8 @@ public class ORecordId implements ORID {
 
   /**
    * Copy constructor.
-   * 
-   * @param parentRid
-   *          Source object
+   *
+   * @param parentRid Source object
    */
   public ORecordId(final ORID parentRid) {
     clusterId = parentRid.getClusterId();
@@ -151,9 +148,7 @@ public class ORecordId implements ORID {
 
     if (clusterId != other.clusterId)
       return false;
-    if (clusterPosition != other.clusterPosition)
-      return false;
-    return true;
+    return clusterPosition == other.clusterPosition;
   }
 
   @Override
@@ -191,6 +186,16 @@ public class ORecordId implements ORID {
 
   public ORecordId copy() {
     return new ORecordId(clusterId, clusterPosition);
+  }
+
+  public void toStream(final DataOutput out) throws IOException {
+    out.writeShort(clusterId);
+    out.writeLong(clusterPosition);
+  }
+
+  public void fromStream(final DataInput in) throws IOException {
+    clusterId = in.readShort();
+    clusterPosition = in.readLong();
   }
 
   public ORecordId fromStream(final InputStream iStream) throws IOException {
@@ -277,23 +282,23 @@ public class ORecordId implements ORID {
 
   @Override
   public void lock(final boolean iExclusive) {
-    ODatabaseRecordThreadLocal.INSTANCE.get().getTransaction().lockRecord(this,
-        iExclusive ? OStorage.LOCKING_STRATEGY.EXCLUSIVE_LOCK : OStorage.LOCKING_STRATEGY.SHARED_LOCK);
+    ODatabaseRecordThreadLocal.instance().get().getTransaction()
+        .lockRecord(this, iExclusive ? OStorage.LOCKING_STRATEGY.EXCLUSIVE_LOCK : OStorage.LOCKING_STRATEGY.SHARED_LOCK);
   }
 
   @Override
   public boolean isLocked() {
-    return ODatabaseRecordThreadLocal.INSTANCE.get().getTransaction().isLockedRecord(this);
+    return ODatabaseRecordThreadLocal.instance().get().getTransaction().isLockedRecord(this);
   }
 
   @Override
   public OStorage.LOCKING_STRATEGY lockingStrategy() {
-    return ODatabaseRecordThreadLocal.INSTANCE.get().getTransaction().lockingStrategy(this);
+    return ODatabaseRecordThreadLocal.instance().get().getTransaction().lockingStrategy(this);
   }
 
   @Override
   public void unlock() {
-    ODatabaseRecordThreadLocal.INSTANCE.get().getTransaction().unlockRecord(this);
+    ODatabaseRecordThreadLocal.instance().get().getTransaction().unlockRecord(this);
   }
 
   public String next() {
@@ -314,19 +319,56 @@ public class ORecordId implements ORID {
     if (!isValid())
       return null;
 
-    final ODatabaseDocument db = ODatabaseRecordThreadLocal.INSTANCE.get();
+    final ODatabaseDocument db = ODatabaseRecordThreadLocal.instance().get();
     if (db == null)
       throw new ODatabaseException(
-          "No database found in current thread local space. If you manually control databases over threads assure to set the current database before to use it by calling: ODatabaseRecordThreadLocal.INSTANCE.set(db);");
+          "No database found in current thread local space. If you manually control databases over threads assure to set the current database before to use it by calling: ODatabaseRecordThreadLocal.instance().set(db);");
 
     return (T) db.load(this);
   }
 
   private void checkClusterLimits() {
     if (clusterId < -2)
-      throw new ODatabaseException("RecordId cannot support negative cluster id. You've used: " + clusterId);
+      throw new ODatabaseException("RecordId cannot support negative cluster id. Found: " + clusterId);
 
     if (clusterId > CLUSTER_MAX)
-      throw new ODatabaseException("RecordId cannot support cluster id major than 32767. You've used: " + clusterId);
+      throw new ODatabaseException("RecordId cannot support cluster id major than 32767. Found: " + clusterId);
+  }
+
+  private void checkClusterLimits(int clusterId) {
+    if (clusterId < -2)
+      throw new ODatabaseException("RecordId cannot support negative cluster id. Found: " + clusterId);
+
+    if (clusterId > CLUSTER_MAX)
+      throw new ODatabaseException("RecordId cannot support cluster id major than 32767. Found: " + clusterId);
+  }
+
+  public void setClusterId(int clusterId) {
+    checkClusterLimits(clusterId);
+
+    this.clusterId = clusterId;
+  }
+
+  public void setClusterPosition(long clusterPosition) {
+    this.clusterPosition = clusterPosition;
+  }
+
+  public static void serialize(ORID id, DataOutput output) throws IOException {
+    if (id == null) {
+      output.writeInt(-2);
+      output.writeLong(-2);
+    } else {
+      output.writeInt(id.getClusterId());
+      output.writeLong(id.getClusterPosition());
+    }
+  }
+
+  public static ORecordId deserialize(DataInput input) throws IOException {
+    int cluster = input.readInt();
+    long pos = input.readLong();
+    if (cluster == -2 && pos == -2) {
+      return null;
+    }
+    return new ORecordId(cluster, pos);
   }
 }

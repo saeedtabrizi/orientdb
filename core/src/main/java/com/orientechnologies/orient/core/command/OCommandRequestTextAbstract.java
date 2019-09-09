@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.core.command;
@@ -25,8 +25,6 @@ import com.orientechnologies.orient.core.exception.OSerializationException;
 import com.orientechnologies.orient.core.index.OCompositeKey;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.serialization.OMemoryStream;
-import com.orientechnologies.orient.core.serialization.OSerializableStream;
-import com.orientechnologies.orient.core.serialization.serializer.ONetworkThreadLocalSerializer;
 import com.orientechnologies.orient.core.serialization.serializer.OStringSerializerHelper;
 import com.orientechnologies.orient.core.serialization.serializer.binary.impl.index.OCompositeKeySerializer;
 import com.orientechnologies.orient.core.serialization.serializer.record.ORecordSerializer;
@@ -40,7 +38,7 @@ import java.util.Map.Entry;
 /**
  * Text based Command Request abstract class.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 @SuppressWarnings("serial")
 public abstract class OCommandRequestTextAbstract extends OCommandRequestAbstract implements OCommandRequestText {
@@ -66,7 +64,7 @@ public abstract class OCommandRequestTextAbstract extends OCommandRequestAbstrac
     OExecutionThreadLocal.INSTANCE.get().onAsyncReplicationOk = onAsyncReplicationOk;
     OExecutionThreadLocal.INSTANCE.get().onAsyncReplicationError = onAsyncReplicationError;
 
-    return (RET) ODatabaseRecordThreadLocal.INSTANCE.get().getStorage().command(this);
+    return (RET) ODatabaseRecordThreadLocal.instance().get().getStorage().command(this);
   }
 
   public String getText() {
@@ -78,9 +76,9 @@ public abstract class OCommandRequestTextAbstract extends OCommandRequestAbstrac
     return this;
   }
 
-  public OSerializableStream fromStream(final byte[] iStream) throws OSerializationException {
+  public OCommandRequestText fromStream(final byte[] iStream, ORecordSerializer serializer) throws OSerializationException {
     final OMemoryStream buffer = new OMemoryStream(iStream);
-    fromStream(buffer);
+    fromStream(buffer, serializer);
     return this;
   }
 
@@ -131,12 +129,11 @@ public abstract class OCommandRequestTextAbstract extends OCommandRequestAbstrac
     return buffer.toByteArray();
   }
 
-  protected void fromStream(final OMemoryStream buffer) {
+  protected void fromStream(final OMemoryStream buffer, ORecordSerializer serializer) {
     text = buffer.getAsString();
 
     parameters = null;
 
-    ORecordSerializer serializer = ONetworkThreadLocalSerializer.getNetworkSerializer();
 
     final boolean simpleParams = buffer.getAsBoolean();
     if (simpleParams) {

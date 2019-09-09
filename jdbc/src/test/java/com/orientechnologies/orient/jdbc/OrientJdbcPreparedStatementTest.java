@@ -1,3 +1,20 @@
+/**
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * 	http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * For more information: http://orientdb.com
+ */
 package com.orientechnologies.orient.jdbc;
 
 import org.junit.Test;
@@ -5,13 +22,12 @@ import org.junit.Test;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 
 import static java.sql.ResultSet.CONCUR_READ_ONLY;
 import static java.sql.ResultSet.TYPE_FORWARD_ONLY;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class OrientJdbcPreparedStatementTest extends OrientJdbcBaseTest {
+public class OrientJdbcPreparedStatementTest extends OrientJdbcDbPerMethodTemplateTest {
 
   @Test
   public void shouldCreateStatement() throws Exception {
@@ -69,6 +85,15 @@ public class OrientJdbcPreparedStatementTest extends OrientJdbcBaseTest {
   }
 
   @Test
+  public void testInsertRIDReturning() throws Exception {
+    conn.createStatement().executeQuery("CREATE CLASS Insertable ");
+    ResultSet result = conn.createStatement().executeQuery("INSERT INTO Insertable(id) VALUES(1) return @rid");
+
+    assertThat(result.next()).isTrue();
+    assertThat(result.getObject("@rid")).isNotNull();
+  }
+
+  @Test
   public void testExecuteUpdateReturnsNumberOfRowsDeleted() throws Exception {
     conn.createStatement().executeQuery("CREATE CLASS Insertable ");
     conn.createStatement().executeQuery("INSERT INTO Insertable(id) VALUES(1)");
@@ -114,15 +139,39 @@ public class OrientJdbcPreparedStatementTest extends OrientJdbcBaseTest {
     stmt.setString(1, "someRandomUid");
     stmt.setInt(2, 42);
     stmt.execute();
+    stmt.close();
 
     // Let's verify the previous process
-    ResultSet resultSet = conn.createStatement().executeQuery("SELECT count(*) FROM insertable WHERE id = 'someRandomUid'");
-    assertThat(resultSet.getInt(1)).isEqualTo(1);
+    ResultSet resultSet = conn.createStatement()
+        .executeQuery("SELECT count(*) AS num FROM insertable WHERE id = 'someRandomUid'");
+    assertThat(resultSet.getLong(1)).isEqualTo(1);
+
+    //without alias!
+    resultSet = conn.createStatement()
+        .executeQuery("SELECT count(*) FROM insertable WHERE id = 'someRandomUid'");
+    assertThat(resultSet.getLong(1)).isEqualTo(1);
   }
 
   @Test
   public void shouldCreatePreparedStatementWithExtendConstructor() throws Exception {
 
+    PreparedStatement stmt = conn.prepareStatement("SELECT * FROM Item WHERE intKey = ?", TYPE_FORWARD_ONLY, CONCUR_READ_ONLY);
+    stmt.setInt(1, 1);
+
+    ResultSet rs = stmt.executeQuery();
+
+    assertThat(rs.next()).isTrue();
+
+    assertThat(rs.getString("@class")).isEqualToIgnoringCase("Item");
+
+    assertThat(rs.getString("stringKey")).isEqualTo("1");
+    assertThat(rs.getInt("intKey")).isEqualTo(1);
+    //
+  }
+
+  @Test
+  public void shouldCreatePreparedStatementWithExtendConstructorWithOutProjection() throws Exception {
+    //same test as above, no projection at all
     PreparedStatement stmt = conn.prepareStatement("SELECT FROM Item WHERE intKey = ?", TYPE_FORWARD_ONLY, CONCUR_READ_ONLY);
     stmt.setInt(1, 1);
 
@@ -138,7 +187,7 @@ public class OrientJdbcPreparedStatementTest extends OrientJdbcBaseTest {
   }
 
   @Test(expected = SQLException.class)
-  public void shouldTrhowSqlExceptionOnError() throws SQLException {
+  public void shouldThrowSqlExceptionOnError() throws SQLException {
 
     String query = "select sequence('?').next()";
     PreparedStatement stmt = conn.prepareStatement(query);

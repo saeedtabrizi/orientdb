@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,29 +14,24 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.command.traverse;
 
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.command.OBasicCommandContext;
+import com.orientechnologies.orient.core.db.ODatabase;
+import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.record.impl.ODocumentHelper;
 
-import java.util.ArrayDeque;
-import java.util.Collection;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Set;
+import java.util.*;
 
 public class OTraverseContext extends OBasicCommandContext {
-  private Memory                      memory  = new StackMemory();
-  private Set<ORID>                   history = new HashSet<ORID>();
+  private Memory    memory  = new StackMemory();
+  private Set<ORID> history = new HashSet<ORID>();
 
   private OTraverseAbstractProcess<?> currentProcess;
 
@@ -55,15 +50,20 @@ public class OTraverseContext extends OBasicCommandContext {
   }
 
   public Object getVariable(final String iName) {
-    final String name = iName.trim().toUpperCase();
+    final String name = iName.trim().toUpperCase(Locale.ENGLISH);
 
     if ("DEPTH".startsWith(name))
       return getDepth();
     else if (name.startsWith("PATH"))
       return ODocumentHelper.getFieldValue(getPath(), iName.substring("PATH".length()));
-    else if (name.startsWith("STACK"))
-      return ODocumentHelper.getFieldValue(memory.getUnderlying(), iName.substring("STACK".length()));
-    else if (name.startsWith("HISTORY"))
+    else if (name.startsWith("STACK")) {
+
+      Object result = ODocumentHelper.getFieldValue(memory.getUnderlying(), iName.substring("STACK".length()));
+      if (result instanceof ArrayDeque) {
+        result = ((ArrayDeque) result).clone();
+      }
+      return result;
+    } else if (name.startsWith("HISTORY"))
       return ODocumentHelper.getFieldValue(history, iName.substring("HISTORY".length()));
     else
       // DELEGATE
@@ -228,6 +228,10 @@ public class OTraverseContext extends OBasicCommandContext {
     @Override
     public void add(final OTraverseAbstractProcess<?> iProcess) {
       deque.addLast(iProcess);
+    }
+
+    public ODatabase getDatabase() {
+      return ODatabaseRecordThreadLocal.instance().getIfDefined();
     }
   }
 }

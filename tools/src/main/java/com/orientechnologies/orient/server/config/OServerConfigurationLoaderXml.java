@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.config;
@@ -73,7 +73,7 @@ public class OServerConfigurationLoaderXml {
         if (file.exists())
           obj = rootClass.cast(unmarshaller.unmarshal(file));
         else {
-          OLogManager.instance().error(this, "Server configuration file not found: %s", file);
+          OLogManager.instance().error(this, "Server configuration file not found: %s", null, file);
           return rootClass.getConstructor(OServerConfigurationLoaderXml.class).newInstance(this);
         }
         obj.location = file.getAbsolutePath();

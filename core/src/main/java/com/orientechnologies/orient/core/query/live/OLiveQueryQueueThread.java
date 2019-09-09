@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,27 +14,27 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.query.live;
 
+import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.db.record.ORecordOperation;
 
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.LinkedBlockingQueue;
 
 /**
- * @author Luigi Dell'Aquila
+ * @author Luigi Dell'Aquila (l.dellaquila-(at)-orientdb.com)
  */
 public class OLiveQueryQueueThread extends Thread {
 
   private final BlockingQueue<ORecordOperation>            queue;
   private final ConcurrentMap<Integer, OLiveQueryListener> subscribers;
-  private boolean                                stopped = false;
+  private boolean                                          stopped = false;
 
   private OLiveQueryQueueThread(BlockingQueue<ORecordOperation> queue, ConcurrentMap<Integer, OLiveQueryListener> subscribers) {
     this.queue = queue;
@@ -57,7 +57,7 @@ public class OLiveQueryQueueThread extends Thread {
       ORecordOperation next = null;
       try {
         next = queue.take();
-      } catch (InterruptedException e) {
+      } catch (InterruptedException ignore) {
         break;
       }
       if (next == null) {
@@ -65,7 +65,12 @@ public class OLiveQueryQueueThread extends Thread {
       }
       for (OLiveQueryListener listener : subscribers.values()) {
         // TODO filter data
-        listener.onLiveResult(next);
+        try {
+          listener.onLiveResult(next);
+        } catch (Exception e) {
+          OLogManager.instance().warn(this, "Error executing live query subscriber.", e);
+        }
+
       }
     }
   }
@@ -86,12 +91,16 @@ public class OLiveQueryQueueThread extends Thread {
 
   public void unsubscribe(Integer id) {
     OLiveQueryListener res = subscribers.remove(id);
-    if(res != null){
+    if (res != null) {
       res.onLiveResultEnd();
     }
   }
 
-  public boolean hasListeners(){
+  public boolean hasListeners() {
     return !subscribers.isEmpty();
+  }
+
+  public boolean hasToken(Integer key) {
+    return subscribers.containsKey(key);
   }
 }

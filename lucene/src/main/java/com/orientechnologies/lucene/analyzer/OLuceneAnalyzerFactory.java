@@ -4,13 +4,15 @@ import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.index.OIndexDefinition;
 import com.orientechnologies.orient.core.index.OIndexException;
+import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 
 import java.lang.reflect.Constructor;
 import java.util.Collection;
+import java.util.Locale;
 
 /**
  * Created by frank on 30/10/2015.
@@ -18,11 +20,9 @@ import java.util.Collection;
 public class OLuceneAnalyzerFactory {
 
   public Analyzer createAnalyzer(OIndexDefinition index, AnalyzerKind kind, ODocument metadata) {
-    String defaultAnalyzerFQN = metadata.field("default");
+    final String defaultAnalyzerFQN = metadata.field("default");
 
-    String prefix = "";
-    if (metadata.containsField("prefix_with_class_name") && metadata.<Boolean>field("prefix_with_class_name"))
-      prefix = index.getClassName() + ".";
+    final String prefix = index.getClassName() + ".";
 
     //preset default analyzer for all fields
     OLucenePerFieldAnalyzerWrapper analyzer;
@@ -33,9 +33,10 @@ public class OLuceneAnalyzerFactory {
     }
 
     //default analyzer for requested kind
-    String specializedAnalyzerFQN = metadata.field(kind.toString());
+    final String specializedAnalyzerFQN = metadata.field(kind.toString());
     if (specializedAnalyzerFQN != null) {
       for (String field : index.getFields()) {
+        analyzer.add(field, buildAnalyzer(specializedAnalyzerFQN));
         analyzer.add(prefix + field, buildAnalyzer(specializedAnalyzerFQN));
       }
     }
@@ -43,15 +44,17 @@ public class OLuceneAnalyzerFactory {
     //specialized for each field
     for (String field : index.getFields()) {
 
-      String analyzerName = field + "_" + kind.toString();
+      final String analyzerName = field + "_" + kind.toString();
 
-      String analyzerStopwords = analyzerName + "_stopwords";
+      final String analyzerStopwords = analyzerName + "_stopwords";
 
       if (metadata.containsField(analyzerName) && metadata.containsField(analyzerStopwords)) {
-        Collection<String> stopwords = metadata.field(analyzerStopwords);
-        analyzer.add(prefix + field, buildAnalyzer(metadata.<String>field(analyzerName), stopwords));
+        final Collection<String> stopWords = metadata.field(analyzerStopwords, OType.EMBEDDEDLIST);
+        analyzer.add(field, buildAnalyzer(metadata.field(analyzerName), stopWords));
+        analyzer.add(prefix + field, buildAnalyzer(metadata.field(analyzerName), stopWords));
       } else if (metadata.containsField(analyzerName)) {
-        analyzer.add(prefix + field, buildAnalyzer(metadata.<String>field(analyzerName)));
+        analyzer.add(field, buildAnalyzer(metadata.field(analyzerName)));
+        analyzer.add(prefix + field, buildAnalyzer(metadata.field(analyzerName)));
       }
     }
 
@@ -75,8 +78,11 @@ public class OLuceneAnalyzerFactory {
         classAnalyzer = Class.forName(analyzerFQN);
         return (Analyzer) classAnalyzer.newInstance();
 
-      } catch (Throwable e1) {
-        throw OException.wrapException(new OIndexException("Couldn't instantiate analyzer:  public constructor  not found"), e);
+      } catch (Exception e1) {
+        OLogManager.instance().error(this, "Exception is suppressed, original exception is ", e);
+
+        //noinspection ThrowInsideCatchBlockWhichIgnoresCaughtException
+        throw OException.wrapException(new OIndexException("Couldn't instantiate analyzer:  public constructor  not found"), e1);
       }
 
     } catch (Exception e) {
@@ -109,7 +115,7 @@ public class OLuceneAnalyzerFactory {
 
     @Override
     public String toString() {
-      return name().toLowerCase();
+      return name().toLowerCase(Locale.ENGLISH);
     }
   }
 

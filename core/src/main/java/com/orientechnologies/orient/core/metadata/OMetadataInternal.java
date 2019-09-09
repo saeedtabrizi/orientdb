@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2013 Luca Molino (molino.luca--AT--gmail.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,26 @@
  */
 package com.orientechnologies.orient.core.metadata;
 
+import com.orientechnologies.orient.core.cache.OCommandCache;
+import com.orientechnologies.orient.core.index.OIndexManagerAbstract;
+import com.orientechnologies.orient.core.metadata.function.OFunction;
 import com.orientechnologies.orient.core.metadata.schema.OImmutableSchema;
+import com.orientechnologies.orient.core.metadata.security.OIdentity;
+import com.orientechnologies.orient.core.metadata.security.ORole;
+import com.orientechnologies.orient.core.metadata.security.OSecurity;
+import com.orientechnologies.orient.core.metadata.security.OUser;
+
+import java.util.*;
 
 /**
  * Internal interface to manage metadata snapshots.
  */
 public interface OMetadataInternal extends OMetadata {
+
+  Set<String> SYSTEM_CLUSTER = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
+      new String[] { OUser.CLASS_NAME.toLowerCase(Locale.ENGLISH), ORole.CLASS_NAME.toLowerCase(Locale.ENGLISH),
+          OIdentity.CLASS_NAME.toLowerCase(Locale.ENGLISH), OSecurity.RESTRICTED_CLASSNAME.toLowerCase(Locale.ENGLISH),
+          OFunction.CLASS_NAME.toLowerCase(Locale.ENGLISH), "internal" })));
 
   void makeThreadLocalSchemaSnapshot();
 
@@ -29,4 +43,7 @@ public interface OMetadataInternal extends OMetadata {
 
   OImmutableSchema getImmutableSchemaSnapshot();
 
+  OCommandCache getCommandCache();
+
+  OIndexManagerAbstract getIndexManagerInternal();
 }

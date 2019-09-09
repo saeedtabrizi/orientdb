@@ -19,7 +19,7 @@
     <parent>
         <groupId>com.orientechnologies</groupId>
         <artifactId>orientdb-parent</artifactId>
-        <version>2.2.0-SNAPSHOT</version>
+        <version>3.1.0-SNAPSHOT</version>
         <relativePath>../</relativePath>
     </parent>
 
@@ -28,7 +28,6 @@
     <name>OrientDB Core</name>
 
     <properties>
-        <executeFindBugs>true</executeFindBugs>
         <osgi.import>
             com.orientechnologies.orient.graph.console;resolution:=optional,
             com.orientechnologies.orient.graph.gremlin;resolution:=optional,
@@ -37,7 +36,9 @@
             javax.imageio.spi,sun.misc;resolution:=optional,
             com.orientechnologies.orient.client.remote;resolution:=optional,
             com.sun.jna;resolution:=optional,
-            org.xerial.snappy;resolution:=optional,
+            sun.nio.ch;resolution:=optional,
+            com.orientechnologies.orient.server.distributed.impl;resolution:=optional,
+            com.orientechnologies.orient.server.distributed.impl.task;resolution:=optional,
             *
         </osgi.import>
         <osgi.export>com.orientechnologies.orient.core.*,
@@ -46,7 +47,8 @@
         </osgi.export>
         <jna.version>4.0.0</jna.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <argLine>-ea -Xmx3072m -XX:MaxDirectMemorySize=512g
+        <argLine>-ea
+            -Xmx${heapSize}
             -Dstorage.diskCache.bufferSize=4096
             -Dindex.flushAfterCreate=false
             -Dstorage.makeFullCheckpointAfterCreate=false
@@ -58,7 +60,11 @@
             -Ddb.makeFullCheckpointOnSchemaChange=false
             -Dsecurity.userPasswordSaltIterations=10
             -Dmemory.directMemory.trackMode=true
+            -Djava.util.logging.manager=com.orientechnologies.common.log.ShutdownLogManager
+            -Dstorage.diskCache.checksumMode=storeAndThrow
+            -Dindex.allowManualIndexes=false
         </argLine>
+        <project.rootdir>${project.basedir}/../</project.rootdir>
     </properties>
 
     <profiles>
@@ -68,13 +74,8 @@
                 <activeByDefault>true</activeByDefault>
             </activation>
             <properties>
-                <exclude.test.1>**/LocalHashTableIterationTest.java</exclude.test.1>
-                <exclude.test.2>**/OLocalHashTableTest.java</exclude.test.2>
-                <exclude.test.3>**/SBTreeTest.java</exclude.test.3>
-                <exclude.test.4>**/SBTreeTestBigValues.java</exclude.test.4>
-                <exclude.test.5>**/OSBTreeBonsaiLocalTest.java</exclude.test.5>
-                <exclude.test.6>**/LocalPaginatedClusterTest.java</exclude.test.6>
-                <exclude.test.7>**/WOWCacheTest.java</exclude.test.7>
+                <exclude.test.1>**/SBTreeTestBigValues.java</exclude.test.1>
+                <exclude.test.2>**/WOWCacheTest.java</exclude.test.2>
             </properties>
         </profile>
 
@@ -89,11 +90,6 @@
             <properties>
                 <exclude.test.1>empty.java</exclude.test.1>
                 <exclude.test.2>empty.java</exclude.test.2>
-                <exclude.test.3>empty.java</exclude.test.3>
-                <exclude.test.4>empty.java</exclude.test.4>
-                <exclude.test.5>empty.java</exclude.test.5>
-                <exclude.test.6>empty.java</exclude.test.6>
-                <exclude.test.7>empty.java</exclude.test.7>
             </properties>
 
         </profile>
@@ -108,11 +104,6 @@
             <properties>
                 <exclude.test.1>empty.java</exclude.test.1>
                 <exclude.test.2>empty.java</exclude.test.2>
-                <exclude.test.3>empty.java</exclude.test.3>
-                <exclude.test.4>empty.java</exclude.test.4>
-                <exclude.test.5>empty.java</exclude.test.5>
-                <exclude.test.6>empty.java</exclude.test.6>
-                <exclude.test.7>empty.java</exclude.test.7>
             </properties>
 
         </profile>
@@ -124,16 +115,45 @@
                 </property>
             </activation>
         </profile>
+
+        <profile>
+            <id>crash-tests</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <version>${surefire.version}</version>
+                        <configuration>
+                            <skipTests>true</skipTests>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 
-    <reporting>
-        <plugins>
-
-        </plugins>
-    </reporting>
-
     <build>
+        <resources>
+            <resource>
+                <directory>${basedir}/src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
         <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>buildnumber-maven-plugin</artifactId>
+                <version>1.4</version>
+                <executions>
+                    <execution>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>create</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>javacc-maven-plugin</artifactId>
@@ -163,12 +183,29 @@
                     <excludes>
                         <exclude>${exclude.test.1}</exclude>
                         <exclude>${exclude.test.2}</exclude>
-                        <exclude>${exclude.test.3}</exclude>
-                        <exclude>${exclude.test.4}</exclude>
-                        <exclude>${exclude.test.5}</exclude>
-                        <exclude>${exclude.test.6}</exclude>
-                        <exclude>${exclude.test.7}</exclude>
                     </excludes>
+                    <properties>
+                        <property>
+                            <name>listener</name>
+                            <value>com.orientechnologies.OJUnitTestListener</value>
+                        </property>
+                    </properties>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>${surefire.version}</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <buildDirectory>${project.build.directory}</buildDirectory>
+                    </systemPropertyVariables>
+                    <properties>
+                        <property>
+                            <name>listener</name>
+                            <value>com.orientechnologies.OJUnitTestListener</value>
+                        </property>
+                    </properties>
                 </configuration>
             </plugin>
             <plugin>
@@ -191,21 +228,27 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.xerial.snappy</groupId>
-            <artifactId>snappy-java</artifactId>
-            <version>1.1.0.1</version>
+            <groupId>com.github.jnr</groupId>
+            <artifactId>jnr-posix</artifactId>
+            <version>3.0.50</version>
         </dependency>
 
         <dependency>
             <groupId>com.googlecode.concurrentlinkedhashmap</groupId>
             <artifactId>concurrentlinkedhashmap-lru</artifactId>
-            <version>1.4.1</version>
+            <version>1.4.2</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.google.code.findbugs</groupId>
                     <artifactId>jsr305</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.lz4</groupId>
+            <artifactId>lz4-java</artifactId>
+            <version>1.4.0</version>
         </dependency>
 
         <dependency>
@@ -216,10 +259,22 @@
         </dependency>
 
         <dependency>
-            <groupId>com.google.code.findbugs</groupId>
-            <artifactId>findbugs</artifactId>
+            <groupId>commons-lang</groupId>
+            <artifactId>commons-lang</artifactId>
+            <version>2.6</version>
+        </dependency>
+
+        <dependency>
+            <groupId>javax.servlet</groupId>
+            <artifactId>javax.servlet-api</artifactId>
             <version>3.0.1</version>
             <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>javax.activation</groupId>
+            <artifactId>javax.activation-api</artifactId>
+            <version>1.2.0</version>
         </dependency>
     </dependencies>
 

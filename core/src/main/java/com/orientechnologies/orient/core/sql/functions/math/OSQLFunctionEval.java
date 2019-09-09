@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,11 +14,12 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.core.sql.functions.math;
 
+import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.record.impl.ODocument;
@@ -28,14 +29,13 @@ import java.util.List;
 
 /**
  * Evaluates a complex expression.
- * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OSQLFunctionEval extends OSQLFunctionMathAbstract {
   public static final String NAME = "eval";
 
-  private OSQLPredicate      predicate;
+  private OSQLPredicate predicate;
 
   public OSQLFunctionEval() {
     super(NAME, 1, 1);
@@ -50,9 +50,11 @@ public class OSQLFunctionEval extends OSQLFunctionMathAbstract {
     try {
       return predicate.evaluate(iRecord != null ? iRecord.getRecord() : null, currentResult, iContext);
     } catch (ArithmeticException e) {
+      OLogManager.instance().error(this, "Division by 0", e);
       // DIVISION BY 0
       return 0;
     } catch (Exception e) {
+      OLogManager.instance().error(this, "Error during division", e);
       return null;
     }
   }

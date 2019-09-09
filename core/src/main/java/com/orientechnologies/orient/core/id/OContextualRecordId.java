@@ -1,6 +1,6 @@
 /*
  *
- *  * Copyright 2014 Orient Technologies.
+ *  * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  * Licensed under the Apache License, Version 2.0 (the "License");
  *  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import java.util.Map;
 
 public class OContextualRecordId extends ORecordId {
 
-  protected Map<String, Object> context;
+  private Map<String, Object> context;
 
   public OContextualRecordId(final String iRecordId) {
     super(iRecordId);

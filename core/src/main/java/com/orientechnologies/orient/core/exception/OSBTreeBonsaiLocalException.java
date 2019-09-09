@@ -1,10 +1,9 @@
 package com.orientechnologies.orient.core.exception;
 
-import com.orientechnologies.orient.core.index.sbtreebonsai.local.OSBTreeBonsaiLocal;
-import com.orientechnologies.orient.core.storage.impl.local.paginated.base.ODurableComponent;
+import com.orientechnologies.orient.core.storage.index.sbtreebonsai.local.OSBTreeBonsaiLocal;
 
 /**
- * @author Andrey Lomakin <lomakin.andrey@gmail.com>.
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com) <lomakin.andrey@gmail.com>.
  * @since 10/2/2015
  */
 public class OSBTreeBonsaiLocalException extends ODurableComponentException {

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql.operator;
@@ -37,7 +37,7 @@ import java.util.Map;
 /**
  * CONTAINS operator.
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public class OQueryOperatorContains extends OQueryOperatorEqualityNotNulls {
@@ -88,16 +88,16 @@ public class OQueryOperatorContains extends OQueryOperatorEqualityNotNulls {
         }
       } else {
         // CHECK AGAINST A SINGLE VALUE
-        OType type =null;
+        OType type = null;
 
-        if(iCondition.getLeft() instanceof OSQLFilterItemField && ((OSQLFilterItemField) iCondition.getLeft()).isFieldChain() && ((OSQLFilterItemField) iCondition.getLeft()).getFieldChain().getItemCount()==1){
+        if (iCondition.getLeft() instanceof OSQLFilterItemField && ((OSQLFilterItemField) iCondition.getLeft()).isFieldChain()
+            && ((OSQLFilterItemField) iCondition.getLeft()).getFieldChain().getItemCount() == 1) {
           String fieldName = ((OSQLFilterItemField) iCondition.getLeft()).getFieldChain().getItemName(0);
-          if(fieldName!=null) {
+          if (fieldName != null) {
             Object record = iRecord.getRecord();
             if (record instanceof ODocument) {
-              OProperty property = ((ODocument) record).getSchemaClass()
-                  .getProperty(fieldName);
-              if(property!=null && property.getType().isMultiValue()){
+              OProperty property = ((ODocument) record).getSchemaClass().getProperty(fieldName);
+              if (property != null && property.getType().isMultiValue()) {
                 type = property.getLinkedType();
               }
             }

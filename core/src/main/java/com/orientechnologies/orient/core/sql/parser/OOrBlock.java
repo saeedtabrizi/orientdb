@@ -7,10 +7,13 @@ import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.executor.OResult;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class OOrBlock extends OBooleanExpression {
   List<OBooleanExpression> subBlocks = new ArrayList<OBooleanExpression>();
@@ -37,8 +40,24 @@ public class OOrBlock extends OBooleanExpression {
     return false;
   }
 
+  @Override
+  public boolean evaluate(OResult currentRecord, OCommandContext ctx) {
+    if (getSubBlocks() == null) {
+      return true;
+    }
+
+    for (OBooleanExpression block : subBlocks) {
+      if (block.evaluate(currentRecord, ctx)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   public boolean evaluate(Object currentRecord, OCommandContext ctx) {
-    if (currentRecord instanceof OIdentifiable) {
+    if (currentRecord instanceof OResult) {
+      return evaluate((OResult) currentRecord, ctx);
+    } else if (currentRecord instanceof OIdentifiable) {
       return evaluate((OIdentifiable) currentRecord, ctx);
     } else if (currentRecord instanceof Map) {
       ODocument doc = new ODocument();
@@ -119,13 +138,115 @@ public class OOrBlock extends OBooleanExpression {
 
   public List<OAndBlock> flatten() {
     List<OAndBlock> result = new ArrayList<OAndBlock>();
-    for(OBooleanExpression sub:subBlocks){
+    for (OBooleanExpression sub : subBlocks) {
       List<OAndBlock> childFlattened = sub.flatten();
-      for(OAndBlock child:childFlattened){
+      for (OAndBlock child : childFlattened) {
         result.add(child);
       }
     }
     return result;
+  }
+
+  @Override
+  public boolean needsAliases(Set<String> aliases) {
+    for (OBooleanExpression expr : subBlocks) {
+      if (expr.needsAliases(aliases)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Override
+  public OOrBlock copy() {
+    OOrBlock result = new OOrBlock(-1);
+    result.subBlocks = subBlocks.stream().map(x -> x.copy()).collect(Collectors.toList());
+    return result;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OOrBlock oOrBlock = (OOrBlock) o;
+
+    if (subBlocks != null ? !subBlocks.equals(oOrBlock.subBlocks) : oOrBlock.subBlocks != null)
+      return false;
+
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    return subBlocks != null ? subBlocks.hashCode() : 0;
+  }
+
+  @Override
+  public boolean isEmpty() {
+    if (subBlocks.isEmpty()) {
+      return true;
+    }
+    for (OBooleanExpression block : subBlocks) {
+      if (!block.isEmpty()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @Override
+  public void extractSubQueries(SubQueryCollector collector) {
+    for (OBooleanExpression block : subBlocks) {
+      block.extractSubQueries(collector);
+    }
+  }
+
+  @Override
+  public boolean refersToParent() {
+    for (OBooleanExpression exp : subBlocks) {
+      if (exp != null && exp.refersToParent()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Override
+  public List<String> getMatchPatternInvolvedAliases() {
+    List<String> result = new ArrayList<String>();
+    for (OBooleanExpression exp : subBlocks) {
+      List<String> x = exp.getMatchPatternInvolvedAliases();
+      if (x != null) {
+        result.addAll(x);
+      }
+    }
+    return result.size() == 0 ? null : result;
+  }
+
+  @Override
+  public void translateLuceneOperator() {
+    subBlocks.forEach(x -> x.translateLuceneOperator());
+  }
+
+  @Override
+  public boolean isCacheable() {
+    for (OBooleanExpression block : this.subBlocks) {
+      if (!block.isCacheable()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @Override
+  public OBooleanExpression rewriteIndexChainsAsSubqueries(OCommandContext ctx, OClass clazz) {
+    for (OBooleanExpression exp : subBlocks) {
+      exp.rewriteIndexChainsAsSubqueries(ctx, clazz);
+    }
+    return this;
   }
 
 }

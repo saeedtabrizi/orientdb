@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.command;
@@ -27,22 +27,16 @@ import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
 import com.orientechnologies.orient.core.db.OExecutionThreadLocal;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
-import com.orientechnologies.orient.core.exception.OCommandExecutionException;
+import com.orientechnologies.orient.core.exception.OCommandInterruptedException;
 import com.orientechnologies.orient.core.metadata.security.ORole;
 import com.orientechnologies.orient.core.metadata.security.ORule;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Abstract implementation of Executor Command interface.
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 @SuppressWarnings("unchecked")
@@ -53,7 +47,7 @@ public abstract class OCommandExecutorAbstract extends OBaseParser implements OC
   protected OCommandContext     context;
 
   public static ODatabaseDocumentInternal getDatabase() {
-    return ODatabaseRecordThreadLocal.INSTANCE.get();
+    return ODatabaseRecordThreadLocal.instance().get();
   }
 
   public OCommandExecutorAbstract init(final OCommandRequestText iRequest) {
@@ -77,8 +71,12 @@ public abstract class OCommandExecutorAbstract extends OBaseParser implements OC
     return (RET) this;
   }
 
+  public String getUndoCommand() {
+    return null;
+  }
+
   public long getDistributedTimeout() {
-    return OGlobalConfiguration.DISTRIBUTED_COMMAND_LONG_TASK_SYNCH_TIMEOUT.getValueAsLong();
+    return getDatabase().getConfiguration().getValueAsLong(OGlobalConfiguration.DISTRIBUTED_COMMAND_LONG_TASK_SYNCH_TIMEOUT);
   }
 
   public int getLimit() {
@@ -129,7 +127,7 @@ public abstract class OCommandExecutorAbstract extends OBaseParser implements OC
 
   public static boolean checkInterruption(final OCommandContext iContext) {
     if (OExecutionThreadLocal.isInterruptCurrentOperation())
-      throw new OCommandExecutionException("Operation has been interrupted");
+      throw new OCommandInterruptedException("The command has been interrupted");
 
     if (iContext != null && !iContext.checkTimeout())
       return false;
@@ -163,7 +161,7 @@ public abstract class OCommandExecutorAbstract extends OBaseParser implements OC
   public boolean isCacheable() {
     return false;
   }
-  
+
   public Object mergeResults(final Map<String, Object> results) throws Exception {
 
     if (results.isEmpty())
@@ -203,4 +201,7 @@ public abstract class OCommandExecutorAbstract extends OBaseParser implements OC
     return aggregatedResult;
   }
 
+  public boolean isDistributedExecutingOnLocalNodeFirst() {
+    return true;
+  }
 }

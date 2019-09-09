@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,24 +14,29 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.orientechnologies.orient.core.storage.impl.local.paginated.wal;
 
+import com.orientechnologies.common.serialization.types.OLongSerializer;
+
+import java.nio.ByteBuffer;
+
 /**
- * @author Andrey Lomakin
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 26.04.13
  */
 public class OUpdatePageRecord extends OAbstractPageWALRecord {
   private OWALChanges changes;
 
+  @SuppressWarnings("WeakerAccess")
   public OUpdatePageRecord() {
   }
 
   public OUpdatePageRecord(final long pageIndex, final long fileId, final OOperationUnitId operationUnitId,
-                           final OWALChanges changes) {
+      final OWALChanges changes) {
     super(pageIndex, fileId, operationUnitId);
     this.changes = changes;
   }
@@ -45,25 +50,24 @@ public class OUpdatePageRecord extends OAbstractPageWALRecord {
     int serializedSize = super.serializedSize();
     serializedSize += changes.serializedSize();
 
+    serializedSize += 2 * OLongSerializer.LONG_SIZE;
+
     return serializedSize;
   }
 
   @Override
-  public int toStream(final byte[] content, int offset) {
-    offset = super.toStream(content, offset);
-    offset = changes.toStream(offset, content);
+  protected void serializeToByteBuffer(ByteBuffer buffer) {
+    super.serializeToByteBuffer(buffer);
 
-    return offset;
+    changes.toStream(buffer);
   }
 
   @Override
-  public int fromStream(final byte[] content, int offset) {
-    offset = super.fromStream(content, offset);
+  protected void deserializeFromByteBuffer(ByteBuffer buffer) {
+    super.deserializeFromByteBuffer(buffer);
 
     changes = new OWALPageChangesPortion();
-    offset = changes.fromStream(offset, content);
-
-    return offset;
+    changes.fromStream(buffer);
   }
 
   @Override
@@ -102,5 +106,10 @@ public class OUpdatePageRecord extends OAbstractPageWALRecord {
     int result = super.hashCode();
     result = 31 * result + lsn.hashCode();
     return result;
+  }
+
+  @Override
+  public byte getId() {
+    return WALRecordTypes.UPDATE_PAGE_RECORD;
   }
 }

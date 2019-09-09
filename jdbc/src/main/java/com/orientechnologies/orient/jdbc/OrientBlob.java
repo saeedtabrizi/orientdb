@@ -1,5 +1,5 @@
 /**
- * Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * For more information: http://www.orientechnologies.com
+ * For more information: http://orientdb.com
  */
 package com.orientechnologies.orient.jdbc;
 
@@ -27,6 +27,7 @@ import java.sql.Blob;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Arrays.asList;
@@ -46,11 +47,11 @@ public class OrientBlob implements Blob {
   private int currentChunkIndex;
 
   protected OrientBlob(OBlob binaryDataChunk) throws IllegalArgumentException {
-    this(asList(binaryDataChunk));
+    this(Collections.singletonList(binaryDataChunk));
   }
 
   protected OrientBlob(List<OBlob> binaryDataChunks) throws IllegalArgumentException {
-    this.binaryDataChunks = new ArrayList<byte[]>(binaryDataChunks.size());
+    this.binaryDataChunks = new ArrayList<>(binaryDataChunks.size());
     for (OBlob binaryDataChunk : binaryDataChunks) {
       if (binaryDataChunk == null) {
         throw new IllegalArgumentException("The binary data chunks list cannot hold null chunks");
@@ -61,7 +62,7 @@ public class OrientBlob implements Blob {
         this.binaryDataChunks.add(binaryDataChunk.toStream());
       }
     }
-    this.length = calculateLenght();
+    this.length = calculateLength();
   }
 
   /*
@@ -73,7 +74,7 @@ public class OrientBlob implements Blob {
     return this.length;
   }
 
-  private long calculateLenght() {
+  private long calculateLength() {
     long length = 0;
     for (byte[] binaryDataChunk : binaryDataChunks) {
       length += binaryDataChunk.length;

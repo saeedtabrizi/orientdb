@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,11 +14,12 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.network.protocol.http.command.get;
 
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.serialization.serializer.OJSONWriter;
@@ -39,7 +40,7 @@ public class OServerCommandGetClass extends OServerCommandAuthenticatedDbAbstrac
     iRequest.data.commandInfo = "Returns the information of a class in the schema";
     iRequest.data.commandDetail = urlParts[2];
 
-    ODatabaseDocumentTx db = null;
+    ODatabaseDocument db = null;
 
     try {
       db = getProfiledDatabaseInstance(iRequest);
@@ -49,7 +50,7 @@ public class OServerCommandGetClass extends OServerCommandAuthenticatedDbAbstrac
         final StringWriter buffer = new StringWriter();
         final OJSONWriter json = new OJSONWriter(buffer, OHttpResponse.JSON_FORMAT);
         OServerCommandGetDatabase.exportClass(db, json, cls);
-        iResponse.send(OHttpUtils.STATUS_OK_CODE, "OK", OHttpUtils.CONTENT_JSON, buffer.toString(), null);
+        iResponse.send(OHttpUtils.STATUS_OK_CODE, OHttpUtils.STATUS_OK_DESCRIPTION, OHttpUtils.CONTENT_JSON, buffer.toString(), null);
       } else
         iResponse.send(OHttpUtils.STATUS_NOTFOUND_CODE, null, null, null, null);
 

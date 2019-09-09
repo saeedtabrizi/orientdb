@@ -4,9 +4,11 @@ package com.orientechnologies.orient.core.sql.parser;
 
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
+import com.orientechnologies.orient.core.sql.executor.OResult;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class OParenthesisBlock extends OBooleanExpression {
 
@@ -20,7 +22,9 @@ public class OParenthesisBlock extends OBooleanExpression {
     super(p, id);
   }
 
-  /** Accept the visitor. **/
+  /**
+   * Accept the visitor.
+   **/
   public Object jjtAccept(OrientSqlVisitor visitor, Object data) {
     return visitor.visit(this, data);
   }
@@ -30,6 +34,10 @@ public class OParenthesisBlock extends OBooleanExpression {
     return subElement.evaluate(currentRecord, ctx);
   }
 
+  @Override
+  public boolean evaluate(OResult currentRecord, OCommandContext ctx) {
+    return subElement.evaluate(currentRecord, ctx);
+  }
 
   public void toString(Map<Object, Object> params, StringBuilder builder) {
     builder.append("(");
@@ -52,8 +60,66 @@ public class OParenthesisBlock extends OBooleanExpression {
     return subElement.getExternalCalculationConditions();
   }
 
-  @Override public List<OAndBlock> flatten() {
+  @Override
+  public List<OAndBlock> flatten() {
     return subElement.flatten();
+  }
+
+  @Override
+  public boolean needsAliases(Set<String> aliases) {
+    return subElement.needsAliases(aliases);
+  }
+
+  @Override
+  public OParenthesisBlock copy() {
+    OParenthesisBlock result = new OParenthesisBlock(-1);
+    result.subElement = subElement.copy();
+    return result;
+  }
+
+  @Override
+  public void extractSubQueries(SubQueryCollector collector) {
+    this.subElement.extractSubQueries(collector);
+  }
+
+  @Override
+  public boolean refersToParent() {
+    return subElement.refersToParent();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OParenthesisBlock that = (OParenthesisBlock) o;
+
+    if (subElement != null ? !subElement.equals(that.subElement) : that.subElement != null)
+      return false;
+
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    return subElement != null ? subElement.hashCode() : 0;
+  }
+
+  @Override
+  public List<String> getMatchPatternInvolvedAliases() {
+    return subElement.getMatchPatternInvolvedAliases();
+  }
+
+  @Override
+  public void translateLuceneOperator() {
+    subElement.translateLuceneOperator();
+  }
+
+  @Override
+  public boolean isCacheable() {
+    return subElement.isCacheable();
   }
 }
 /* JavaCC - OriginalChecksum=9a16b6cf7d051382acb94c45067631a9 (do not edit this line) */

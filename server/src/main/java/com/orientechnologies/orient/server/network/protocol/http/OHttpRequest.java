@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.network.protocol.http;
@@ -29,6 +29,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -36,34 +37,33 @@ import java.util.Set;
 /**
  * Maintains information about current HTTP request.
  *
- * @author Luca Garulli
- *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OHttpRequest {
-  public final OContextConfiguration        configuration;
-  public final InputStream                  in;
-  public final ONetworkProtocolData         data;
-  public final ONetworkProtocolHttpAbstract executor;
-  public String                             authorization;
-  public String                             sessionId;
-  public String                             url;
-  public Map<String, String>                parameters;
-  public String                             httpMethod;
-  public String                             httpVersion;
-  public String                             contentType;
-  public String                             contentEncoding;
-  public String                             content;
-  public OHttpMultipartBaseInputStream      multipartStream;
-  public String                             boundary;
-  public String                             databaseName;
-  public boolean                            isMultipart;
-  public String                             ifMatch;
-  public String                             authentication;
-  public boolean                            keepAlive = true;
-  protected Map<String, String>             headers;
+  public final OContextConfiguration         configuration;
+  public final InputStream                   in;
+  public final ONetworkProtocolData          data;
+  public final ONetworkProtocolHttpAbstract  executor;
+  public       String                        authorization;
+  public       String                        sessionId;
+  public       String                        url;
+  public       Map<String, String>           parameters;
+  public       String                        httpMethod;
+  public       String                        httpVersion;
+  public       String                        contentType;
+  public       String                        contentEncoding;
+  public       String                        content;
+  public       OHttpMultipartBaseInputStream multipartStream;
+  public       String                        boundary;
+  public       String                        databaseName;
+  public       boolean                       isMultipart;
+  public       String                        ifMatch;
+  public       String                        authentication;
+  public       boolean                       keepAlive = true;
+  protected    Map<String, String>           headers;
 
-  public String                             bearerTokenRaw;
-  public OToken                             bearerToken;
+  public String bearerTokenRaw;
+  public OToken bearerToken;
 
   public OHttpRequest(final ONetworkProtocolHttpAbstract iExecutor, final InputStream iInStream, final ONetworkProtocolData iData,
       final OContextConfiguration iConfiguration) {
@@ -95,7 +95,7 @@ public class OHttpRequest {
 
     final int pos = h.indexOf(':');
     if (pos > -1) {
-      headers.put(h.substring(0, pos).trim().toLowerCase(), h.substring(pos + 1).trim());
+      headers.put(h.substring(0, pos).trim().toLowerCase(Locale.ENGLISH), h.substring(pos + 1).trim());
     }
   }
 
@@ -104,7 +104,8 @@ public class OHttpRequest {
       return null;
     }
     HashMap<String, String> retMap = new HashMap<String, String>();
-    String key, value;
+    String key;
+    String value;
     try {
       String[] pairs = content.split("\\&");
       for (int i = 0; i < pairs.length; i++) {
@@ -122,7 +123,7 @@ public class OHttpRequest {
   }
 
   public String getHeader(final String iName) {
-    return headers.get(iName.toLowerCase());
+    return headers.get(iName.toLowerCase(Locale.ENGLISH));
   }
 
   public Set<Entry<String, String>> getHeaders() {

@@ -1,42 +1,20 @@
 package com.orientechnologies;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.junit.After;
+import org.junit.Before;
+
+import java.util.Locale;
 
 /**
- * @author Andrey Lomakin (a.lomakin-at-orientechnologies.com)
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 7/16/14
  */
 public abstract class DatabaseAbstractTest {
   protected ODatabaseDocumentTx database;
 
-  @BeforeClass
-  public void beforeClass() {
-    final String dbName = this.getClass().getSimpleName();
-    final String storageType = getStorageType();
-    final String buildDirectory = System.getProperty("buildDirectory", ".");
-
-    database = new ODatabaseDocumentTx(storageType + ":" + buildDirectory + "/" + dbName);
-    if (database.exists()) {
-      database.open("admin", "admin");
-      database.drop();
-    }
-
-    database.create();
-  }
-
-  @AfterClass
-  public void afterClass() throws Exception {
-    database.drop();
-  }
-
-  public static enum ENV {
-    DEV, RELEASE, CI
-  }
-
   public static ENV getEnvironment() {
-    String envName = System.getProperty("orientdb.test.env", "dev").toUpperCase();
+    String envName = System.getProperty("orientdb.test.env", "dev").toUpperCase(Locale.ENGLISH);
     ENV result = null;
     try {
       result = ENV.valueOf(envName);
@@ -54,5 +32,29 @@ public abstract class DatabaseAbstractTest {
       return "memory";
 
     return "plocal";
+  }
+
+  @Before
+  public void beforeClass() {
+    final String dbName = this.getClass().getSimpleName();
+    final String storageType = getStorageType();
+    final String buildDirectory = System.getProperty("buildDirectory", ".");
+
+    database = new ODatabaseDocumentTx(storageType + ":" + buildDirectory + "/" + dbName);
+    if (database.exists()) {
+      database.open("admin", "admin");
+      database.drop();
+    }
+
+    database.create();
+  }
+
+  @After
+  public void afterClass() throws Exception {
+    database.drop();
+  }
+
+  public static enum ENV {
+    DEV, RELEASE, CI
   }
 }

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,19 +14,10 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.db.tool;
-
-import static com.orientechnologies.orient.core.record.impl.ODocumentHelper.makeDbCall;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
 
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.command.OCommandOutputListener;
@@ -38,7 +29,7 @@ import com.orientechnologies.orient.core.id.ORID;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.index.OIndex;
 import com.orientechnologies.orient.core.index.OIndexKeyCursor;
-import com.orientechnologies.orient.core.index.OIndexManager;
+import com.orientechnologies.orient.core.index.OIndexManagerAbstract;
 import com.orientechnologies.orient.core.metadata.OMetadataDefault;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OProperty;
@@ -47,21 +38,29 @@ import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.record.impl.ODocumentHelper;
 import com.orientechnologies.orient.core.record.impl.ODocumentHelper.ODbRelatedCall;
+import com.orientechnologies.orient.core.sql.executor.OResultSet;
 import com.orientechnologies.orient.core.storage.OPhysicalPosition;
 import com.orientechnologies.orient.core.storage.ORawBuffer;
 import com.orientechnologies.orient.core.storage.OStorage;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
+import java.io.IOException;
+import java.util.*;
+
+import static com.orientechnologies.orient.core.record.impl.ODocumentHelper.makeDbCall;
 
 public class ODatabaseCompare extends ODatabaseImpExpAbstract {
-  private ODatabaseDocumentTx databaseOne;
-  private ODatabaseDocumentTx databaseTwo;
+  private ODatabaseDocumentInternal databaseOne;
+  private ODatabaseDocumentInternal databaseTwo;
 
   private boolean compareEntriesForAutomaticIndexes = false;
   private boolean autoDetectExportImportMap         = true;
 
-  private OIndex<OIdentifiable> exportImportHashTable = null;
-  private int                   differences           = 0;
-  private boolean               compareIndexMetadata  = false;
+  private int     differences          = 0;
+  private boolean compareIndexMetadata = false;
+
+  private Set<String> excludeIndexes = new HashSet<>();
+
+  private int clusterDifference = 0;
 
   public ODatabaseCompare(String iDb1URL, String iDb2URL, final String userName, final String userPassword,
       final OCommandOutputListener iListener) throws IOException {
@@ -79,11 +78,35 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
     excludeClusters.add("orids");
     excludeClusters.add(OMetadataDefault.CLUSTER_INDEX_NAME);
     excludeClusters.add(OMetadataDefault.CLUSTER_MANUAL_INDEX_NAME);
+
+    excludeIndexes.add(ODatabaseImport.EXPORT_IMPORT_INDEX_NAME);
+
+    final OSchema schema = databaseTwo.getMetadata().getSchema();
+    final OClass cls = schema.getClass(ODatabaseImport.EXPORT_IMPORT_CLASS_NAME);
+
+    if (cls != null) {
+      final int[] clusterIds = cls.getClusterIds();
+      for (final int clusterId : clusterIds) {
+        final String clusterName = databaseTwo.getClusterNameById(clusterId);
+        excludeClusters.add(clusterName);
+      }
+
+      clusterDifference = clusterIds.length;
+    }
+
   }
 
   @Override
   public void run() {
     compare();
+  }
+
+  public void addExcludeIndexes(String index) {
+    excludeIndexes.add(index);
+  }
+
+  public void addExcludeClusters(String cluster) {
+    excludeClusters.add(cluster);
   }
 
   public boolean compare() {
@@ -92,25 +115,24 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
       if (autoDetectExportImportMap) {
         listener.onMessage(
             "\nAuto discovery of mapping between RIDs of exported and imported records is switched on, try to discover mapping data on disk.");
-        exportImportHashTable = (OIndex<OIdentifiable>) databaseTwo.getMetadata().getIndexManager()
-            .getIndex(ODatabaseImport.EXPORT_IMPORT_MAP_NAME);
-        if (exportImportHashTable != null) {
+        if (databaseTwo.getMetadata().getSchema().getClass(ODatabaseImport.EXPORT_IMPORT_CLASS_NAME) != null) {
           listener.onMessage("\nMapping data were found and will be loaded.");
-          ridMapper = new ODocumentHelper.RIDMapper() {
-            @Override
-            public ORID map(ORID rid) {
-              if (rid == null)
-                return null;
+          ridMapper = rid -> {
+            if (rid == null) {
+              return null;
+            }
 
-              if (!rid.isPersistent())
-                return null;
+            if (!rid.isPersistent()) {
+              return null;
+            }
 
-              databaseTwo.activateOnCurrentThread();
-              final OIdentifiable result = exportImportHashTable.get(rid);
-              if (result == null)
-                return null;
-
-              return result.getIdentity();
+            databaseTwo.activateOnCurrentThread();
+            try (final OResultSet resultSet = databaseTwo
+                .query("select value from " + ODatabaseImport.EXPORT_IMPORT_CLASS_NAME + " where key = ?", rid.toString())) {
+              if (resultSet.hasNext()) {
+                return new ORecordId(resultSet.next().<String>getProperty("value"));
+              }
+              return null;
             }
           };
         } else
@@ -134,8 +156,7 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
       OLogManager.instance()
           .error(this, "Error on comparing database '%s' against '%s'", e, databaseOne.getName(), databaseTwo.getName());
       throw new ODatabaseExportException(
-          "Error on comparing database '" + databaseOne.getName() + "' against '" + databaseTwo.getName() + "'",
-          e);
+          "Error on comparing database '" + databaseOne.getName() + "' against '" + databaseTwo.getName() + "'", e);
     } finally {
       makeDbCall(databaseOne, new ODbRelatedCall<Void>() {
         @Override
@@ -299,39 +320,22 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
 
     boolean ok = true;
 
-    final OIndexManager indexManagerOne = makeDbCall(databaseOne, new ODbRelatedCall<OIndexManager>() {
-      public OIndexManager call(ODatabaseDocumentInternal database) {
-        return database.getMetadata().getIndexManager();
-      }
-    });
+    final OIndexManagerAbstract indexManagerOne = makeDbCall(databaseOne,
+        database -> database.getMetadata().getIndexManagerInternal());
 
-    final OIndexManager indexManagerTwo = makeDbCall(databaseTwo, new ODbRelatedCall<OIndexManager>() {
-      public OIndexManager call(ODatabaseDocumentInternal database) {
-        return database.getMetadata().getIndexManager();
-      }
-    });
+    final OIndexManagerAbstract indexManagerTwo = makeDbCall(databaseTwo,
+        database -> database.getMetadata().getIndexManagerInternal());
 
     final Collection<? extends OIndex<?>> indexesOne = makeDbCall(databaseOne,
-        new ODbRelatedCall<Collection<? extends OIndex<?>>>() {
-          public Collection<? extends OIndex<?>> call(ODatabaseDocumentInternal database) {
-            return indexManagerOne.getIndexes();
-          }
-        });
+        (ODbRelatedCall<Collection<? extends OIndex<?>>>) database -> indexManagerOne.getIndexes(database));
 
-    int indexesSizeOne = makeDbCall(databaseTwo, new ODbRelatedCall<Integer>() {
-      public Integer call(ODatabaseDocumentInternal database) {
-        return indexesOne.size();
-      }
-    });
+    int indexesSizeOne = makeDbCall(databaseTwo, database -> indexesOne.size());
 
-    int indexesSizeTwo = makeDbCall(databaseTwo, new ODbRelatedCall<Integer>() {
-      public Integer call(ODatabaseDocumentInternal database) {
-        return indexManagerTwo.getIndexes().size();
-      }
-    });
+    int indexesSizeTwo = makeDbCall(databaseTwo, database -> indexManagerTwo.getIndexes(database).size());
 
-    if (exportImportHashTable != null)
+    if (makeDbCall(databaseTwo, database -> indexManagerTwo.getIndex(database, ODatabaseImport.EXPORT_IMPORT_INDEX_NAME) != null)) {
       indexesSizeTwo--;
+    }
 
     if (indexesSizeOne != indexesSizeTwo) {
       ok = false;
@@ -343,28 +347,18 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
     }
 
     final Iterator<? extends OIndex<?>> iteratorOne = makeDbCall(databaseOne,
-        new ODbRelatedCall<Iterator<? extends OIndex<?>>>() {
-          public Iterator<? extends OIndex<?>> call(ODatabaseDocumentInternal database) {
-            return indexesOne.iterator();
-          }
-        });
+        (ODbRelatedCall<Iterator<? extends OIndex<?>>>) database -> indexesOne.iterator());
 
-    while (makeDbCall(databaseOne, new ODbRelatedCall<Boolean>() {
-      public Boolean call(ODatabaseDocumentInternal database) {
-        return iteratorOne.hasNext();
+    while (makeDbCall(databaseOne, database -> iteratorOne.hasNext())) {
+      final OIndex indexOne = makeDbCall(databaseOne, (ODbRelatedCall<OIndex<?>>) database -> iteratorOne.next());
+
+      final String indexName = makeDbCall(databaseOne, database -> indexOne.getName());
+      if (excludeIndexes.contains(indexName)) {
+        continue;
       }
-    })) {
-      final OIndex indexOne = makeDbCall(databaseOne, new ODbRelatedCall<OIndex<?>>() {
-        public OIndex<?> call(ODatabaseDocumentInternal database) {
-          return iteratorOne.next();
-        }
-      });
 
-      final OIndex<?> indexTwo = makeDbCall(databaseTwo, new ODbRelatedCall<OIndex<?>>() {
-        public OIndex<?> call(ODatabaseDocumentInternal database) {
-          return indexManagerTwo.getIndex(indexOne.getName());
-        }
-      });
+      final OIndex<?> indexTwo = makeDbCall(databaseTwo,
+          (ODbRelatedCall<OIndex<?>>) database -> indexManagerTwo.getIndex(database, indexOne.getName()));
 
       if (indexTwo == null) {
         ok = false;
@@ -394,9 +388,8 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
       }
 
       if (indexOne.getDefinition() == null && indexTwo.getDefinition() != null) {
-        ok = false;
-        listener.onMessage("\n- ERR: Index definition for index " + indexOne.getName() + " for DB2 is not null.");
-        ++differences;
+        //THIS IS NORMAL SINCE 3.0 DUE OF REMOVING OF INDEX WITHOUT THE DEFINITION,  THE IMPORTER WILL CREATE THE DEFINITION
+        listener.onMessage("\n- WARN: Index definition for index " + indexOne.getName() + " for DB2 is not null.");
         continue;
       } else if (indexOne.getDefinition() != null && indexTwo.getDefinition() == null) {
         ok = false;
@@ -413,17 +406,9 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
         continue;
       }
 
-      final long indexOneSize = makeDbCall(databaseOne, new ODbRelatedCall<Long>() {
-        public Long call(ODatabaseDocumentInternal database) {
-          return indexOne.getSize();
-        }
-      });
+      final long indexOneSize = makeDbCall(databaseOne, database -> indexOne.getSize());
 
-      final long indexTwoSize = makeDbCall(databaseTwo, new ODbRelatedCall<Long>() {
-        public Long call(ODatabaseDocumentInternal database) {
-          return indexTwo.getSize();
-        }
-      });
+      final long indexTwoSize = makeDbCall(databaseTwo, database -> indexTwo.getSize());
 
       if (indexOneSize != indexTwoSize) {
         ok = false;
@@ -508,8 +493,7 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
             final Set<Object> indexOneValueSet = (Set<Object>) indexOneValue;
             final Set<Object> indexTwoValueSet = (Set<Object>) indexTwoValue;
 
-            if (!ODocumentHelper
-                .compareSets(databaseOne, indexOneValueSet, databaseTwo, indexTwoValueSet, ridMapper)) {
+            if (!ODocumentHelper.compareSets(databaseOne, indexOneValueSet, databaseTwo, indexTwoValueSet, ridMapper)) {
               ok = false;
               reportIndexDiff(indexOne, key, indexOneValue, indexTwoValue);
             }
@@ -524,7 +508,7 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
               ok = false;
               reportIndexDiff(indexOne, key, indexOneValue, indexTwoValue);
             }
-          } else if (!indexOneValue.equals(indexTwoValue)) {
+          } else if (!compareIndexValues((Collection<ORID>) indexOneValue, (Collection<ORID>) indexTwoValue, ridMapper)) {
             ok = false;
             reportIndexDiff(indexOne, key, indexOneValue, indexTwoValue);
           }
@@ -541,6 +525,49 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
 
     if (ok)
       listener.onMessage("OK");
+  }
+
+  private boolean compareIndexValues(Collection<ORID> oneValue, Collection<ORID> secondValue, ODocumentHelper.RIDMapper ridMapper) {
+    Map<ORID, Integer> firstMap = new HashMap<>();
+    Map<ORID, Integer> secondMap = new HashMap<>();
+
+    for (ORID rid : oneValue) {
+      ORID ridToInsert;
+
+      if (ridMapper != null) {
+        if (rid.isPersistent()) {
+          ridToInsert = ridMapper.map(rid);
+
+          if (ridToInsert == null) {
+            ridToInsert = rid;
+          }
+        } else {
+          ridToInsert = rid;
+        }
+      } else {
+        ridToInsert = rid;
+      }
+
+      firstMap.compute(ridToInsert, (k, v) -> {
+        if (v == null) {
+          return 1;
+        }
+
+        return v + 1;
+      });
+    }
+
+    for (ORID rid : secondValue) {
+      secondMap.compute(rid, (k, v) -> {
+        if (v == null) {
+          return 1;
+        }
+
+        return v + 1;
+      });
+    }
+
+    return firstMap.equals(secondMap);
   }
 
   private boolean compareClusters() {
@@ -562,7 +589,7 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
       }
     });
 
-    if (clusterNames1.size() != clusterNames2.size()) {
+    if (clusterNames1.size() != clusterNames2.size() - clusterDifference) {
       listener.onMessage("ERR: cluster sizes are different: " + clusterNames1.size() + " <-> " + clusterNames2.size());
       ++differences;
     }
@@ -636,7 +663,6 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
     return true;
   }
 
-  @SuppressFBWarnings("NP_NULL_ON_SOME_PATH")
   private boolean compareRecords(ODocumentHelper.RIDMapper ridMapper) {
     listener.onMessage("\nStarting deep comparison record by record. This may take a few minutes. Wait please...");
 
@@ -737,16 +763,16 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
             recordsCounter++;
 
             final long position = physicalPosition.clusterPosition;
-            rid.clusterPosition = position;
+            rid.setClusterPosition(position);
 
-            if (rid.equals(new ORecordId(configuration1.indexMgrRecordId)) && rid
-                .equals(new ORecordId(configuration2.indexMgrRecordId)))
+            if (rid.equals(new ORecordId(configuration1.getIndexMgrRecordId())) && rid
+                .equals(new ORecordId(configuration2.getIndexMgrRecordId())))
               continue;
-            if (rid.equals(new ORecordId(configuration1.schemaRecordId)) && rid
-                .equals(new ORecordId(configuration2.schemaRecordId)))
+            if (rid.equals(new ORecordId(configuration1.getSchemaRecordId())) && rid
+                .equals(new ORecordId(configuration2.getSchemaRecordId())))
               continue;
 
-            if (rid.clusterId == 0 && rid.clusterPosition == 0) {
+            if (rid.getClusterId() == 0 && rid.getClusterPosition() == 0) {
               // Skip the compare of raw structure if the storage type are different, due the fact that are different by definition.
               if (!storageType1.equals(storageType2))
                 continue;
@@ -766,13 +792,13 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
             final ORawBuffer buffer1 = makeDbCall(databaseOne, new ODbRelatedCall<ORawBuffer>() {
               @Override
               public ORawBuffer call(ODatabaseDocumentInternal database) {
-                return database.getStorage().readRecord(rid, null, true, null).getResult();
+                return database.getStorage().readRecord(rid, null, true, false, null).getResult();
               }
             });
             final ORawBuffer buffer2 = makeDbCall(databaseTwo, new ODbRelatedCall<ORawBuffer>() {
               @Override
               public ORawBuffer call(ODatabaseDocumentInternal database) {
-                return database.getStorage().readRecord(rid2, null, true, null).getResult();
+                return database.getStorage().readRecord(rid2, null, true, false, null).getResult();
               }
             });
 
@@ -796,6 +822,7 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
               }
 
               if (buffer1.buffer == null && buffer2.buffer == null) {
+                // Both null so both equals
               } else if (buffer1.buffer == null && buffer2.buffer != null) {
                 listener.onMessage(
                     "\n- ERR: RID=" + clusterId1 + ":" + position + " content is different: null <-> " + buffer2.buffer.length);
@@ -826,8 +853,8 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
                     }
                   });
 
-                  if (rid.toString().equals(configuration1.schemaRecordId) && rid.toString()
-                      .equals(configuration2.schemaRecordId)) {
+                  if (rid.toString().equals(configuration1.getSchemaRecordId()) && rid.toString()
+                      .equals(configuration2.getSchemaRecordId())) {
                     makeDbCall(databaseOne, new ODocumentHelper.ODbRelatedCall<java.lang.Object>() {
                       public Object call(ODatabaseDocumentInternal database) {
                         convertSchemaDoc(doc1);
@@ -888,7 +915,7 @@ public class ODatabaseCompare extends ODatabaseImpExpAbstract {
               }
             }
           } catch (RuntimeException e) {
-            OLogManager.instance().error(this, "Error during data comparison of records with rid " + rid);
+            OLogManager.instance().error(this, "Error during data comparison of records with rid " + rid, e);
             throw e;
           }
         }

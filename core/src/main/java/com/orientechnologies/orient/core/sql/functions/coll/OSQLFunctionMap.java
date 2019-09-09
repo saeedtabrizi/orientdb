@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql.functions.coll;
@@ -30,7 +30,7 @@ import java.util.Map;
 /**
  * This operator add an entry in a map. The entry is composed by a key and a value.
  * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public class OSQLFunctionMap extends OSQLFunctionMultiValueAbstract<Map<Object, Object>> {
@@ -89,6 +89,11 @@ public class OSQLFunctionMap extends OSQLFunctionMultiValueAbstract<Map<Object, 
   }
 
   @Override
+  public boolean aggregateResults() {
+    return configuredParameters.length <= 2;
+  }
+
+  @Override
   public Map<Object, Object> getResult() {
     final Map<Object, Object> res = context;
     context = null;
@@ -100,7 +105,7 @@ public class OSQLFunctionMap extends OSQLFunctionMultiValueAbstract<Map<Object, 
       final Map<String, Object> doc = new HashMap<String, Object>();
       doc.put("node", getDistributedStorageId());
       doc.put("context", res);
-      return Collections.<Object, Object> singletonMap("doc", doc);
+      return Collections.<Object, Object>singletonMap("doc", doc);
     } else {
       return res;
     }
@@ -118,6 +123,9 @@ public class OSQLFunctionMap extends OSQLFunctionMultiValueAbstract<Map<Object, 
       return result;
     }
 
-    return resultsToMerge.get(0);
+    if (!resultsToMerge.isEmpty())
+      return resultsToMerge.get(0);
+
+    return null;
   }
 }

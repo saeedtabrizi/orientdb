@@ -3,7 +3,7 @@ package com.orientechnologies.orient.core.sql.parser;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 
-import static org.testng.Assert.fail;
+import static org.junit.Assert.fail;
 
 public abstract class OParserTestAbstract {
 
@@ -12,7 +12,7 @@ public abstract class OParserTestAbstract {
     StringBuilder builder = new StringBuilder();
     result.toString(null, builder);
     return checkSyntax(builder.toString(), true);
-//    return checkSyntax(query, true);
+    //    return checkSyntax(query, true);
   }
 
   protected SimpleNode checkWrongSyntax(String query) {
@@ -24,25 +24,28 @@ public abstract class OParserTestAbstract {
     try {
       SimpleNode result = osql.parse();
       if (!isCorrect) {
+//        System.out.println(query);
+//        if (result != null) {
+//          System.out.println("->");
+//          StringBuilder builer = new StringBuilder();
+//          result.toString(null, builer);
+//          System.out.println(builer.toString());
+//          System.out.println("............");
+//        }
+
         fail();
       }
-      System.out.println(query);
-      System.out.println("->");
-      StringBuilder builer = new StringBuilder();
-      result.toString(null, builer);
-      System.out.println(builer.toString());
-      System.out.println("............");
+
       return result;
     } catch (Exception e) {
       if (isCorrect) {
+        System.out.println(query);
         e.printStackTrace();
         fail();
       }
     }
     return null;
   }
-
-
 
   private void printTree(String s) {
     OrientSql osql = getParserFor(s);

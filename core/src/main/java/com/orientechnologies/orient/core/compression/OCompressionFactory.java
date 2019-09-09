@@ -26,7 +26,6 @@ import com.orientechnologies.orient.core.compression.impl.OGZIPCompression;
 import com.orientechnologies.orient.core.compression.impl.OHighZIPCompression;
 import com.orientechnologies.orient.core.compression.impl.OLowZIPCompression;
 import com.orientechnologies.orient.core.compression.impl.ONothingCompression;
-import com.orientechnologies.orient.core.compression.impl.OSnappyCompression;
 import com.orientechnologies.orient.core.exception.OSecurityException;
 
 import java.util.HashMap;
@@ -35,12 +34,12 @@ import java.util.Set;
 
 /**
  * Factory of compression algorithms.
- * 
+ *
  * @author Andrey Lomakin
  * @since 05.06.13
  */
 public class OCompressionFactory {
-  public static final OCompressionFactory                  INSTANCE           = new OCompressionFactory();
+  public static final OCompressionFactory INSTANCE = new OCompressionFactory();
 
   private final Map<String, OCompression>                  compressions       = new HashMap<String, OCompression>();
   private final Map<String, Class<? extends OCompression>> compressionClasses = new HashMap<String, Class<? extends OCompression>>();
@@ -52,11 +51,13 @@ public class OCompressionFactory {
     register(new OHighZIPCompression());
     register(new OLowZIPCompression());
     register(new OGZIPCompression());
-    register(new OSnappyCompression());
     register(new ONothingCompression());
   }
 
   public OCompression getCompression(final String name, final String iOptions) {
+    if (name.length() == 0)
+      return ONothingCompression.INSTANCE;
+
     OCompression compression = compressions.get(name);
     if (compression == null) {
 
@@ -82,9 +83,8 @@ public class OCompressionFactory {
 
   /**
    * Registers a stateful implementations, a new instance will be created for each storage.
-   * 
-   * @param compression
-   *          Compression instance
+   *
+   * @param compression Compression instance
    */
   public void register(final OCompression compression) {
     try {
@@ -104,9 +104,8 @@ public class OCompressionFactory {
 
   /**
    * Registers a stateless implementations, the same instance will be shared on all the storages.
-   * 
-   * @param compression
-   *          Compression class
+   *
+   * @param compression Compression class
    */
   public void register(final Class<? extends OCompression> compression) {
     try {

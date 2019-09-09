@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,27 +14,30 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.command.script;
 
 import com.orientechnologies.orient.core.db.ODatabase;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.exception.OConfigurationException;
 
 /**
  * Orient wrapper class to use from scripts.
  * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
+
+@Deprecated
 public class OScriptOrientWrapper {
   protected final ODatabase db;
 
   public OScriptOrientWrapper() {
     this.db = null;
   }
+
 
   public OScriptOrientWrapper(final ODatabase db) {
     this.db = db;
@@ -44,8 +47,8 @@ public class OScriptOrientWrapper {
     if (db == null)
       throw new OConfigurationException("No database instance found in context");
 
-    if (db instanceof ODatabaseDocumentTx)
-      return new OScriptDocumentDatabaseWrapper((ODatabaseDocumentTx) db);
+    if (db instanceof ODatabaseDocumentInternal)
+      return new OScriptDocumentDatabaseWrapper((ODatabaseDocumentInternal) db);
 
     throw new OConfigurationException("No valid database instance found in context: " + db + ", class: " + db.getClass());
   }

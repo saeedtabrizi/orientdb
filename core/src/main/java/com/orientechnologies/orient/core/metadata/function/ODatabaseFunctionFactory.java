@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.metadata.function;
@@ -30,25 +30,25 @@ import com.orientechnologies.orient.core.sql.functions.OSQLFunctionFactory;
 /**
  * Dynamic function factory bound to the database's functions
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public class ODatabaseFunctionFactory implements OSQLFunctionFactory {
   @Override
   public boolean hasFunction(final String iName) {
-    final ODatabaseDocument db = ODatabaseRecordThreadLocal.INSTANCE.get();
+    final ODatabaseDocument db = ODatabaseRecordThreadLocal.instance().get();
     return db.getMetadata().getFunctionLibrary().getFunction(iName) != null;
   }
 
   @Override
   public Set<String> getFunctionNames() {
-    final ODatabaseDocument db = ODatabaseRecordThreadLocal.INSTANCE.get();
+    final ODatabaseDocument db = ODatabaseRecordThreadLocal.instance().get();
     return db.getMetadata().getFunctionLibrary().getFunctionNames();
   }
 
   @Override
   public OSQLFunction createFunction(final String name) throws OCommandExecutionException {
-    final ODatabaseDocument db = ODatabaseRecordThreadLocal.INSTANCE.get();
+    final ODatabaseDocument db = ODatabaseRecordThreadLocal.instance().get();
     final OFunction f = db.getMetadata().getFunctionLibrary().getFunction(name);
     return new ODatabaseFunction(f);
   }

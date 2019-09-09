@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,12 +14,14 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *  
  */
 
 package com.orientechnologies.orient.graph.sql;
 
+import com.orientechnologies.orient.core.command.OCommandManager;
+import com.orientechnologies.orient.core.command.script.OCommandExecutorScript;
 import com.orientechnologies.orient.core.command.script.OCommandScript;
 import com.orientechnologies.orient.graph.GraphNoTxAbstractTest;
 import com.tinkerpop.blueprints.impls.orient.OrientElement;
@@ -32,6 +34,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class SQLGraphBatchTest extends GraphNoTxAbstractTest {
+
   @Test
   public void testTraverseContext() {
     StringBuilder script = new StringBuilder();
@@ -51,6 +54,7 @@ public class SQLGraphBatchTest extends GraphNoTxAbstractTest {
 
   @BeforeClass
   public static void init() {
+    OCommandManager.instance().registerExecutor(OCommandScript.class, OCommandExecutorScript.class);
     init(SQLGraphBatchTest.class.getSimpleName());
   }
 }

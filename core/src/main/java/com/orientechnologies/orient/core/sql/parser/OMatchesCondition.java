@@ -4,14 +4,18 @@ package com.orientechnologies.orient.core.sql.parser;
 
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
+import com.orientechnologies.orient.core.sql.executor.OResult;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class OMatchesCondition extends OBooleanExpression {
   protected OExpression expression;
-  protected String      right;
+
+  protected String          right;
+  protected OExpression     rightExpression;
   protected OInputParameter rightParam;
 
   public OMatchesCondition(int id) {
@@ -22,45 +26,211 @@ public class OMatchesCondition extends OBooleanExpression {
     super(p, id);
   }
 
-  /** Accept the visitor. **/
+  /**
+   * Accept the visitor.
+   **/
   public Object jjtAccept(OrientSqlVisitor visitor, Object data) {
     return visitor.visit(this, data);
   }
 
-  @Override public boolean evaluate(OIdentifiable currentRecord, OCommandContext ctx) {
-    return false;
+  @Override
+  public boolean evaluate(OIdentifiable currentRecord, OCommandContext ctx) {
+    String regex = right;
+    if (regex != null) {
+      regex = regex.substring(1, regex.length() - 1);
+    } else if (rightExpression != null) {
+      Object val = rightExpression.execute(currentRecord, ctx);
+      if (val instanceof String) {
+        regex = (String) val;
+      } else {
+        return false;
+      }
+    } else {
+      Object paramVal = rightParam.getValue(ctx.getInputParameters());
+      if (paramVal instanceof String) {
+        regex = (String) paramVal;
+      } else {
+        return false;
+      }
+    }
+    Object value = expression.execute(currentRecord, ctx);
+
+    return matches(value, regex, ctx);
   }
 
+  private boolean matches(Object value, String regex, OCommandContext ctx) {
+    final String key = "MATCHES_" + regex.hashCode();
+    java.util.regex.Pattern p = (java.util.regex.Pattern) ctx.getVariable(key);
+    if (p == null) {
+      p = java.util.regex.Pattern.compile(regex);
+      ctx.setVariable(key, p);
+    }
+
+    if (value instanceof CharSequence) {
+      return p.matcher((CharSequence) value).matches();
+    } else {
+      return false;
+    }
+  }
+
+  @Override
+  public boolean evaluate(OResult currentRecord, OCommandContext ctx) {
+    String regex = right;
+    if (regex != null) {
+      regex = regex.substring(1, regex.length() - 1);
+    } else if (rightExpression != null) {
+      Object val = rightExpression.execute(currentRecord, ctx);
+      if (val instanceof String) {
+        regex = (String) val;
+      } else {
+        return false;
+      }
+    } else {
+      Object paramVal = rightParam.getValue(ctx.getInputParameters());
+      if (paramVal instanceof String) {
+        regex = (String) paramVal;
+      } else {
+        return false;
+      }
+    }
+    Object value = expression.execute(currentRecord, ctx);
+
+    return matches(value, regex, ctx);
+  }
 
   public void toString(Map<Object, Object> params, StringBuilder builder) {
     expression.toString(params, builder);
     builder.append(" MATCHES ");
-    if(right!=null) {
+    if (right != null) {
       builder.append(right);
-    }else{
+    } else if (rightExpression != null) {
+      rightExpression.toString(params, builder);
+    } else {
       rightParam.toString(params, builder);
     }
   }
 
   @Override
   public boolean supportsBasicCalculation() {
-    return expression.supportsBasicCalculation();
+    if (!expression.supportsBasicCalculation()) {
+      return false;
+    }
+    if (rightExpression != null && !rightExpression.supportsBasicCalculation()) {
+      return false;
+    }
+    return true;
   }
 
   @Override
   protected int getNumberOfExternalCalculations() {
+    int result = 0;
     if (expression != null && !expression.supportsBasicCalculation()) {
-      return 1;
+      result++;
     }
-    return 0;
+    if (rightExpression != null && !rightExpression.supportsBasicCalculation()) {
+      result++;
+    }
+    return result;
   }
 
   @Override
   protected List<Object> getExternalCalculationConditions() {
+    List<Object> result = new ArrayList<>();
     if (expression != null && !expression.supportsBasicCalculation()) {
-      return (List) Collections.singletonList(expression);
+      result.add(expression);
     }
-    return Collections.EMPTY_LIST;
+    if (rightExpression != null && !rightExpression.supportsBasicCalculation()) {
+      result.add(rightExpression);
+    }
+    return result;
+  }
+
+  @Override
+  public boolean needsAliases(Set<String> aliases) {
+    if (expression.needsAliases(aliases)) {
+      return true;
+    }
+    if (rightExpression.needsAliases(aliases)) {
+      return true;
+    }
+    return false;
+  }
+
+  @Override
+  public OMatchesCondition copy() {
+    OMatchesCondition result = new OMatchesCondition(-1);
+    result.expression = expression == null ? null : expression.copy();
+    result.right = right;
+    result.rightParam = rightParam == null ? null : rightParam.copy();
+    result.rightExpression = rightExpression == null ? null : rightExpression.copy();
+    return result;
+  }
+
+  @Override
+  public void extractSubQueries(SubQueryCollector collector) {
+    expression.extractSubQueries(collector);
+    if (rightExpression != null) {
+      rightExpression.extractSubQueries(collector);
+    }
+  }
+
+  @Override
+  public boolean refersToParent() {
+    if (expression != null && expression.refersToParent()) {
+      return true;
+    }
+    if (rightExpression != null && rightExpression.refersToParent()) {
+      return true;
+    }
+    return false;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OMatchesCondition that = (OMatchesCondition) o;
+
+    if (expression != null ? !expression.equals(that.expression) : that.expression != null)
+      return false;
+    if (right != null ? !right.equals(that.right) : that.right != null)
+      return false;
+    if (rightExpression != null ? !rightExpression.equals(that.rightExpression) : that.rightExpression != null)
+      return false;
+    return rightParam != null ? rightParam.equals(that.rightParam) : that.rightParam == null;
+  }
+
+  @Override
+  public int hashCode() {
+    int result = expression != null ? expression.hashCode() : 0;
+    result = 31 * result + (right != null ? right.hashCode() : 0);
+    result = 31 * result + (rightExpression != null ? rightExpression.hashCode() : 0);
+    result = 31 * result + (rightParam != null ? rightParam.hashCode() : 0);
+    return result;
+  }
+
+  @Override
+  public List<String> getMatchPatternInvolvedAliases() {
+    List<String> result = new ArrayList<>();
+    result.addAll(expression.getMatchPatternInvolvedAliases());
+    if (rightExpression != null) {
+      result.addAll(rightExpression.getMatchPatternInvolvedAliases());
+    }
+    return result;
+  }
+
+  @Override
+  public boolean isCacheable() {
+    if (!expression.isCacheable()) {
+      return false;
+    }
+    if (rightExpression != null && !rightExpression.isCacheable()) {
+      return false;
+    }
+    return true;
   }
 
 }

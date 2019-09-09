@@ -1,8 +1,6 @@
 package com.orientechnologies.orient.core.sql.parser;
 
-import org.testng.annotations.Test;
-
-@Test
+import org.junit.Test;
 public class ORevokeStatementTest extends OParserTestAbstract {
 
   @Test
@@ -13,6 +11,9 @@ public class ORevokeStatementTest extends OParserTestAbstract {
     checkRightSyntax("revoke DELETE on database.class.* from admin");
     checkRightSyntax("revoke NONE on database.class.* from admin");
     checkRightSyntax("revoke ALL on database.class.* from admin");
+    checkRightSyntax("revoke EXECUTE on database.class.* from admin");
+    checkRightSyntax("revoke execute on database.class.* from admin");
+
 
     checkWrongSyntax("revoke Foo on database.class.Person from admin");
   }

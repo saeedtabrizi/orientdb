@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,26 +14,19 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.network.protocol.http.command.post;
 
-import java.io.IOException;
-import java.io.StringWriter;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
 import com.orientechnologies.common.log.OLogManager;
-import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.config.OStorageEntryConfiguration;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
+import com.orientechnologies.orient.core.db.ODatabaseType;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.engine.local.OEngineLocalPaginated;
 import com.orientechnologies.orient.core.engine.memory.OEngineMemory;
 import com.orientechnologies.orient.core.exception.OCommandExecutionException;
-import com.orientechnologies.orient.core.exception.ODatabaseException;
 import com.orientechnologies.orient.core.exception.OSecurityAccessException;
 import com.orientechnologies.orient.core.index.OIndex;
 import com.orientechnologies.orient.core.index.OIndexDefinition;
@@ -44,11 +37,14 @@ import com.orientechnologies.orient.core.metadata.security.OUser;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.serialization.serializer.OJSONWriter;
 import com.orientechnologies.orient.core.storage.OCluster;
-import com.orientechnologies.orient.core.storage.OStorage;
 import com.orientechnologies.orient.server.network.protocol.http.OHttpRequest;
 import com.orientechnologies.orient.server.network.protocol.http.OHttpResponse;
 import com.orientechnologies.orient.server.network.protocol.http.OHttpUtils;
 import com.orientechnologies.orient.server.network.protocol.http.command.OServerCommandAuthenticatedServerAbstract;
+
+import java.io.IOException;
+import java.io.StringWriter;
+import java.util.*;
 
 public class OServerCommandPostDatabase extends OServerCommandAuthenticatedServerAbstract {
   private static final String[] NAMES = { "POST|database/*" };
@@ -63,29 +59,22 @@ public class OServerCommandPostDatabase extends OServerCommandAuthenticatedServe
 
     iRequest.data.commandInfo = "Create database";
 
-    try {
-      final String databaseName = urlParts[1];
-      final String storageMode = urlParts[2];
-      String url = getStoragePath(databaseName, storageMode);
-      final String type = urlParts.length > 3 ? urlParts[3] : "document";
-      if (url != null) {
-        final ODatabaseDocumentTx database = new ODatabaseDocumentTx(url);
-        if (database.exists()) {
-          iResponse.send(OHttpUtils.STATUS_CONFLICT_CODE, OHttpUtils.STATUS_CONFLICT_DESCRIPTION, OHttpUtils.CONTENT_TEXT_PLAIN,
-              "Database '" + database.getURL() + "' already exists.", null);
-        } else {
-          for (OStorage stg : Orient.instance().getStorages()) {
-            if (stg.getName().equalsIgnoreCase(database.getName()) && stg.exists())
-              throw new ODatabaseException("Database named '" + database.getName() + "' already exists: " + stg);
-          }
-          OLogManager.instance().info(this, "Creating database " + url);
-          database.create();
+    final String databaseName = urlParts[1];
+    final String storageMode = urlParts[2];
+    String url = getStoragePath(databaseName, storageMode);
+    final String type = urlParts.length > 3 ? urlParts[3] : "document";
+    if (url != null) {
+      if (server.existsDatabase(databaseName)) {
+        sendJsonError(iResponse, OHttpUtils.STATUS_CONFLICT_CODE, OHttpUtils.STATUS_CONFLICT_DESCRIPTION,
+            OHttpUtils.CONTENT_TEXT_PLAIN, "Database '" + databaseName + "' already exists.", null);
+      } else {
+        server.createDatabase(databaseName, ODatabaseType.valueOf(storageMode.toUpperCase(Locale.ENGLISH)), null);
+        try (ODatabaseDocumentInternal database = server.openDatabase(databaseName, serverUser, serverPassword, null, false)) {
           sendDatabaseInfo(iRequest, iResponse, database);
         }
-      } else {
-        throw new OCommandExecutionException("The '" + storageMode + "' storage mode does not exists.");
       }
-    } finally {
+    } else {
+      throw new OCommandExecutionException("The '" + storageMode + "' storage mode does not exists.");
     }
     return false;
   }
@@ -104,13 +93,13 @@ public class OServerCommandPostDatabase extends OServerCommandAuthenticatedServe
     return null;
   }
 
-  protected void sendDatabaseInfo(final OHttpRequest iRequest, final OHttpResponse iResponse, final ODatabaseDocumentTx db)
+  protected void sendDatabaseInfo(final OHttpRequest iRequest, final OHttpResponse iResponse, final ODatabaseDocumentInternal db)
       throws IOException {
     final StringWriter buffer = new StringWriter();
     final OJSONWriter json = new OJSONWriter(buffer);
 
     json.beginObject();
-    
+
     if (db.getMetadata().getSchema().getClasses() != null) {
       json.beginCollection(1, false, "classes");
       Set<String> exportedNames = new HashSet<String>();
@@ -149,12 +138,12 @@ public class OServerCommandPostDatabase extends OServerCommandAuthenticatedServe
       json.endCollection(1, true);
     }
 
-    if(db.getUser() != null)
-    	json.writeAttribute(1, false, "currentUser", db.getUser().getName());
+    if (db.getUser() != null)
+      json.writeAttribute(1, false, "currentUser", db.getUser().getName());
 
     json.beginCollection(1, false, "users");
     OUser user;
-    for (ODocument doc : db.getMetadata().getSecurity().getAllUsers()) {    	
+    for (ODocument doc : db.getMetadata().getSecurity().getAllUsers()) {
       user = new OUser(doc);
       json.beginObject(2, true, null);
       json.writeAttribute(3, false, "name", user.getName());
@@ -190,11 +179,12 @@ public class OServerCommandPostDatabase extends OServerCommandAuthenticatedServe
     json.beginObject(1, true, "config");
 
     json.beginCollection(2, true, "values");
-    json.writeObjects(3, true, null, new Object[] { "name", "dateFormat", "value", db.getStorage().getConfiguration().dateFormat },
-        new Object[] { "name", "dateTimeFormat", "value", db.getStorage().getConfiguration().dateTimeFormat }, new Object[] {
-            "name", "localeCountry", "value", db.getStorage().getConfiguration().getLocaleCountry() }, new Object[] { "name",
-            "localeLanguage", "value", db.getStorage().getConfiguration().getLocaleLanguage() }, new Object[] { "name",
-            "definitionVersion", "value", db.getStorage().getConfiguration().version });
+    json.writeObjects(3, true, null,
+        new Object[] { "name", "dateFormat", "value", db.getStorage().getConfiguration().getDateFormat() },
+        new Object[] { "name", "dateTimeFormat", "value", db.getStorage().getConfiguration().getDateTimeFormat() },
+        new Object[] { "name", "localeCountry", "value", db.getStorage().getConfiguration().getLocaleCountry() },
+        new Object[] { "name", "localeLanguage", "value", db.getStorage().getConfiguration().getLocaleLanguage() },
+        new Object[] { "name", "definitionVersion", "value", db.getStorage().getConfiguration().getVersion() });
     json.endCollection(2, true);
 
     json.beginCollection(2, true, "properties");
@@ -213,10 +203,10 @@ public class OServerCommandPostDatabase extends OServerCommandAuthenticatedServe
     json.endObject();
     json.flush();
 
-    iResponse.send(OHttpUtils.STATUS_OK_CODE, "OK", OHttpUtils.CONTENT_JSON, buffer.toString(), null);
+    iResponse.send(OHttpUtils.STATUS_OK_CODE, OHttpUtils.STATUS_OK_DESCRIPTION, OHttpUtils.CONTENT_JSON, buffer.toString(), null);
   }
 
-  protected void exportClass(final ODatabaseDocumentTx db, final OJSONWriter json, final OClass cls) throws IOException {
+  protected void exportClass(final ODatabaseDocument db, final OJSONWriter json, final OClass cls) throws IOException {
     json.beginObject(2, true, null);
     json.writeAttribute(3, true, "name", cls.getName());
     json.writeAttribute(3, true, "superClass", cls.getSuperClass() != null ? cls.getSuperClass().getName() : "");

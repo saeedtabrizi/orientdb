@@ -17,7 +17,7 @@
     <parent>
         <groupId>com.orientechnologies</groupId>
         <artifactId>orientdb-parent</artifactId>
-        <version>2.2.0-SNAPSHOT</version>
+        <version>3.1.0-SNAPSHOT</version>
         <relativePath>../</relativePath>
     </parent>
 
@@ -27,6 +27,15 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <argLine>
+            -Xmx${heapSize}
+            -Dstorage.diskCache.bufferSize=4096
+            -Dmemory.directMemory.trackMode=true
+            -Djava.util.logging.manager=com.orientechnologies.common.log.ShutdownLogManager
+            -Dstorage.diskCache.checksumMode=storeAndThrow
+            -Dindex.allowManualIndexes=false
+        </argLine>
+        <project.rootdir>${project.basedir}/../</project.rootdir>
     </properties>
 
     <dependencies>
@@ -65,6 +74,19 @@
             <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>6.9.8</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.beanshell</groupId>
+                    <artifactId>bsh</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
         <dependency>
             <groupId>com.orientechnologies</groupId>
             <artifactId>orientdb-core</artifactId>
@@ -115,7 +137,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.17</version>
                 <configuration>
                     <systemPropertyVariables>
                         <storage.lockTimeout>60000</storage.lockTimeout>
@@ -127,14 +148,19 @@
                         <index.flushAfterCreate>false</index.flushAfterCreate>
                         <security.userPasswordSaltIterations>10</security.userPasswordSaltIterations>
                         <buildDirectory>${project.build.directory}</buildDirectory>
-                        <url>memory:demo</url>
                         <testPath>${project.basedir}</testPath>
+                        <orientdb.test.keepDatabase>true</orientdb.test.keepDatabase>
                         <orient.server.testMode>${orient.server.testMode}</orient.server.testMode>
                         <orient.server.port>${orient.server.port}</orient.server.port>
                         <storage.diskCache.bufferSize>4096</storage.diskCache.bufferSize>
                         <memory.directMemory.trackMode>true</memory.directMemory.trackMode>
                     </systemPropertyVariables>
-                    <argLine>-Xmx3072m -XX:MaxDirectMemorySize=512g</argLine>
+                    <properties>
+                        <property>
+                            <name>listener</name>
+                            <value>com.orientechnologies.OTestNGTestListener</value>
+                        </property>
+                    </properties>
                 </configuration>
                 <executions>
                     <execution>
@@ -176,7 +202,34 @@
                     </execution>
                 </executions>
             </plugin>
-
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>${surefire.version}</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <storage.lockTimeout>60000</storage.lockTimeout>
+                        <storage.makeFullCheckpointAfterCreate>false</storage.makeFullCheckpointAfterCreate>
+                        <storage.makeFullCheckpointAfterClusterCreate>false
+                        </storage.makeFullCheckpointAfterClusterCreate>
+                        <storage.wal.syncOnPageFlush>false</storage.wal.syncOnPageFlush>
+                        <storage.configuration.syncOnUpdate>false</storage.configuration.syncOnUpdate>
+                        <index.flushAfterCreate>false</index.flushAfterCreate>
+                        <security.userPasswordSaltIterations>10</security.userPasswordSaltIterations>
+                        <buildDirectory>${project.build.directory}</buildDirectory>
+                        <testPath>${project.basedir}</testPath>
+                        <orientdb.test.keepDatabase>true</orientdb.test.keepDatabase>
+                        <storage.diskCache.bufferSize>4096</storage.diskCache.bufferSize>
+                        <memory.directMemory.trackMode>true</memory.directMemory.trackMode>
+                    </systemPropertyVariables>
+                    <properties>
+                        <property>
+                            <name>listener</name>
+                            <value>com.orientechnologies.OTestNGTestListener</value>
+                        </property>
+                    </properties>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
@@ -211,6 +264,21 @@
                                 <phase>none</phase>
                             </execution>
                         </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>crash-tests</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <version>${surefire.version}</version>
+                        <configuration>
+                            <skipTests>true</skipTests>
+                        </configuration>
                     </plugin>
                 </plugins>
             </build>

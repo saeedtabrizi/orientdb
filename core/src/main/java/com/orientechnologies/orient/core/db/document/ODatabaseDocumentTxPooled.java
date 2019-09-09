@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,12 +14,13 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.db.document;
 
 import com.orientechnologies.common.log.OLogManager;
+import com.orientechnologies.orient.core.db.ODatabase;
 import com.orientechnologies.orient.core.db.ODatabasePoolBase;
 import com.orientechnologies.orient.core.db.ODatabasePooled;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
@@ -30,7 +31,7 @@ import com.orientechnologies.orient.core.metadata.security.OToken;
  * Pooled wrapper to the ODatabaseDocumentTx class. Allows to being reused across calls. The close() method does not close the
  * database for real but release it to the owner pool. The database born as opened and will leave open until the pool is closed.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * @see ODatabasePoolBase
  */
 @SuppressWarnings("unchecked")
@@ -52,7 +53,7 @@ public class ODatabaseDocumentTxPooled extends ODatabaseDocumentTx implements OD
     ownerPool = (ODatabaseDocumentPool) iOwner;
     getLocalCache().invalidate();
     // getMetadata().reload();
-    ODatabaseRecordThreadLocal.INSTANCE.set(this);
+    ODatabaseRecordThreadLocal.instance().set(this);
 
     try {
       callOnOpenListeners();
@@ -75,6 +76,12 @@ public class ODatabaseDocumentTxPooled extends ODatabaseDocumentTx implements OD
 
   @Override
   public ODatabaseDocumentTxPooled create() {
+    throw new UnsupportedOperationException(
+        "Database instance was retrieved from a pool. You cannot open the database in this way. Use directly a ODatabaseDocumentTx instance if you want to manually open the connection");
+  }
+
+  @Override
+  public <DB extends ODatabase> DB create(String incrementalBackupPath) {
     throw new UnsupportedOperationException(
         "Database instance was retrieved from a pool. You cannot open the database in this way. Use directly a ODatabaseDocumentTx instance if you want to manually open the connection");
   }
@@ -104,7 +111,7 @@ public class ODatabaseDocumentTxPooled extends ODatabaseDocumentTx implements OD
     if (isClosed())
       return;
 
-    checkOpeness();
+    checkOpenness();
 
     if (ownerPool != null && ownerPool.getConnectionsInCurrentThread(getURL(), userName) > 1) {
       ownerPool.release(this);
@@ -131,19 +138,19 @@ public class ODatabaseDocumentTxPooled extends ODatabaseDocumentTx implements OD
       localCopy.release(this);
     }
 
-    ODatabaseRecordThreadLocal.INSTANCE.remove();
+    ODatabaseRecordThreadLocal.instance().remove();
   }
 
   public void forceClose() {
     super.close();
   }
 
-  @Override
-  protected void checkOpeness() {
+//  @Override
+  protected void checkOpenness() {
     if (ownerPool == null)
       throw new ODatabaseException(
           "Database instance has been released to the pool. Get another database instance from the pool with the right username and password");
 
-    super.checkOpeness();
+//    super.checkOpenness();
   }
 }

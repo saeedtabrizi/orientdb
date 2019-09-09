@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -50,12 +50,26 @@ public class BytesContainer {
     return cur;
   }
 
+  public int allocExact(final int toAlloc) {
+    final int cur = offset;
+    offset += toAlloc;
+    if (bytes.length < offset) {
+      byte[] newArray = new byte[offset];
+      System.arraycopy(bytes, 0, newArray, 0, bytes.length);
+      bytes = newArray;
+    }
+    return cur;
+  }
+
   public BytesContainer skip(final int read) {
     offset += read;
     return this;
   }
 
   public byte[] fitBytes() {
+    if (bytes.length == offset) {
+      return bytes;
+    }
     final byte[] fitted = new byte[offset];
     System.arraycopy(bytes, 0, fitted, 0, offset);
     return fitted;
@@ -69,4 +83,5 @@ public class BytesContainer {
     System.arraycopy(bytes, 0, newBytes, 0, bytes.length);
     bytes = newBytes;
   }
+
 }

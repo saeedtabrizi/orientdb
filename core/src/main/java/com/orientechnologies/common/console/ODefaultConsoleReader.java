@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -32,13 +32,15 @@ import java.io.InputStreamReader;
 public class ODefaultConsoleReader implements OConsoleReader {
   final BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 
-  private class EraserThread extends OSoftThread {
+  private static class EraserThread extends OSoftThread {
     @Override
+    @SuppressWarnings({"checkstyle:AvoidEscapedUnicodeCharacters", "checkstyle:IllegalTokenText"})
     protected void execute() throws Exception {
-      System.out.print("\010*");
+      System.out.print("\u0008*");
       try {
-        Thread.currentThread().sleep(1);
-      } catch (InterruptedException ie) {
+        Thread.sleep(1);
+      } catch (InterruptedException ignore) {
+        // om nom nom
       }
     }
   }
@@ -47,7 +49,7 @@ public class ODefaultConsoleReader implements OConsoleReader {
   public String readLine() {
     try {
       return reader.readLine();
-    } catch (IOException e) {
+    } catch (IOException ignore) {
       return null;
     }
   }
@@ -65,17 +67,19 @@ public class ODefaultConsoleReader implements OConsoleReader {
 
     try {
       return reader.readLine();
-    } catch (IOException e) {
+    } catch (IOException ignore) {
       return null;
     } finally {
       et.sendShutdown();
     }
   }
 
-  public OConsoleApplication getConsole() {
-    return null;
+  @Override
+  public void setConsole(OConsoleApplication console) {
   }
 
-  public void setConsole(OConsoleApplication console) {
+  @Override
+  public int getConsoleWidth() {
+    return OConsoleReader.FALLBACK_CONSOLE_WIDTH;
   }
 }

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,129 +14,98 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.orientechnologies.orient.core.storage.cache;
 
+import com.orientechnologies.orient.core.storage.cache.chm.LRUList;
+import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OLogSequenceNumber;
+import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OWALChanges;
+import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.po.PageOperationRecord;
+
+import java.util.List;
+
 /**
- * @author Andrey Lomakin
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 7/23/13
  */
-public class OCacheEntry {
-  OCachePointer dataPointer;
+public interface OCacheEntry {
+  OCachePointer getCachePointer();
 
-  final long    fileId;
-  final long    pageIndex;
+  void clearCachePointer();
 
-  boolean       dirty;
-  int           usagesCount;
+  void setCachePointer(OCachePointer cachePointer);
 
-  public OCacheEntry(long fileId, long pageIndex, OCachePointer dataPointer, boolean dirty) {
-    this.fileId = fileId;
-    this.pageIndex = pageIndex;
+  long getFileId();
 
-    this.dataPointer = dataPointer;
-    this.dirty = dirty;
-  }
+  int getPageIndex();
 
-  public void markDirty() {
-    this.dirty = true;
-  }
+  void acquireExclusiveLock();
 
-  public void clearDirty() {
-    this.dirty = false;
-  }
+  void releaseExclusiveLock();
 
-  public boolean isDirty() {
-    return dirty;
-  }
+  void acquireSharedLock();
 
-  public OCachePointer getCachePointer() {
-    return dataPointer;
-  }
+  void releaseSharedLock();
 
-  public void clearCachePointer() {
-    dataPointer = null;
-  }
+  int getUsagesCount();
 
-  public void setCachePointer(OCachePointer cachePointer) {
-    this.dataPointer = cachePointer;
-  }
+  void incrementUsages();
 
-  public long getFileId() {
-    return fileId;
-  }
+  /**
+   * DEBUG only !!
+   *
+   * @return Whether lock acquired on current entry
+   */
+  boolean isLockAcquiredByCurrentThread();
 
-  public long getPageIndex() {
-    return pageIndex;
-  }
+  void decrementUsages();
 
-  public void acquireExclusiveLock() {
-    dataPointer.acquireExclusiveLock();
-  }
+  OWALChanges getChanges();
 
-  public void releaseExclusiveLock() {
-    dataPointer.releaseExclusiveLock();
-  }
+  OLogSequenceNumber getEndLSN();
 
-  public void acquireSharedLock() {
-    dataPointer.acquireSharedLock();
-  }
+  void setEndLSN(OLogSequenceNumber endLSN);
 
-  public void releaseSharedLock() {
-    dataPointer.releaseSharedLock();
-  }
+  boolean acquireEntry();
 
-  public int getUsagesCount() {
-    return usagesCount;
-  }
+  void releaseEntry();
 
-  public void incrementUsages() {
-    usagesCount++;
-  }
+  boolean isReleased();
 
-  public void decrementUsages() {
-    usagesCount--;
-  }
+  boolean isAlive();
 
-  @Override
-  public boolean equals(Object o) {
-    if (this == o)
-      return true;
-    if (o == null || getClass() != o.getClass())
-      return false;
+  boolean freeze();
 
-    OCacheEntry that = (OCacheEntry) o;
+  boolean isFrozen();
 
-    if (fileId != that.fileId)
-      return false;
-    if (dirty != that.dirty)
-      return false;
-    if (pageIndex != that.pageIndex)
-      return false;
-    if (usagesCount != that.usagesCount)
-      return false;
-    if (dataPointer != null ? !dataPointer.equals(that.dataPointer) : that.dataPointer != null)
-      return false;
+  void makeDead();
 
-    return true;
-  }
+  boolean isDead();
 
-  @Override
-  public int hashCode() {
-    int result = (int) (fileId ^ (fileId >>> 32));
-    result = 31 * result + (int) (pageIndex ^ (pageIndex >>> 32));
-    result = 31 * result + (dataPointer != null ? dataPointer.hashCode() : 0);
-    result = 31 * result + (dirty ? 1 : 0);
-    result = 31 * result + usagesCount;
-    return result;
-  }
+  OCacheEntry getNext();
 
-  @Override
-  public String toString() {
-    return "OReadCacheEntry{" + "fileId=" + fileId + ", pageIndex=" + pageIndex + ", dataPointer=" + dataPointer + ", dirty="
-        + dirty + ", usagesCount=" + usagesCount + '}';
-  }
+  OCacheEntry getPrev();
+
+  void setPrev(OCacheEntry prev);
+
+  void setNext(OCacheEntry next);
+
+  void setContainer(LRUList lruList);
+
+  LRUList getContainer();
+
+  boolean isNewlyAllocatedPage();
+
+  void markAllocated();
+
+  void clearAllocationFlag();
+
+  List<PageOperationRecord> getPageOperations();
+
+  void clearPageOperations();
+
+  void addPageOperationRecord(PageOperationRecord pageOperationRecord);
 }

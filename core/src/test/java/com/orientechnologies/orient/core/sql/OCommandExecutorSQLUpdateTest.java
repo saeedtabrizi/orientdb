@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2015 Orient Technologies LTD (info(at)orientdb.com)
+ *  *  Copyright 2015 OrientDB LTD (info(at)orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -19,19 +19,29 @@
  */
 package com.orientechnologies.orient.core.sql;
 
-import static org.testng.Assert.*;
-
-import java.util.*;
-
-import org.testng.annotations.Test;
-
 import com.orientechnologies.orient.core.command.script.OCommandScript;
+import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
+import com.orientechnologies.orient.core.db.OrientDBConfig;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
+import org.assertj.core.api.Assertions;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.*;
+
+import static org.junit.Assert.*;
 
 public class OCommandExecutorSQLUpdateTest {
+
+  @Before
+  public void before() {
+    OGlobalConfiguration.STORAGE_PESSIMISTIC_LOCKING.setValue(OrientDBConfig.LOCK_TYPE_MODIFICATION);
+  }
+
   @Test
   public void testUpdateRemoveAll() throws Exception {
     final ODatabaseDocumentTx db = new ODatabaseDocumentTx("memory:OCommandExecutorSQLUpdateTest");
@@ -217,7 +227,7 @@ public class OCommandExecutorSQLUpdateTest {
   public void testBooleanListNamedParameter() {
     ODatabaseDocumentTx db = new ODatabaseDocumentTx("memory:testBooleanListNamedParameter");
     try {
-      ODatabaseRecordThreadLocal.INSTANCE.set(db);
+      ODatabaseRecordThreadLocal.instance().set(db);
       db.create();
       db.getMetadata().getSchema().createClass("test");
 
@@ -227,8 +237,6 @@ public class OCommandExecutorSQLUpdateTest {
       doc.field("integerList", Collections.EMPTY_LIST);
       doc.field("booleanList", Collections.EMPTY_LIST);
       db.save(doc);
-
-      System.out.println(doc.toJSON());
 
       OCommandSQL updateCommand = new OCommandSQL(
           "UPDATE test SET boolean = :boolean, booleanList = :booleanList, integerList = :integerList WHERE id = 1");
@@ -283,15 +291,22 @@ public class OCommandExecutorSQLUpdateTest {
 
     db.command(new OCommandSQL("UPDATE test INCREMENT count = 2")).execute();
     queried.reload();
-    assertEquals(queried.field("count"), 22);
+    //    assertEquals(queried.field("count"), 22);
+
+    Assertions.assertThat(queried.<Integer>field("count")).isEqualTo(22);
 
     db.command(new OCommandSQL("UPDATE test INCREMENT `map.nestedCount` = 5")).execute();
     queried.reload();
-    assertEquals(queried.field("map.nestedCount"), 15);
+    //    assertEquals(queried.field("map.nestedCount"), 15);
+
+    Assertions.assertThat(queried.<Integer>field("map.nestedCount")).isEqualTo(15);
 
     db.command(new OCommandSQL("UPDATE test INCREMENT map.nestedCount = 5")).execute();
     queried.reload();
-    assertEquals(queried.field("map.nestedCount"), 20);
+
+    Assertions.assertThat(queried.<Integer>field("map.nestedCount")).isEqualTo(20);
+
+    //    assertEquals(queried.field("map.nestedCount"), 20);
 
     db.close();
   }
@@ -417,6 +432,141 @@ public class OCommandExecutorSQLUpdateTest {
     } finally {
       db.close();
     }
+  }
+
+  @Test
+  public void testUpdateContentOnClusterTarget() throws Exception {
+    final ODatabaseDocumentTx db = new ODatabaseDocumentTx("memory:UpdateContentOnClusterTarget");
+    db.create();
+    try {
+      db.command(new OCommandSQL("CREATE class Foo")).execute();
+      db.command(new OCommandSQL("CREATE class Bar")).execute();
+      db.command(new OCommandSQL("CREATE property Foo.bar EMBEDDED Bar")).execute();
+
+      db.command(new OCommandSQL("insert into cluster:foo set bar = {\"value\":\"zz\\\\\"}")).execute();
+      db.command(new OCommandSQL("UPDATE cluster:foo set bar = {\"value\":\"foo\\\\\"}")).execute();
+      Iterable result = db.query(new OSQLSynchQuery<Object>("select from cluster:foo"));
+      ODocument doc = (ODocument) result.iterator().next();
+      assertEquals(((ODocument) doc.field("bar")).field("value"), "foo\\");
+
+    } finally {
+      db.close();
+    }
+  }
+
+  @Test
+  public void testUpdateContentOnClusterTargetMultiple() throws Exception {
+    final ODatabaseDocumentTx db = new ODatabaseDocumentTx("memory:UpdateContentOnClusterTargetMultiple");
+    db.create();
+    try {
+      db.command(new OCommandSQL("CREATE class Foo")).execute();
+      db.command(new OCommandSQL("ALTER CLASS Foo addcluster fooadditional1")).execute();
+      db.command(new OCommandSQL("ALTER CLASS Foo addcluster fooadditional2")).execute();
+      db.command(new OCommandSQL("CREATE class Bar")).execute();
+      db.command(new OCommandSQL("CREATE property Foo.bar EMBEDDED Bar")).execute();
+
+      db.command(new OCommandSQL("insert into cluster:foo set bar = {\"value\":\"zz\\\\\"}")).execute();
+      db.command(new OCommandSQL("UPDATE cluster:foo set bar = {\"value\":\"foo\\\\\"}")).execute();
+      Iterable result = db.query(new OSQLSynchQuery<Object>("select from cluster:foo"));
+      Iterator iterator = result.iterator();
+      assertTrue(iterator.hasNext());
+      ODocument doc = (ODocument) iterator.next();
+      assertEquals(((ODocument) doc.field("bar")).field("value"), "foo\\");
+      assertFalse(iterator.hasNext());
+
+      db.command(new OCommandSQL("insert into cluster:fooadditional1 set bar = {\"value\":\"zz\\\\\"}")).execute();
+      db.command(new OCommandSQL("UPDATE cluster:fooadditional1 set bar = {\"value\":\"foo\\\\\"}")).execute();
+      result = db.query(new OSQLSynchQuery<Object>("select from cluster:fooadditional1"));
+      iterator = result.iterator();
+      assertTrue(iterator.hasNext());
+      doc = (ODocument) iterator.next();
+      assertEquals(((ODocument) doc.field("bar")).field("value"), "foo\\");
+      assertFalse(iterator.hasNext());
+    } finally {
+      db.close();
+    }
+  }
+
+  @Test
+  public void testUpdateContentOnClusterTargetMultipleSelection() throws Exception {
+    final ODatabaseDocumentTx db = new ODatabaseDocumentTx("memory:UpdateContentOnClusterTargetMultipleSelection");
+    db.create();
+    try {
+      db.command(new OCommandSQL("CREATE class Foo")).execute();
+      db.command(new OCommandSQL("ALTER CLASS Foo addcluster fooadditional1")).execute();
+      db.command(new OCommandSQL("ALTER CLASS Foo addcluster fooadditional2")).execute();
+      db.command(new OCommandSQL("ALTER CLASS Foo addcluster fooadditional3")).execute();
+      db.command(new OCommandSQL("CREATE class Bar")).execute();
+      db.command(new OCommandSQL("CREATE property Foo.bar EMBEDDED Bar")).execute();
+
+      db.command(new OCommandSQL("insert into cluster:fooadditional1 set bar = {\"value\":\"zz\\\\\"}")).execute();
+      db.command(new OCommandSQL("insert into cluster:fooadditional2 set bar = {\"value\":\"zz\\\\\"}")).execute();
+      db.command(new OCommandSQL("insert into cluster:fooadditional3 set bar = {\"value\":\"zz\\\\\"}")).execute();
+      db.command(new OCommandSQL("UPDATE cluster:[fooadditional1, fooadditional2] set bar = {\"value\":\"foo\\\\\"}")).execute();
+      List<?> result = db.query(new OSQLSynchQuery<Object>("select from cluster:[ fooadditional1, fooadditional2 ]"));
+      Iterator<?> iterator = result.iterator();
+      assertTrue(iterator.hasNext());
+      ODocument doc = (ODocument) iterator.next();
+      assertEquals(((ODocument) doc.field("bar")).field("value"), "foo\\");
+      assertTrue(iterator.hasNext());
+      doc = (ODocument) iterator.next();
+      assertEquals(((ODocument) doc.field("bar")).field("value"), "foo\\");
+      assertFalse(iterator.hasNext());
+    } finally {
+      db.close();
+    }
+  }
+
+  @Test
+  public void testUpdateContentNotORestricted() throws Exception {
+    //issue #5564
+    final ODatabaseDocumentTx db = new ODatabaseDocumentTx("memory:UpdateContentNotORestricted");
+    db.create();
+    try {
+      db.command(new OCommandSQL("CREATE class Foo")).execute();
+
+      ODocument d = new ODocument("Foo");
+      d.field("name", "foo");
+      d.save();
+      db.command(new OCommandSQL("update Foo MERGE {\"a\":1}")).execute();
+      db.command(new OCommandSQL("update Foo CONTENT {\"a\":1}")).execute();
+
+      List<ODocument> result = db.query(new OSQLSynchQuery<ODocument>("select from Foo"));
+
+      assertEquals(result.size(), 1);
+      ODocument doc = result.get(0);
+      assertNull(doc.field("_allowRead"));
+    } finally {
+      db.close();
+    }
+  }
+
+  @Test
+  public void testUpdateReturnCount() throws Exception {
+    //issue #5564
+    final ODatabaseDocumentTx db = new ODatabaseDocumentTx("memory:testUpdateReturnCount");
+    db.create();
+    try {
+      db.command(new OCommandSQL("CREATE class Foo")).execute();
+
+      ODocument d = new ODocument("Foo");
+      d.field("name", "foo");
+      d.save();
+      d = new ODocument("Foo");
+      d.field("name", "bar");
+      d.save();
+
+      Object result = db.command(new OCommandSQL("update Foo set surname = 'baz' return count")).execute();
+
+      assertEquals(2, result);
+    } finally {
+      db.close();
+    }
+  }
+
+  @After
+  public void after() {
+    OGlobalConfiguration.STORAGE_PESSIMISTIC_LOCKING.setValue("none");
   }
 
 }

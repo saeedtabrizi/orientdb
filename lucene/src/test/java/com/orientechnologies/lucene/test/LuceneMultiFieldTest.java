@@ -1,6 +1,6 @@
 /*
  *
- *  * Copyright 2014 Orient Technologies.
+ *  * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  * Licensed under the Apache License, Version 2.0 (the "License");
  *  * you may not use this file except in compliance with the License.
@@ -13,21 +13,19 @@
  *  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  *  * See the License for the specific language governing permissions and
  *  * limitations under the License.
- *  
+ *
  */
 
 package com.orientechnologies.lucene.test;
 
 import com.orientechnologies.orient.core.command.script.OCommandScript;
-import com.orientechnologies.orient.core.metadata.schema.OClass;
-import com.orientechnologies.orient.core.metadata.schema.OSchema;
-import com.orientechnologies.orient.core.metadata.schema.OType;
+import com.orientechnologies.orient.core.index.OIndex;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
+import com.orientechnologies.orient.core.sql.executor.OResultSet;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -48,41 +46,27 @@ public class LuceneMultiFieldTest extends BaseLuceneTest {
 
   @Before
   public void init() {
-    initDB();
 
-    OSchema schema = databaseDocumentTx.getMetadata().getSchema();
-    OClass v = schema.getClass("V");
-    OClass song = schema.createClass("Song");
-    song.setSuperClass(v);
-    song.createProperty("title", OType.STRING);
-    song.createProperty("author", OType.STRING);
+    InputStream stream = ClassLoader.getSystemResourceAsStream("testLuceneIndex.sql");
 
-    //    databaseDocumentTx.command(new OCommandSQL("create index Song.title_author on Song (title,author) FULLTEXT ENGINE LUCENE"))
-    //        .execute();
+    db.command(new OCommandScript("sql", getScriptFromStream(stream))).execute();
 
-    databaseDocumentTx.command(new OCommandSQL(
+    db.command(new OCommandSQL(
         "create index Song.title_author on Song (title,author) FULLTEXT ENGINE LUCENE METADATA {" + "\"title_index\":\""
             + EnglishAnalyzer.class.getName() + "\" , " + "\"title_query\":\"" + EnglishAnalyzer.class.getName() + "\" , "
             + "\"author_index\":\"" + StandardAnalyzer.class.getName() + "\"}")).execute();
 
-    final ODocument index = databaseDocumentTx.getMetadata().getIndexManager().getIndex("Song.title_author").getMetadata();
+    final ODocument index = db.getMetadata().getIndexManagerInternal().getIndex(db, "Song.title_author").getMetadata();
 
-    assertThat(index.field("author_index")).isEqualTo(StandardAnalyzer.class.getName());
-    assertThat(index.field("title_index")).isEqualTo(EnglishAnalyzer.class.getName());
-    InputStream stream = ClassLoader.getSystemResourceAsStream("testLuceneIndex.sql");
+    assertThat(index.<Object>field("author_index")).isEqualTo(StandardAnalyzer.class.getName());
+    assertThat(index.<Object>field("title_index")).isEqualTo(EnglishAnalyzer.class.getName());
 
-    databaseDocumentTx.command(new OCommandScript("sql", getScriptFromStream(stream))).execute();
-  }
-
-  @After
-  public void deInit() {
-    deInitDB();
   }
 
   @Test
   public void testSelectSingleDocumentWithAndOperator() {
 
-    List<ODocument> docs = databaseDocumentTx.query(
+    List<ODocument> docs = db.query(
         new OSQLSynchQuery<ODocument>("select * from Song where [title,author] LUCENE \"(title:mountain AND author:Fabbio)\""));
     //List<ODocument> docs = databaseDocumentTx.query(
     //        new OSQLSynchQuery<ODocument>("select * from Song where [title,author] LUCENE \"(title:mountains)\""));
@@ -92,9 +76,20 @@ public class LuceneMultiFieldTest extends BaseLuceneTest {
   }
 
   @Test
+  public void testSelectSingleDocumentWithAndOperatorNEwExec() {
+
+    OResultSet docs = db.query("select * from Song where [title,author] LUCENE \"(title:mountain AND author:Fabbio)\"");
+
+    assertThat(docs.hasNext()).isTrue();
+    docs.next();
+    assertThat(docs.hasNext()).isFalse();
+
+  }
+
+  @Test
   public void testSelectMultipleDocumentsWithOrOperator() {
 
-    List<ODocument> docs = databaseDocumentTx.query(
+    List<ODocument> docs = db.query(
         new OSQLSynchQuery<ODocument>("select * from Song where [title,author] LUCENE \"(title:mountain OR author:Fabbio)\""));
 
     assertThat(docs).hasSize(91);
@@ -104,8 +99,7 @@ public class LuceneMultiFieldTest extends BaseLuceneTest {
   @Test
   public void testSelectOnTitleAndAuthorWithMatchOnTitle() {
 
-    List<ODocument> docs = databaseDocumentTx
-        .query(new OSQLSynchQuery<ODocument>("select * from Song where [title,author] LUCENE \"mountain\""));
+    List<ODocument> docs = db.query(new OSQLSynchQuery<ODocument>("select * from Song where [title,author] LUCENE \"mountain\""));
 
     assertThat(docs).hasSize(5);
 
@@ -114,7 +108,7 @@ public class LuceneMultiFieldTest extends BaseLuceneTest {
   @Test
   public void testSelectOnTitleAndAuthorWithMatchOnAuthor() {
 
-    List<ODocument> docs = databaseDocumentTx
+    List<ODocument> docs = db
         .query(new OSQLSynchQuery<ODocument>("select * from Song where [title,author] LUCENE \"author:fabbio\""));
 
     assertThat(docs).hasSize(87);
@@ -124,8 +118,7 @@ public class LuceneMultiFieldTest extends BaseLuceneTest {
   @Ignore
   public void testSelectOnAuthorWithMatchOnAuthor() {
     //FIXME please
-    List<ODocument> docs = databaseDocumentTx.query(
-        new OSQLSynchQuery<ODocument>("select * from Song where [author,title] LUCENE \"(fabbio)\""));
+    List<ODocument> docs = db.query(new OSQLSynchQuery<ODocument>("select * from Song where [author,title] LUCENE \"(fabbio)\""));
 
     assertThat(docs).hasSize(87);
   }
@@ -133,22 +126,21 @@ public class LuceneMultiFieldTest extends BaseLuceneTest {
   @Test
   public void testSelectOnIndexWithIgnoreNullValuesToFalse() {
     //#5579
-    String script = "create class Item\n" + "create property Item.title string\n" + "create property Item.summary string\n"
-        + "create property Item.content string\n"
-        + "create index Item.i_lucene on Item(title, summary, content) fulltext engine lucene METADATA {ignoreNullValues:false}\n"
-        + "insert into Item set title = 'test', content = 'this is a test'\n";
-    databaseDocumentTx.command(new OCommandScript("sql", script)).execute();
+    String script = "create class Item\n" + "create property Item.Title string\n" + "create property Item.Summary string\n"
+        + "create property Item.Content string\n"
+        + "create index Item.i_lucene on Item(Title, Summary, Content) fulltext engine lucene METADATA {ignoreNullValues:false}\n"
+        + "insert into Item set Title = 'wrong', content = 'not me please'\n"
+        + "insert into Item set Title = 'test', content = 'this is a test'\n";
+    db.command(new OCommandScript("sql", script)).execute();
 
-    List<ODocument> docs;
-
-    docs = databaseDocumentTx.query(new OSQLSynchQuery<ODocument>("select * from Item where title lucene 'te*'"));
-
+    List<ODocument> docs = db.query(new OSQLSynchQuery<ODocument>("select * from Item where Title lucene 'te*'"));
     assertThat(docs).hasSize(1);
 
-    docs = databaseDocumentTx
-        .query(new OSQLSynchQuery<ODocument>("select * from Item where [title, summary, content] lucene 'test'"));
-
+    docs = db.query(new OSQLSynchQuery<ODocument>("select * from Item where [Title, Summary, Content] lucene 'test'"));
     assertThat(docs).hasSize(1);
 
+    //nidex api
+    final OIndex index = db.getMetadata().getIndexManagerInternal().getIndex(db, "Item.i_lucene");
+    assertThat(index.get("\"(Title:test )\"")).isNotNull();
   }
 }

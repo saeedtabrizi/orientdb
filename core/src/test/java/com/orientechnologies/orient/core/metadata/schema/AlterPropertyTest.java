@@ -1,30 +1,29 @@
 package com.orientechnologies.orient.core.metadata.schema;
 
-import static org.junit.Assert.assertNotNull;
-import static org.testng.AssertJUnit.assertNull;
-import static org.testng.AssertJUnit.assertEquals;
-import static org.testng.AssertJUnit.fail;
-
-import com.orientechnologies.orient.core.exception.OSchemaException;
-import com.orientechnologies.orient.core.sql.OCommandSQL;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
-
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
+import com.orientechnologies.orient.core.db.ODatabaseInternal;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
+import com.orientechnologies.orient.core.exception.OSchemaException;
+import com.orientechnologies.orient.core.sql.OCommandSQL;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+
+import static org.junit.Assert.*;
 
 public class AlterPropertyTest {
 
   private ODatabaseDocument db;
 
-  @BeforeMethod
+  @Before
   public void before() {
     db = new ODatabaseDocumentTx("memory:" + AlterPropertyTest.class.getSimpleName());
     db.create();
   }
 
-  @AfterMethod
+  @After
   public void after() {
     db.drop();
   }
@@ -106,6 +105,49 @@ public class AlterPropertyTest {
     assertNotNull(prop.getLinkedClass());
     db.command(new OCommandSQL("alter property TestRemoveLinkedClass.propertyLink linkedclass null")).execute();
     assertNull(prop.getLinkedClass());
+  }
+
+  @Test
+  public void testMax() {
+    OSchema schema = db.getMetadata().getSchema();
+    OClass classA = schema.createClass("TestWrongMax");
+    OProperty prop = classA.createProperty("dates", OType.EMBEDDEDLIST, OType.DATE);
+
+    db.command(new OCommandSQL("alter property TestWrongMax.dates max 2016-05-25")).execute();
+
+    try {
+      db.command(new OCommandSQL("alter property TestWrongMax.dates max '2016-05-25'")).execute();
+      Assert.fail();
+    } catch (Exception e) {
+    }
+
+  }
+
+  @Test
+  public void testAlterPropertyWithDot() {
+
+    OSchema schema = db.getMetadata().getSchema();
+    db.command(new OCommandSQL("create class testAlterPropertyWithDot")).execute();
+    db.command(new OCommandSQL("create property testAlterPropertyWithDot.`a.b` STRING")).execute();
+    schema.reload();
+    Assert.assertNotNull(schema.getClass("testAlterPropertyWithDot").getProperty("a.b"));
+    db.command(new OCommandSQL("alter property testAlterPropertyWithDot.`a.b` name c")).execute();
+    schema.reload();
+    Assert.assertNull(schema.getClass("testAlterPropertyWithDot").getProperty("a.b"));
+    Assert.assertNotNull(schema.getClass("testAlterPropertyWithDot").getProperty("c"));
+  }
+
+  @Test
+  public void testAlterCustomAttributeInProperty() {
+    OSchema schema = db.getMetadata().getSchema();
+    OClass oClass = schema.createClass("TestCreateCustomAttributeClass");
+    OProperty property = oClass.createProperty("property", OType.STRING);
+
+    property.setCustom("customAttribute", "value1");
+    assertEquals("value1", property.getCustom("customAttribute"));
+
+    property.setCustom("custom.attribute", "value2");
+    assertEquals("value2", property.getCustom("custom.attribute"));
   }
 
 }

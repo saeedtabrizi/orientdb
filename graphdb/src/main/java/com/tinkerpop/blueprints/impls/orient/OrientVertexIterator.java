@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,20 +14,23 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.tinkerpop.blueprints.impls.orient;
 
 import com.orientechnologies.common.util.OPair;
+import com.orientechnologies.orient.core.db.ODatabaseRecordThreadLocal;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.db.record.ridbag.ORidBag;
 import com.orientechnologies.orient.core.iterator.OLazyWrapperIterator;
+import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OImmutableClass;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.record.impl.ODocumentInternal;
+import com.orientechnologies.orient.graph.sql.OGraphCommandExecutorSQLFactory;
 import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.blueprints.Vertex;
 
@@ -63,21 +66,35 @@ public class OrientVertexIterator extends OLazyWrapperIterator<Vertex> {
 
     final ODocument value = (ODocument) rec;
 
-    final OrientVertex v;
-    OImmutableClass immutableClass = ODocumentInternal.getImmutableSchemaClass(value);
-    if (immutableClass.isVertexType()) {
-      // DIRECT VERTEX
-      v = new OrientVertex(vertex.getGraph(), value);
-    } else if (immutableClass.isEdgeType()) {
-      // EDGE
-      if (vertex.settings.isUseVertexFieldsForEdgeLabels() || OrientEdge.isLabeled(OrientEdge.getRecordLabel(value), iLabels))
-        v = new OrientVertex(vertex.getGraph(), OrientEdge.getConnection(value, connection.getKey().opposite()));
-      else
-        v = null;
-    } else
+    final OClass klass;
+    if (ODocumentInternal.getImmutableSchemaClass(value) != null) {
+      klass = ODocumentInternal.getImmutableSchemaClass(value);
+    } else if (ODatabaseRecordThreadLocal.instance().getIfDefined() != null) {
+      ODatabaseRecordThreadLocal.instance().getIfDefined().getMetadata().reload();
+      klass = value.getSchemaClass();
+    } else {
       throw new IllegalStateException("Invalid content found between connections: " + value);
+    }
 
-    return v;
+    return OGraphCommandExecutorSQLFactory.runWithAnyGraph(new OGraphCommandExecutorSQLFactory.GraphCallBack<Vertex>() {
+      @Override
+      public Vertex call(OrientBaseGraph graph) {
+        final OrientVertex v;
+        if (klass.isVertexType()) {
+          // DIRECT VERTEX
+          v = graph.getVertex(value);
+        } else if (klass.isEdgeType()) {
+          // EDGE
+          if (vertex.settings.isUseVertexFieldsForEdgeLabels() || OrientEdge.isLabeled(OrientEdge.getRecordLabel(value), iLabels))
+            v = graph.getVertex(OrientEdge.getConnection(value, connection.getKey().opposite()));
+          else
+            v = null;
+        } else
+          throw new IllegalStateException("Invalid content found between connections: " + value);
+
+        return v;
+      }
+    });
   }
 
   @Override
@@ -132,11 +149,15 @@ public class OrientVertexIterator extends OLazyWrapperIterator<Vertex> {
     final ODocument value = (ODocument) rec;
 
     final OIdentifiable v;
-    OImmutableClass immutableClass = ODocumentInternal.getImmutableSchemaClass(value);
-    if (immutableClass.isVertexType()) {
+    OClass klass = ODocumentInternal.getImmutableSchemaClass(value);
+    if (klass == null && ODatabaseRecordThreadLocal.instance().getIfDefined() != null) {
+      ODatabaseRecordThreadLocal.instance().getIfDefined().getMetadata().reload();
+      klass = value.getSchemaClass();
+    }
+    if (klass.isVertexType()) {
       // DIRECT VERTEX
       return true;
-    } else if (immutableClass.isEdgeType()) {
+    } else if (klass.isEdgeType()) {
       return false;
     }
 

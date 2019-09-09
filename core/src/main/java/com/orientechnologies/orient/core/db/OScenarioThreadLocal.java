@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,25 +14,31 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.db;
 
 import com.orientechnologies.orient.core.OOrientListenerAbstract;
 import com.orientechnologies.orient.core.Orient;
-import com.orientechnologies.orient.core.db.OScenarioThreadLocal.RUN_MODE;
 
 import java.util.concurrent.Callable;
 
 /**
  * Thread local to know when the request comes from distributed requester avoiding loops.
- * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
-public class OScenarioThreadLocal extends ThreadLocal<RUN_MODE> {
+public class OScenarioThreadLocal extends ThreadLocal<OScenarioThreadLocal.RunContext> {
   public static volatile OScenarioThreadLocal INSTANCE = new OScenarioThreadLocal();
+
+  public enum RUN_MODE {
+    DEFAULT, RUNNING_DISTRIBUTED
+  }
+
+  public static class RunContext {
+    public RUN_MODE runMode = RUN_MODE.DEFAULT;
+  }
 
   static {
     Orient.instance().registerListener(new OOrientListenerAbstract() {
@@ -49,19 +55,34 @@ public class OScenarioThreadLocal extends ThreadLocal<RUN_MODE> {
     });
   }
 
-  public enum RUN_MODE {
-    DEFAULT, RUNNING_DISTRIBUTED
+  public OScenarioThreadLocal() {
+    setRunMode(RUN_MODE.DEFAULT);
   }
 
-  public OScenarioThreadLocal() {
-    set(RUN_MODE.DEFAULT);
+  public static <T> Object executeAsDefault(final Callable<T> iCallback) {
+    final OScenarioThreadLocal.RUN_MODE currentDistributedMode = OScenarioThreadLocal.INSTANCE.getRunMode();
+    if (currentDistributedMode == OScenarioThreadLocal.RUN_MODE.RUNNING_DISTRIBUTED)
+      // ASSURE SCHEMA CHANGES ARE NEVER PROPAGATED ON CLUSTER
+      OScenarioThreadLocal.INSTANCE.setRunMode(RUN_MODE.DEFAULT);
+
+    try {
+      return (T) iCallback.call();
+    } catch (RuntimeException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    } finally {
+      if (currentDistributedMode == OScenarioThreadLocal.RUN_MODE.RUNNING_DISTRIBUTED)
+        // RESTORE PREVIOUS MODE
+        OScenarioThreadLocal.INSTANCE.setRunMode(OScenarioThreadLocal.RUN_MODE.RUNNING_DISTRIBUTED);
+    }
   }
 
   public static Object executeAsDistributed(final Callable<? extends Object> iCallback) {
-    final OScenarioThreadLocal.RUN_MODE currentDistributedMode = OScenarioThreadLocal.INSTANCE.get();
+    final OScenarioThreadLocal.RUN_MODE currentDistributedMode = OScenarioThreadLocal.INSTANCE.getRunMode();
     if (currentDistributedMode != OScenarioThreadLocal.RUN_MODE.RUNNING_DISTRIBUTED)
       // ASSURE SCHEMA CHANGES ARE NEVER PROPAGATED ON CLUSTER
-      OScenarioThreadLocal.INSTANCE.set(OScenarioThreadLocal.RUN_MODE.RUNNING_DISTRIBUTED);
+      OScenarioThreadLocal.INSTANCE.setRunMode(OScenarioThreadLocal.RUN_MODE.RUNNING_DISTRIBUTED);
 
     try {
       return iCallback.call();
@@ -72,39 +93,25 @@ public class OScenarioThreadLocal extends ThreadLocal<RUN_MODE> {
     } finally {
       if (currentDistributedMode != OScenarioThreadLocal.RUN_MODE.RUNNING_DISTRIBUTED)
         // RESTORE PREVIOUS MODE
-        OScenarioThreadLocal.INSTANCE.set(OScenarioThreadLocal.RUN_MODE.DEFAULT);
+        OScenarioThreadLocal.INSTANCE.setRunMode(OScenarioThreadLocal.RUN_MODE.DEFAULT);
     }
   }
 
-  public static Object executeAsDefault(final Callable<Object> iCallback) {
-    final OScenarioThreadLocal.RUN_MODE currentDistributedMode = OScenarioThreadLocal.INSTANCE.get();
-    if (currentDistributedMode == OScenarioThreadLocal.RUN_MODE.RUNNING_DISTRIBUTED)
-      // ASSURE SCHEMA CHANGES ARE NEVER PROPAGATED ON CLUSTER
-      OScenarioThreadLocal.INSTANCE.set(RUN_MODE.DEFAULT);
+  public void setRunMode(final RUN_MODE value) {
+    final RunContext context = get();
+    context.runMode = value;
+  }
 
-    try {
-      return iCallback.call();
-    } catch (RuntimeException e) {
-      throw e;
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    } finally {
-      if (currentDistributedMode == OScenarioThreadLocal.RUN_MODE.RUNNING_DISTRIBUTED)
-        // RESTORE PREVIOUS MODE
-        OScenarioThreadLocal.INSTANCE.set(OScenarioThreadLocal.RUN_MODE.RUNNING_DISTRIBUTED);
-    }
+  public RUN_MODE getRunMode() {
+    return get().runMode;
+  }
+
+  public boolean isRunModeDistributed() {
+    return get().runMode == RUN_MODE.RUNNING_DISTRIBUTED;
   }
 
   @Override
-  public void set(final RUN_MODE value) {
-    super.set(value);
-  }
-
-  @Override
-  public RUN_MODE get() {
-    RUN_MODE result = super.get();
-    if (result == null)
-      result = RUN_MODE.DEFAULT;
-    return result;
+  protected RunContext initialValue() {
+    return new RunContext();
   }
 }

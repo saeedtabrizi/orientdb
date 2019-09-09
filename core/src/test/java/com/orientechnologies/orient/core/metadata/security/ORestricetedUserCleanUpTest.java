@@ -3,8 +3,9 @@ package com.orientechnologies.orient.core.metadata.security;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import com.orientechnologies.common.directmemory.OByteBufferPool;
+import com.orientechnologies.common.directmemory.ODirectMemoryAllocator;
+import org.junit.Assert; import org.junit.Test;
 
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
@@ -22,8 +23,11 @@ public class ORestricetedUserCleanUpTest {
       OSchema schema = db.getMetadata().getSchema();
       schema.createClass("TestRecord", schema.getClass(OSecurityShared.RESTRICTED_CLASSNAME));
 
+      System.gc();
+      ODirectMemoryAllocator.instance().checkTrackedPointerLeaks();
+
       OSecurity security = db.getMetadata().getSecurity();
-      OUser auser = security.createUser("auser", "whereever", new String[] {});
+      OUser auser = security.createUser("auser", "wherever", new String[] {});
       OUser reader = security.getUser("admin");
       ODocument doc = new ODocument("TestRecord");
       Set<OIdentifiable> users = new HashSet<OIdentifiable>();
@@ -35,6 +39,8 @@ public class ORestricetedUserCleanUpTest {
       doc.field(OSecurityShared.ALLOW_ALL_FIELD, users);
       ODocument rid = db.save(doc);
 
+      System.gc();
+      ODirectMemoryAllocator.instance().checkTrackedPointerLeaks();
       security.dropUser("auser");
       db.getLocalCache().clear();
       doc = db.load(rid.getIdentity());
@@ -45,6 +51,8 @@ public class ORestricetedUserCleanUpTest {
       doc.field("abc", "abc");
       doc.save();
 
+      System.gc();
+      ODirectMemoryAllocator.instance().checkTrackedPointerLeaks();
       db.getLocalCache().clear();
       doc = db.load(rid.getIdentity());
       ((Set<?>) doc.field(OSecurityShared.ALLOW_ALL_FIELD)).remove(null);
@@ -58,10 +66,14 @@ public class ORestricetedUserCleanUpTest {
       Assert.assertEquals(((Set<?>) doc.field(OSecurityShared.ALLOW_ALL_FIELD)).size(), 1);
       doc.field("abc", "abc");
       doc.save();
+      System.gc();
+      ODirectMemoryAllocator.instance().checkTrackedPointerLeaks();
     } finally {
       db.drop();
     }
 
+    System.gc();
+    ODirectMemoryAllocator.instance().checkTrackedPointerLeaks();
   }
 
 }

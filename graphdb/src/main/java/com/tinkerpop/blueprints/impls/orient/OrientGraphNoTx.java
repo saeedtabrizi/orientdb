@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
@@ -24,8 +24,8 @@ import com.orientechnologies.common.concur.ONeedRetryException;
 import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.common.util.OPair;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.OPartitionedDatabasePool;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.record.impl.ODocumentInternal;
@@ -35,20 +35,19 @@ import com.tinkerpop.blueprints.util.ExceptionFactory;
 import org.apache.commons.configuration.Configuration;
 
 /**
- * A Blueprints implementation of the graph database OrientDB (http://www.orientechnologies.com)
- * 
- * @author Luca Garulli (http://www.orientechnologies.com)
+ * A Blueprints implementation of the graph database OrientDB (http://orientdb.com)
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com) (http://orientdb.com)
  */
 public class OrientGraphNoTx extends OrientBaseGraph {
-  private final Features FEATURES = new Features();
+  private final Features features = new Features();
 
   /**
    * Constructs a new object using an existent database instance.
-   * 
-   * @param iDatabase
-   *          Underlying database object to attach
+   *
+   * @param iDatabase Underlying database object to attach
    */
-  public OrientGraphNoTx(final ODatabaseDocumentTx iDatabase) {
+  public OrientGraphNoTx(final ODatabaseDocumentInternal iDatabase) {
     super(iDatabase, null, null, null);
     config();
   }
@@ -78,12 +77,12 @@ public class OrientGraphNoTx extends OrientBaseGraph {
     config();
   }
 
-  public OrientGraphNoTx(final ODatabaseDocumentTx iDatabase, final String user, final String password) {
+  public OrientGraphNoTx(final ODatabaseDocumentInternal iDatabase, final String user, final String password) {
     super(iDatabase, user, password, null);
     config();
   }
 
-  public OrientGraphNoTx(final ODatabaseDocumentTx iDatabase, final String user, final String password,
+  public OrientGraphNoTx(final ODatabaseDocumentInternal iDatabase, final String user, final String password,
       final Settings iConfiguration) {
     super(iDatabase, user, password, iConfiguration);
     config();
@@ -92,44 +91,44 @@ public class OrientGraphNoTx extends OrientBaseGraph {
   public Features getFeatures() {
     makeActive();
 
-    // DYNAMIC FEATURES BASED ON CONFIGURATION
-    FEATURES.supportsEdgeIndex = !isUseLightweightEdges();
-    FEATURES.supportsEdgeKeyIndex = !isUseLightweightEdges();
-    FEATURES.supportsEdgeIteration = !isUseLightweightEdges();
-    FEATURES.supportsEdgeRetrieval = !isUseLightweightEdges();
-    return FEATURES;
+    // DYNAMIC features BASED ON CONFIGURATION
+    features.supportsEdgeIndex = !isUseLightweightEdges();
+    features.supportsEdgeKeyIndex = !isUseLightweightEdges();
+    features.supportsEdgeIteration = !isUseLightweightEdges();
+    features.supportsEdgeRetrieval = !isUseLightweightEdges();
+    return features;
   }
 
   protected void config() {
-    FEATURES.supportsDuplicateEdges = true;
-    FEATURES.supportsSelfLoops = true;
-    FEATURES.isPersistent = true;
-    FEATURES.supportsVertexIteration = true;
-    FEATURES.supportsVertexIndex = true;
-    FEATURES.ignoresSuppliedIds = true;
-    FEATURES.supportsTransactions = false;
-    FEATURES.supportsVertexKeyIndex = true;
-    FEATURES.supportsKeyIndices = true;
-    FEATURES.isWrapper = false;
-    FEATURES.supportsIndices = true;
-    FEATURES.supportsVertexProperties = true;
-    FEATURES.supportsEdgeProperties = true;
+    features.supportsDuplicateEdges = true;
+    features.supportsSelfLoops = true;
+    features.isPersistent = true;
+    features.supportsVertexIteration = true;
+    features.supportsVertexIndex = true;
+    features.ignoresSuppliedIds = true;
+    features.supportsTransactions = false;
+    features.supportsVertexKeyIndex = true;
+    features.supportsKeyIndices = true;
+    features.isWrapper = false;
+    features.supportsIndices = true;
+    features.supportsVertexProperties = true;
+    features.supportsEdgeProperties = true;
 
     // For more information on supported types, please see:
     // http://code.google.com/p/orient/wiki/Types
-    FEATURES.supportsSerializableObjectProperty = true;
-    FEATURES.supportsBooleanProperty = true;
-    FEATURES.supportsDoubleProperty = true;
-    FEATURES.supportsFloatProperty = true;
-    FEATURES.supportsIntegerProperty = true;
-    FEATURES.supportsPrimitiveArrayProperty = true;
-    FEATURES.supportsUniformListProperty = true;
-    FEATURES.supportsMixedListProperty = true;
-    FEATURES.supportsLongProperty = true;
-    FEATURES.supportsMapProperty = true;
-    FEATURES.supportsStringProperty = true;
-    FEATURES.supportsThreadedTransactions = false;
-    FEATURES.supportsThreadIsolatedTransactions = false;
+    features.supportsSerializableObjectProperty = true;
+    features.supportsBooleanProperty = true;
+    features.supportsDoubleProperty = true;
+    features.supportsFloatProperty = true;
+    features.supportsIntegerProperty = true;
+    features.supportsPrimitiveArrayProperty = true;
+    features.supportsUniformListProperty = true;
+    features.supportsMixedListProperty = true;
+    features.supportsLongProperty = true;
+    features.supportsMapProperty = true;
+    features.supportsStringProperty = true;
+    features.supportsThreadedTransactions = false;
+    features.supportsThreadIsolatedTransactions = false;
   }
 
   OrientEdge addEdgeInternal(final OrientVertex currentVertex, String label, final OrientVertex inVertex, final String iClassName,
@@ -166,7 +165,7 @@ public class OrientGraphNoTx extends OrientBaseGraph {
             throw new IllegalArgumentException("destination vertex is invalid (rid=" + inVertex.getIdentity() + ")");
         }
 
-        if (!ODocumentInternal.getImmutableSchemaClass(outDocument).isVertexType())
+        if (!ODocumentInternal.getImmutableSchemaClass(inDocument).isVertexType())
           throw new IllegalArgumentException("destination record is not a vertex");
 
         OIdentifiable to;
@@ -187,10 +186,10 @@ public class OrientGraphNoTx extends OrientBaseGraph {
             label = edgeType.getName();
         }
 
-        final String outFieldName = currentVertex.getConnectionFieldName(Direction.OUT, label,
-            settings.isUseVertexFieldsForEdgeLabels());
-        final String inFieldName = currentVertex.getConnectionFieldName(Direction.IN, label,
-            settings.isUseVertexFieldsForEdgeLabels());
+        final String outFieldName = currentVertex
+            .getConnectionFieldName(Direction.OUT, label, settings.isUseVertexFieldsForEdgeLabels());
+        final String inFieldName = currentVertex
+            .getConnectionFieldName(Direction.IN, label, settings.isUseVertexFieldsForEdgeLabels());
 
         // since the label for the edge can potentially get re-assigned
         // before being pushed into the OrientEdge, the
@@ -207,24 +206,25 @@ public class OrientGraphNoTx extends OrientBaseGraph {
           to = inDocument;
           if (edge == null) {
             if (settings.isKeepInMemoryReferences())
-              edge = new OrientEdge(graph, from.getIdentity(), to.getIdentity(), label);
+              edge = graph.getEdgeInstance(from.getIdentity(), to.getIdentity(), label);
             else
-              edge = new OrientEdge(graph, from, to, label);
+              edge = graph.getEdgeInstance(from, to, label);
           }
           edgeRecord = null;
         } else {
           lightWeightEdge = false;
           if (edge == null) {
             // CREATE THE EDGE DOCUMENT TO STORE FIELDS TOO
-            edge = new OrientEdge(graph, label, fields);
+            edge = graph.getEdgeInstance(label, fields);
             edgeRecord = edge.getRecord();
 
             if (settings.isKeepInMemoryReferences())
-              edgeRecord.fields(OrientBaseGraph.CONNECTION_OUT, currentVertex.rawElement.getIdentity(),
-                  OrientBaseGraph.CONNECTION_IN, inDocument.getIdentity());
+              edgeRecord
+                  .fields(OrientBaseGraph.CONNECTION_OUT, currentVertex.rawElement.getIdentity(), OrientBaseGraph.CONNECTION_IN,
+                      inDocument.getIdentity());
             else
-              edgeRecord.fields(OrientBaseGraph.CONNECTION_OUT, currentVertex.rawElement, OrientBaseGraph.CONNECTION_IN,
-                  inDocument);
+              edgeRecord
+                  .fields(OrientBaseGraph.CONNECTION_OUT, currentVertex.rawElement, OrientBaseGraph.CONNECTION_IN, inDocument);
           } else
             edgeRecord = edge.getRecord();
 
@@ -273,7 +273,7 @@ public class OrientGraphNoTx extends OrientBaseGraph {
         } catch (Exception ex) {
         }
         throw e;
-      } catch (Throwable e) {
+      } catch (Exception e) {
         // REVERT CHANGES. EDGE.REMOVE() TAKES CARE TO UPDATE ALSO BOTH VERTICES IN CASE
         try {
           edge.remove();
@@ -313,12 +313,12 @@ public class OrientGraphNoTx extends OrientBaseGraph {
         final OIdentifiable outVertex = edge.getOutVertex();
 
         if (outVertex != null) {
-          if (outVertex != null) {
-            outVertexRecord = outVertex.getRecord();
-            final String outFieldName = OrientVertex.getConnectionFieldName(Direction.OUT, edgeClassName,
-                useVertexFieldsForEdgeLabels);
-            outVertexChanged = edge.dropEdgeFromVertex(inVertexEdge, outVertexRecord, outFieldName,
-                outVertexRecord.field(outFieldName));
+          outVertexRecord = outVertex.getRecord();
+          if (outVertexRecord != null) {
+            final String outFieldName = OrientVertex
+                .getConnectionFieldName(Direction.OUT, edgeClassName, useVertexFieldsForEdgeLabels);
+            outVertexChanged = edge
+                .dropEdgeFromVertex(inVertexEdge, outVertexRecord, outFieldName, outVertexRecord.field(outFieldName));
           } else
             OLogManager.instance().debug(graph,
                 "Found broken link to outgoing vertex " + outVertex.getIdentity() + " while removing edge " + edge.getId());
@@ -335,10 +335,10 @@ public class OrientGraphNoTx extends OrientBaseGraph {
         if (inVertex != null) {
           inVertexRecord = inVertex.getRecord();
           if (inVertexRecord != null) {
-            final String inFieldName = OrientVertex.getConnectionFieldName(Direction.IN, edgeClassName,
-                useVertexFieldsForEdgeLabels);
-            inVertexChanged = edge.dropEdgeFromVertex(outVertexEdge, inVertexRecord, inFieldName,
-                inVertexRecord.field(inFieldName));
+            final String inFieldName = OrientVertex
+                .getConnectionFieldName(Direction.IN, edgeClassName, useVertexFieldsForEdgeLabels);
+            inVertexChanged = edge
+                .dropEdgeFromVertex(outVertexEdge, inVertexRecord, inFieldName, inVertexRecord.field(inFieldName));
           } else
             OLogManager.instance().debug(graph,
                 "Found broken link to incoming vertex " + inVertex.getIdentity() + " while removing edge " + edge.getId());
@@ -364,12 +364,8 @@ public class OrientGraphNoTx extends OrientBaseGraph {
           inVertexRecord.reload();
 
       } catch (RuntimeException e) {
-        // REVERT CHANGES. EDGE.REMOVE() TAKES CARE TO UPDATE ALSO BOTH VERTICES IN CASE
-        // TODO
         throw e;
-      } catch (Throwable e) {
-        // REVERT CHANGES. EDGE.REMOVE() TAKES CARE TO UPDATE ALSO BOTH VERTICES IN CASE
-        // TODO
+      } catch (Exception e) {
         throw OException.wrapException(new OrientGraphModificationException("Error on addEdge in non tx environment"), e);
       }
     }
@@ -409,11 +405,8 @@ public class OrientGraphNoTx extends OrientBaseGraph {
       // CANNOT REVERT CHANGES, RETRY
       throw (RuntimeException) lastException;
 
-    throw OException
-        .wrapException(
-            new OrientGraphModificationException(
-                "Error on removing edges after vertex (" + iVertex.getIdentity() + ") delete in non tx environment"),
-            lastException);
+    throw OException.wrapException(new OrientGraphModificationException(
+        "Error on removing edges after vertex (" + iVertex.getIdentity() + ") delete in non tx environment"), lastException);
   }
 
 }

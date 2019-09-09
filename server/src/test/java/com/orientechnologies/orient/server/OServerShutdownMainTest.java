@@ -1,5 +1,6 @@
 package com.orientechnologies.orient.server;
 
+import com.orientechnologies.common.io.OFileUtils;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.Orient;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
@@ -10,9 +11,11 @@ import com.orientechnologies.orient.server.config.OServerNetworkProtocolConfigur
 import com.orientechnologies.orient.server.network.protocol.binary.ONetworkProtocolBinary;
 import com.orientechnologies.orient.server.network.protocol.http.ONetworkProtocolHttpDb;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
@@ -61,15 +64,15 @@ public class OServerShutdownMainTest {
     if (server.isActive())
       server.shutdown();
 
-    //invariants
-    OGlobalConfiguration.ENVIRONMENT_ALLOW_JVM_SHUTDOWN.setValue(allowJvmShutdownPrev);
+
+    Orient.instance().shutdown();
+    OFileUtils.deleteRecursively(new File("./target/testhome"));
+    Orient.instance().startup();
 
     if (prevOrientHome != null)
       System.setProperty("ORIENTDB_HOME", prevOrientHome);
     if (prevPassword != null)
       System.setProperty("ORIENTDB_ROOT_PASSWORD", prevPassword);
-
-    Orient.instance().startup();
   }
 
   @Test

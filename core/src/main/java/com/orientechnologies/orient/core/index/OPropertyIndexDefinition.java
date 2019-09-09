@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.index;
@@ -31,13 +31,12 @@ import java.util.List;
 
 /**
  * Index implementation bound to one schema class property.
- * 
  */
 public class OPropertyIndexDefinition extends OAbstractIndexDefinition {
-  private static final long serialVersionUID = 7395728581151922197L;
-  protected String className;
-  protected String field;
-  protected OType  keyType;
+  private static final long   serialVersionUID = 7395728581151922197L;
+  protected            String className;
+  protected            String field;
+  protected            OType  keyType;
 
   public OPropertyIndexDefinition(final String iClassName, final String iField, final OType iType) {
     super();
@@ -75,7 +74,7 @@ public class OPropertyIndexDefinition extends OAbstractIndexDefinition {
       else
         return null;
     }
-    return createValue(iDocument.field(field));
+    return createValue(iDocument.<Object>field(field));
   }
 
   @Override
@@ -141,14 +140,7 @@ public class OPropertyIndexDefinition extends OAbstractIndexDefinition {
 
   @Override
   public final ODocument toStream() {
-    document.setInternalStatus(ORecordElement.STATUS.UNMARSHALLING);
-
-    try {
-      serializeToStream();
-    } finally {
-      document.setInternalStatus(ORecordElement.STATUS.LOADED);
-    }
-
+    serializeToStream();
     return document;
   }
 
@@ -172,12 +164,12 @@ public class OPropertyIndexDefinition extends OAbstractIndexDefinition {
     keyType = OType.valueOf(keyTypeStr);
 
     setCollate((String) document.field("collate"));
-    setNullValuesIgnored(!Boolean.FALSE.equals(document.<Boolean> field("nullValuesIgnored")));
+    setNullValuesIgnored(!Boolean.FALSE.equals(document.<Boolean>field("nullValuesIgnored")));
   }
 
   /**
    * {@inheritDoc}
-   * 
+   *
    * @param indexName
    * @param indexType
    */
@@ -186,26 +178,21 @@ public class OPropertyIndexDefinition extends OAbstractIndexDefinition {
   }
 
   protected StringBuilder createIndexDDLWithFieldType(String indexName, String indexType, String engine) {
-    final StringBuilder ddl = createIndexDDLWithoutFieldType(indexName, indexType,engine);
+    final StringBuilder ddl = createIndexDDLWithoutFieldType(indexName, indexType, engine);
     ddl.append(' ').append(keyType.name());
     return ddl;
   }
 
-  protected StringBuilder createIndexDDLWithoutFieldType(final String indexName, final String indexType,final String engine) {
+  protected StringBuilder createIndexDDLWithoutFieldType(final String indexName, final String indexType, final String engine) {
     final StringBuilder ddl = new StringBuilder("create index `");
 
-    final String shortName = className + "." + field;
-    if (indexName.equalsIgnoreCase(shortName)) {
-      ddl.append(shortName).append("` ");
-    } else {
-      ddl.append(indexName).append("` on `");
-      ddl.append(className).append("` ( `").append(field).append("`");
+    ddl.append(indexName).append("` on `");
+    ddl.append(className).append("` ( `").append(field).append("`");
 
-      if (!collate.getName().equals(ODefaultCollate.NAME))
-        ddl.append(" collate ").append(collate.getName());
+    if (!collate.getName().equals(ODefaultCollate.NAME))
+      ddl.append(" collate ").append(collate.getName());
 
-      ddl.append(" ) ");
-    }
+    ddl.append(" ) ");
     ddl.append(indexType);
 
     if (engine != null)

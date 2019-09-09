@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,32 +14,38 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.server.distributed.task;
 
+import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OLogSequenceNumber;
 import com.orientechnologies.orient.server.distributed.ODistributedRequest;
 import com.orientechnologies.orient.server.distributed.ODistributedRequestId;
 import com.orientechnologies.orient.server.distributed.ODistributedServerManager;
 
+import java.util.List;
+
 /**
  * Base class for Replicated tasks.
  *
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--at--orientdb.com)
  *
  */
 public abstract class OAbstractReplicatedTask extends OAbstractRemoteTask {
-  private static final long serialVersionUID = 1L;
+  protected OLogSequenceNumber lastLSN;
 
-  public ORemoteTask getFixTask(ODistributedRequest iRequest, ORemoteTask iOriginalTask, Object iBadResponse, Object iGoodResponse,
-      String executorNodeName, ODistributedServerManager dManager) {
+  public ORemoteTask getFixTask(final ODistributedRequest iRequest, final ORemoteTask iOriginalTask, final Object iBadResponse,
+      final Object iGoodResponse, final String executorNodeName, final ODistributedServerManager dManager) {
     return null;
   }
 
-  public ORemoteTask getUndoTask(ODistributedRequestId reqId) {
+  public ORemoteTask getUndoTask(final ODistributedServerManager dManager, final ODistributedRequestId reqId,
+      final List<String> servers) {
     return null;
   }
 
-  public abstract String getPayload();
+  public OLogSequenceNumber getLastLSN() {
+    return lastLSN;
+  }
 }

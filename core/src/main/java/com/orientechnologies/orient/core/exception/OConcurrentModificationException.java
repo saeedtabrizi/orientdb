@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,27 +14,27 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.exception;
 
 import com.orientechnologies.common.concur.ONeedRetryException;
+import com.orientechnologies.common.exception.OErrorCode;
 import com.orientechnologies.common.exception.OHighLevelException;
 import com.orientechnologies.orient.core.db.record.ORecordOperation;
 import com.orientechnologies.orient.core.id.ORID;
 
+import java.util.Locale;
+import java.util.Objects;
+
 /**
  * Exception thrown when MVCC is enabled and a record cannot be updated or deleted because versions don't match.
  * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public class OConcurrentModificationException extends ONeedRetryException implements OHighLevelException {
-
-  private static final String MESSAGE_OPERATION      = "are";
-  private static final String MESSAGE_RECORD_VERSION = "your=v";
-  private static final String MESSAGE_DB_VERSION     = "db=v";
 
   private static final long   serialVersionUID       = 1L;
 
@@ -44,7 +44,7 @@ public class OConcurrentModificationException extends ONeedRetryException implem
   private int                 recordOperation;
 
   public OConcurrentModificationException(OConcurrentModificationException exception) {
-    super(exception);
+    super(exception, OErrorCode.MVCC_ERROR);
 
     this.rid = exception.rid;
     this.recordVersion = exception.recordVersion;
@@ -52,13 +52,13 @@ public class OConcurrentModificationException extends ONeedRetryException implem
     this.recordOperation = exception.recordOperation;
   }
 
-  protected OConcurrentModificationException(String message) {
+  protected OConcurrentModificationException(final String message) {
     super(message);
   }
 
   public OConcurrentModificationException(final ORID iRID, final int iDatabaseVersion, final int iRecordVersion,
       final int iRecordOperation) {
-    super(makeMessage(iRecordOperation, iRID, iDatabaseVersion, iRecordVersion));
+    super(makeMessage(iRecordOperation, iRID, iDatabaseVersion, iRecordVersion),OErrorCode.MVCC_ERROR);
 
     if (OFastConcurrentModificationException.enabled())
       throw new IllegalStateException("Fast-throw is enabled. Use OFastConcurrentModificationException.instance() instead");
@@ -84,6 +84,11 @@ public class OConcurrentModificationException extends ONeedRetryException implem
     return false;
   }
 
+  @Override
+  public int hashCode() {
+    return Objects.hash(rid, databaseVersion, recordVersion, recordOperation);
+  }
+
   public int getEnhancedDatabaseVersion() {
     return databaseVersion;
   }
@@ -105,7 +110,7 @@ public class OConcurrentModificationException extends ONeedRetryException implem
     sb.append(" the record ");
     sb.append(rid);
     sb.append(" because the version is not the latest. Probably you are ");
-    sb.append(operation.toLowerCase().substring(0, operation.length() - 1));
+    sb.append(operation.toLowerCase(Locale.ENGLISH).substring(0, operation.length() - 1));
     sb.append("ing an old record or it has been modified by another user (db=v");
     sb.append(databaseVersion);
     sb.append(" your=v");

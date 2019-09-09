@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Orient Technologies.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  * Copyright 2013 Geomatys.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,9 +22,9 @@ import com.orientechnologies.orient.core.sql.method.misc.OAbstractSQLMethod;
 
 /**
  * Extracts a sub string from the original.
- * 
+ *
  * @author Johann Sorel (Geomatys)
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OSQLMethodSubString extends OAbstractSQLMethod {
 
@@ -40,15 +40,40 @@ public class OSQLMethodSubString extends OAbstractSQLMethod {
   }
 
   @Override
-  public Object execute(Object iThis, OIdentifiable iCurrentRecord, OCommandContext iContext, Object ioResult, Object[] iParams) {
+  public Object execute(Object iThis, OIdentifiable iCurrentRecord, OCommandContext iContext, Object ioResult,
+      Object[] iParams) {
     if (iThis == null || iParams[0] == null) {
       return null;
     }
 
-    if (iParams.length>1) {
-      return iThis.toString().substring(Integer.parseInt(iParams[0].toString()), Integer.parseInt(iParams[1].toString()));
+    if (iParams.length > 1) {
+      int from = Integer.parseInt(iParams[0].toString());
+      int to = Integer.parseInt(iParams[1].toString());
+      String thisString = iThis.toString();
+      if (from < 0) {
+        from = 0;
+      }
+      if (from >= thisString.length()) {
+        return "";
+      }
+      if (to > thisString.length()) {
+        to = thisString.length();
+      }
+      if (to <= from) {
+        return "";
+      }
+
+      return thisString.substring(from, to);
     } else {
-      return iThis.toString().substring(Integer.parseInt(iParams[0].toString()));
+      int from = Integer.parseInt(iParams[0].toString());
+      String thisString = iThis.toString();
+      if (from < 0) {
+        from = 0;
+      }
+      if (from >= thisString.length()) {
+        return "";
+      }
+      return thisString.substring(from);
     }
   }
 }

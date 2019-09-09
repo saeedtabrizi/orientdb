@@ -5,25 +5,23 @@ import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.metadata.function.OFunction;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.query.OResultSet;
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import com.orientechnologies.orient.core.sql.query.OLegacyResultSet;
+import org.junit.Assert; import org.junit.Test;
 
 import java.util.ArrayList;
 
 /**
  * Created by Enrico Risa on 07/04/15.
  */
-@Test
 public class OFunctionSqlTest {
 
   @Test
   public void functionSqlWithParameters() {
 
-    ODatabaseDocument db = new ODatabaseDocumentTx("memory:test");
+    ODatabaseDocument db = new ODatabaseDocumentTx("memory:functionSqlWithParameters");
     db.create();
 
-    // ODatabaseRecordThreadLocal.INSTANCE.set(db);
+    // ODatabaseRecordThreadLocal.instance().set(db);
     ODocument doc1 = new ODocument("Test");
     doc1.field("name", "Enrico");
     db.save(doc1);
@@ -43,19 +41,17 @@ public class OFunctionSqlTest {
     function.save();
     Object result = function.executeInContext(new OBasicCommandContext(), "Enrico");
 
-    System.out.println(result);
-
-    Assert.assertEquals(((OResultSet) result).size(), 1);
+    Assert.assertEquals(((OLegacyResultSet) result).size(), 1);
     db.drop();
   }
 
   @Test
   public void functionSqlWithInnerFunctionJs() {
 
-    ODatabaseDocument db = new ODatabaseDocumentTx("memory:test");
+    ODatabaseDocument db = new ODatabaseDocumentTx("memory:functionSqlWithInnerFunctionJs");
     db.create();
 
-    // ODatabaseRecordThreadLocal.INSTANCE.set(db);
+    // ODatabaseRecordThreadLocal.instance().set(db);
     ODocument doc1 = new ODocument("Test");
     doc1.field("name", "Enrico");
     db.save(doc1);
@@ -88,9 +84,8 @@ public class OFunctionSqlTest {
     function1.save();
     Object result = function.executeInContext(new OBasicCommandContext(), "Enrico");
 
-    System.out.println(result);
 
-    Assert.assertEquals(((OResultSet) result).size(), 1);
+    Assert.assertEquals(((OLegacyResultSet) result).size(), 1);
     db.drop();
   }
 }

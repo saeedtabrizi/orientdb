@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,24 +14,23 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 
 package com.orientechnologies.orient.core.db.record.ridbag;
 
+import com.orientechnologies.orient.core.db.record.*;
+import com.orientechnologies.orient.core.record.ORecord;
+import com.orientechnologies.orient.core.record.impl.OSimpleMultiValueTracker;
+import com.orientechnologies.orient.core.storage.ridbag.sbtree.Change;
+
 import java.util.Collection;
-import java.util.List;
+import java.util.NavigableMap;
 import java.util.UUID;
 
-import com.orientechnologies.orient.core.db.record.OIdentifiable;
-import com.orientechnologies.orient.core.db.record.OMultiValueChangeListener;
-import com.orientechnologies.orient.core.db.record.ORecordLazyMultiValue;
-import com.orientechnologies.orient.core.db.record.OTrackedMultiValue;
-import com.orientechnologies.orient.core.record.ORecord;
-
-public interface ORidBagDelegate extends Iterable<OIdentifiable>, ORecordLazyMultiValue,
-    OTrackedMultiValue<OIdentifiable, OIdentifiable> {
+public interface ORidBagDelegate
+    extends Iterable<OIdentifiable>, ORecordLazyMultiValue, OTrackedMultiValue<OIdentifiable, OIdentifiable>, ORecordElement {
   void addAll(Collection<OIdentifiable> values);
 
   void add(OIdentifiable identifiable);
@@ -46,15 +45,13 @@ public interface ORidBagDelegate extends Iterable<OIdentifiable>, ORecordLazyMul
 
   /**
    * Writes content of bag to stream.
-   * 
+   * <p>
    * OwnerUuid is needed to notify db about changes of collection pointer if some happens during serialization.
-   * 
-   * @param stream
-   *          to write content
-   * @param offset
-   *          in stream where start to write content
-   * @param ownerUuid
-   *          id of delegate owner
+   *
+   * @param stream    to write content
+   * @param offset    in stream where start to write content
+   * @param ownerUuid id of delegate owner
+   *
    * @return offset where content of stream is ended
    */
   int serialize(byte[] stream, int offset, UUID ownerUuid);
@@ -66,17 +63,23 @@ public interface ORidBagDelegate extends Iterable<OIdentifiable>, ORecordLazyMul
   /**
    * THIS IS VERY EXPENSIVE METHOD AND CAN NOT BE CALLED IN REMOTE STORAGE.
    *
-   * @param identifiable
-   *          Object to check.
+   * @param identifiable Object to check.
+   *
    * @return true if ridbag contains at leas one instance with the same rid as passed in identifiable.
    */
   boolean contains(OIdentifiable identifiable);
 
-  public void setOwner(ORecord owner);
+  public void setOwner(ORecordElement owner);
 
-  public ORecord getOwner();
+  public ORecordElement getOwner();
 
   public String toString();
 
-  public List<OMultiValueChangeListener<OIdentifiable, OIdentifiable>> getChangeListeners();
+  NavigableMap<OIdentifiable, Change> getChanges();
+
+  void setSize(int size);
+
+  OSimpleMultiValueTracker<OIdentifiable, OIdentifiable> getTracker();
+
+  void setTracker(OSimpleMultiValueTracker<OIdentifiable, OIdentifiable> tracker);
 }

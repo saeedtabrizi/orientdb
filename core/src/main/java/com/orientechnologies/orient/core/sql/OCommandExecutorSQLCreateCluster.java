@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
@@ -32,7 +32,7 @@ import java.util.Map;
 /**
  * SQL CREATE CLUSTER command: Creates a new cluster.
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 @SuppressWarnings("unchecked")
 public class OCommandExecutorSQLCreateCluster extends OCommandExecutorSQLAbstract implements OCommandDistributedReplicateRequest {
@@ -93,7 +93,7 @@ public class OCommandExecutorSQLCreateCluster extends OCommandExecutorSQLAbstrac
 
   @Override
   public long getDistributedTimeout() {
-    return OGlobalConfiguration.DISTRIBUTED_COMMAND_TASK_SYNCH_TIMEOUT.getValueAsLong();
+    return getDatabase().getConfiguration().getValueAsLong(OGlobalConfiguration.DISTRIBUTED_COMMAND_QUICK_TASK_SYNCH_TIMEOUT);
   }
 
   @Override
@@ -124,9 +124,14 @@ public class OCommandExecutorSQLCreateCluster extends OCommandExecutorSQLAbstrac
       if (requestedId == -1) {
         return database.addCluster(clusterName);
       } else {
-        return database.addCluster(clusterName, requestedId, null);
+        return database.addCluster(clusterName, requestedId);
       }
     }
+  }
+
+  @Override
+  public String getUndoCommand() {
+    return "drop cluster " + clusterName;
   }
 
   @Override

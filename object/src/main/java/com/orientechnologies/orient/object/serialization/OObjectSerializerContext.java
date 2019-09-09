@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.object.serialization;
@@ -34,7 +34,7 @@ import com.orientechnologies.orient.object.entity.OObjectEntityClassHandler;
 // the parameter iFieldValue (which is of type Object) to the defined type LOCAL_TYPE.
 @SuppressWarnings({ "rawtypes", "unchecked" })
 public class OObjectSerializerContext implements OObjectSerializer<Object, Object> {
-  final private Map<Class<?>, OObjectSerializer> customSerializers = new LinkedHashMap<Class<?>, OObjectSerializer>();
+  private final Map<Class<?>, OObjectSerializer> customSerializers = new LinkedHashMap<Class<?>, OObjectSerializer>();
 
   public void bind(final OObjectSerializer serializer, ODatabase database) {
     final Type[] actualTypes = OReflectionHelper.getGenericTypes(serializer.getClass());

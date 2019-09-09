@@ -1,6 +1,6 @@
 /*
       *
-      *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+      *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
       *  *
       *  *  Licensed under the Apache License, Version 2.0 (the "License");
       *  *  you may not use this file except in compliance with the License.
@@ -14,49 +14,47 @@
       *  *  See the License for the specific language governing permissions and
       *  *  limitations under the License.
       *  *
-      *  * For more information: http://www.orientechnologies.com
+      *  * For more information: http://orientdb.com
       *
       */
 package com.orientechnologies.orient.server.distributed;
 
-import java.io.Externalizable;
-import java.io.IOException;
-import java.io.ObjectInput;
-import java.io.ObjectOutput;
-
-import com.orientechnologies.orient.core.id.ORID;
+import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.server.distributed.task.ORemoteTask;
+
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 
 /**
  *
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  *
  */
-public class ODistributedRequest implements Externalizable {
+public class ODistributedRequest {
   public enum EXECUTION_MODE {
     RESPONSE, NO_RESPONSE
   }
 
+  private final ODistributedServerManager manager;
+
   private ODistributedRequestId id;
-  private EXECUTION_MODE        executionMode;
   private String                databaseName;
   private long                  senderThreadId;
   private ORemoteTask           task;
-  private ORID                  userRID;       // KEEP ALSO THE RID TO AVOID SECURITY PROBLEM ON DELETE & RECREATE USERS
+  private ORecordId             userRID;       // KEEP ALSO THE RID TO AVOID SECURITY PROBLEM ON DELETE & RECREATE USERS
 
-  /**
-   * Constructor used by serializer.
-   */
-  public ODistributedRequest() {
+  public ODistributedRequest(final ODistributedServerManager manager) {
+    this.manager = manager;
   }
 
-  public ODistributedRequest(final int senderNodeId, final long msgSequence, final String databaseName, final ORemoteTask payload,
-      EXECUTION_MODE iExecutionMode) {
+  public ODistributedRequest(final ODistributedServerManager manager, final int senderNodeId, final long msgSequence,
+      final String databaseName, final ORemoteTask payload) {
+    this.manager = manager;
     this.id = new ODistributedRequestId(senderNodeId, msgSequence);
     this.databaseName = databaseName;
     this.senderThreadId = Thread.currentThread().getId();
     this.task = payload;
-    this.executionMode = iExecutionMode;
   }
 
   public ODistributedRequestId getId() {
@@ -85,41 +83,45 @@ public class ODistributedRequest implements Externalizable {
     return this;
   }
 
-  public ORID getUserRID() {
+  public ORecordId getUserRID() {
     return userRID;
   }
 
-  public void setUserRID(final ORID iUserRID) {
+  public void setUserRID(final ORecordId iUserRID) {
     this.userRID = iUserRID;
   }
 
-  public EXECUTION_MODE getExecutionMode() {
-    return executionMode;
-  }
-
-  public ODistributedRequest setExecutionMode(final EXECUTION_MODE executionMode) {
-    this.executionMode = executionMode;
-    return this;
-  }
-
-  @Override
-  public void writeExternal(final ObjectOutput out) throws IOException {
-    out.writeObject(id);
+  public void toStream(final DataOutput out) throws IOException {
+    id.toStream(out);
     out.writeLong(senderThreadId);
     out.writeUTF(databaseName != null ? databaseName : "");
-    out.writeObject(task);
-    out.writeObject(userRID);
+
+    out.writeByte(task.getFactoryId());
+    task.toStream(out);
+
+    if (userRID != null) {
+      out.writeBoolean(true);
+      userRID.toStream(out);
+    } else
+      out.writeBoolean(false);
   }
 
-  @Override
-  public void readExternal(final ObjectInput in) throws IOException, ClassNotFoundException {
-    id = (ODistributedRequestId) in.readObject();
+  public void fromStream(final DataInput in) throws IOException {
+    id = new ODistributedRequestId();
+    id.fromStream(in);
     senderThreadId = in.readLong();
     databaseName = in.readUTF();
     if (databaseName.isEmpty())
       databaseName = null;
-    task = (ORemoteTask) in.readObject();
-    userRID = (ORID) in.readObject();
+
+    final ORemoteTaskFactory taskFactory = manager.getTaskFactoryManager().getFactoryByServerId(id.getNodeId());
+    task = taskFactory.createTask(in.readByte());
+    task.fromStream(in, taskFactory);
+
+    if (in.readBoolean()) {
+      userRID = new ORecordId();
+      userRID.fromStream(in);
+    }
   }
 
   @Override

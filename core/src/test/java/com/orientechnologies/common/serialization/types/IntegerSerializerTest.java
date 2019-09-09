@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,7 @@ package com.orientechnologies.common.serialization.types;
 
 import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OWALChanges;
 import com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OWALChangesTree;
-import org.testng.Assert;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
-
+import org.junit.Assert;import org.junit.Before; import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -29,14 +26,13 @@ import java.nio.ByteOrder;
  * @author Ilya Bershadskiy (ibersh20-at-gmail.com)
  * @since 17.01.12
  */
-@Test
 public class IntegerSerializerTest {
   private static final int     FIELD_SIZE = 4;
   private static final Integer OBJECT     = 1;
   private OIntegerSerializer integerSerializer;
   byte[] stream = new byte[FIELD_SIZE];
 
-  @BeforeClass
+  @Before
   public void beforeClass() {
     integerSerializer = new OIntegerSerializer();
   }

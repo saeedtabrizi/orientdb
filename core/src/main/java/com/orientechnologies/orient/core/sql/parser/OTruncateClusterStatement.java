@@ -2,9 +2,21 @@
 /* JavaCCOptions:MULTI=true,NODE_USES_PARSER=false,VISITOR=true,TRACK_TOKENS=true,NODE_PREFIX=O,NODE_EXTENDS=,NODE_FACTORY=,SUPPORT_CLASS_VISIBILITY_PUBLIC=true */
 package com.orientechnologies.orient.core.sql.parser;
 
+import com.orientechnologies.orient.core.command.OCommandContext;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocumentAbstract;
+import com.orientechnologies.orient.core.exception.ODatabaseException;
+import com.orientechnologies.orient.core.iterator.ORecordIteratorCluster;
+import com.orientechnologies.orient.core.metadata.schema.OClass;
+import com.orientechnologies.orient.core.metadata.schema.OSchema;
+import com.orientechnologies.orient.core.record.ORecord;
+import com.orientechnologies.orient.core.record.impl.ODocument;
+import com.orientechnologies.orient.core.sql.executor.OInternalResultSet;
+import com.orientechnologies.orient.core.sql.executor.OResultInternal;
+import com.orientechnologies.orient.core.sql.executor.OResultSet;
+
 import java.util.Map;
 
-public class OTruncateClusterStatement extends OStatement {
+public class OTruncateClusterStatement extends ODDLStatement {
 
   public OIdentifier clusterName;
   public OInteger    clusterNumber;
@@ -18,7 +30,55 @@ public class OTruncateClusterStatement extends OStatement {
     super(p, id);
   }
 
-  /** Accept the visitor. **/
+  @Override
+  public OResultSet executeDDL(OCommandContext ctx) {
+    ODatabaseDocumentAbstract database = (ODatabaseDocumentAbstract) ctx.getDatabase();
+    OInternalResultSet rs = new OInternalResultSet();
+
+    Integer clusterId = null;
+    if (clusterNumber != null) {
+      clusterId = clusterNumber.getValue().intValue();
+    } else {
+      clusterId = database.getClusterIdByName(clusterName.getStringValue());
+    }
+
+    if (clusterId < 0) {
+      throw new ODatabaseException("Cluster with name " + clusterName + " does not exist");
+    }
+
+    final OSchema schema = database.getMetadata().getSchema();
+    final OClass clazz = schema.getClassByClusterId(clusterId);
+    if (clazz == null) {
+      final String clusterName = database.getClusterNameById(clusterId);
+      database.checkForClusterPermissions(clusterName);
+
+      final ORecordIteratorCluster<ODocument> iteratorCluster = database.browseCluster(clusterName);
+      if (iteratorCluster == null) {
+        throw new ODatabaseException("Cluster with name " + clusterName + " does not exist");
+      }
+      while (iteratorCluster.hasNext()) {
+        final ORecord record = iteratorCluster.next();
+        record.delete();
+      }
+    } else {
+      String name = database.getClusterNameById(clusterId);
+      clazz.truncateCluster(name);
+    }
+
+    OResultInternal result = new OResultInternal();
+    result.setProperty("operation", "truncate cluster");
+    if (clusterName != null) {
+      result.setProperty("clusterName", clusterName.getStringValue());
+    }
+    result.setProperty("clusterId", clusterId);
+
+    rs.add(result);
+    return rs;
+  }
+
+  /**
+   * Accept the visitor.
+   **/
   public Object jjtAccept(OrientSqlVisitor visitor, Object data) {
     return visitor.visit(this, data);
   }
@@ -34,7 +94,42 @@ public class OTruncateClusterStatement extends OStatement {
     if (unsafe) {
       builder.append(" UNSAFE");
     }
+  }
 
+  @Override
+  public OTruncateClusterStatement copy() {
+    OTruncateClusterStatement result = new OTruncateClusterStatement(-1);
+    result.clusterName = clusterName == null ? null : clusterName.copy();
+    result.clusterNumber = clusterNumber == null ? null : clusterNumber.copy();
+    result.unsafe = unsafe;
+    return result;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o)
+      return true;
+    if (o == null || getClass() != o.getClass())
+      return false;
+
+    OTruncateClusterStatement that = (OTruncateClusterStatement) o;
+
+    if (unsafe != that.unsafe)
+      return false;
+    if (clusterName != null ? !clusterName.equals(that.clusterName) : that.clusterName != null)
+      return false;
+    if (clusterNumber != null ? !clusterNumber.equals(that.clusterNumber) : that.clusterNumber != null)
+      return false;
+
+    return true;
+  }
+
+  @Override
+  public int hashCode() {
+    int result = clusterName != null ? clusterName.hashCode() : 0;
+    result = 31 * result + (clusterNumber != null ? clusterNumber.hashCode() : 0);
+    result = 31 * result + (unsafe ? 1 : 0);
+    return result;
   }
 }
 /* JavaCC - OriginalChecksum=301f993f6ba2893cb30c8f189674b974 (do not edit this line) */

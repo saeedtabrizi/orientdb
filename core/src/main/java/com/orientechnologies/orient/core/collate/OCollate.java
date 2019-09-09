@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,20 +14,26 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 package com.orientechnologies.orient.core.collate;
+
+import com.orientechnologies.common.comparator.ODefaultComparator;
 
 import java.io.Serializable;
 
 /**
  * Specify the Collating strategy when comparison in SQL statement is required.
  *
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public interface OCollate extends Serializable {
   String getName();
 
   Object transform(Object obj);
+
+  default int compareForOrderBy(Object o1, Object o2) {
+    return new ODefaultComparator().compare(transform(o1), transform(o2));
+  }
 }

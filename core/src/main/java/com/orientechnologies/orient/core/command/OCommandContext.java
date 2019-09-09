@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,22 +14,24 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.command;
 
 import com.orientechnologies.common.concur.OTimeoutException;
+import com.orientechnologies.orient.core.db.ODatabase;
 
 import java.util.Map;
 
 /**
  * Basic interface for commands. Manages the context variables during execution.
- * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public interface OCommandContext {
+
+
   enum TIMEOUT_STRATEGY {
     RETURN, EXCEPTION
   }
@@ -52,11 +54,10 @@ public interface OCommandContext {
 
   /**
    * Updates a counter. Used to record metrics.
-   * 
-   * @param iName
-   *          Metric's name
-   * @param iValue
-   *          delta to add or subtract
+   *
+   * @param iName  Metric's name
+   * @param iValue delta to add or subtract
+   *
    * @return
    */
   long updateMetric(String iName, long iValue);
@@ -69,10 +70,10 @@ public interface OCommandContext {
 
   /**
    * Check if timeout is elapsed, if defined.
-   * 
+   *
    * @return false if it the timeout is elapsed and strategy is "return"
-   * @exception OTimeoutException
-   *              if the strategy is "exception" (default)
+   *
+   * @throws OTimeoutException if the strategy is "exception" (default)
    */
   public boolean checkTimeout();
 
@@ -87,9 +88,14 @@ public interface OCommandContext {
 
   /**
    * Merges a context with current one.
-   * 
+   *
    * @param iContext
    */
   void merge(OCommandContext iContext);
 
+  ODatabase getDatabase();
+
+  void declareScriptVariable(String varName);
+
+  boolean isScriptVariableDeclared(String varName);
 }

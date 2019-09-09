@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,18 +15,6 @@
  */
 package com.orientechnologies.orient.test.database.auto;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import org.testng.Assert;
-import org.testng.annotations.Optional;
-import org.testng.annotations.Parameters;
-import org.testng.annotations.Test;
-
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.index.OIndex;
 import com.orientechnologies.orient.core.index.OIndexCursor;
@@ -36,6 +24,12 @@ import com.orientechnologies.orient.core.metadata.schema.OType;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
+import org.testng.Assert;
+import org.testng.annotations.Optional;
+import org.testng.annotations.Parameters;
+import org.testng.annotations.Test;
+
+import java.util.*;
 
 @Test
 public class TruncateClassTest extends DocumentDBBaseTest {
@@ -48,12 +42,12 @@ public class TruncateClassTest extends DocumentDBBaseTest {
   @SuppressWarnings("unchecked")
   @Test
   public void testTruncateClass() {
+    checkEmbeddedDB();
 
     OSchema schema = database.getMetadata().getSchema();
     OClass testClass = getOrCreateClass(schema);
 
     final OIndex<?> index = getOrCreateIndex(testClass);
-    schema.save();
 
     database.command(new OCommandSQL("truncate class test_class")).execute();
 
@@ -129,39 +123,33 @@ public class TruncateClassTest extends DocumentDBBaseTest {
 
   @Test
   public void testTruncateVertexClassSubclassesWithIndex() {
+    checkEmbeddedDB();
 
     database.command(new OCommandSQL("create class TestTruncateVertexClassSuperclassWithIndex")).execute();
     database.command(new OCommandSQL("create property TestTruncateVertexClassSuperclassWithIndex.name STRING")).execute();
-    database
-        .command(
-            new OCommandSQL(
-                "create index TestTruncateVertexClassSuperclassWithIndex_index on TestTruncateVertexClassSuperclassWithIndex (name) NOTUNIQUE"))
+    database.command(new OCommandSQL(
+        "create index TestTruncateVertexClassSuperclassWithIndex_index on TestTruncateVertexClassSuperclassWithIndex (name) NOTUNIQUE"))
         .execute();
 
-    database
-        .command(
-            new OCommandSQL(
-                "create class TestTruncateVertexClassSubclassWithIndex extends TestTruncateVertexClassSuperclassWithIndex"))
+    database.command(
+        new OCommandSQL("create class TestTruncateVertexClassSubclassWithIndex extends TestTruncateVertexClassSuperclassWithIndex"))
         .execute();
 
     database.command(new OCommandSQL("insert into TestTruncateVertexClassSuperclassWithIndex set name = 'foo'")).execute();
     database.command(new OCommandSQL("insert into TestTruncateVertexClassSubclassWithIndex set name = 'bar'")).execute();
 
-    List<?> result = database.query(new OSQLSynchQuery("select from index:TestTruncateVertexClassSuperclassWithIndex_index"));
-    Assert.assertEquals(result.size(), 2);
+    final OIndex index = getIndex("TestTruncateVertexClassSuperclassWithIndex_index");
+    Assert.assertEquals(index.getSize(), 2);
 
     database.command(new OCommandSQL("truncate class TestTruncateVertexClassSubclassWithIndex")).execute();
-    result = database.query(new OSQLSynchQuery("select from index:TestTruncateVertexClassSuperclassWithIndex_index"));
-    Assert.assertEquals(result.size(), 1);
+    Assert.assertEquals(index.getSize(), 1);
 
     database.command(new OCommandSQL("truncate class TestTruncateVertexClassSuperclassWithIndex polymorphic")).execute();
-    result = database.query(new OSQLSynchQuery("select from index:TestTruncateVertexClassSuperclassWithIndex_index"));
-    Assert.assertEquals(result.size(), 0);
-
+    Assert.assertEquals(index.getSize(), 0);
   }
 
   private OIndex<?> getOrCreateIndex(OClass testClass) {
-    OIndex<?> index = database.getMetadata().getIndexManager().getIndex("test_class_by_data");
+    OIndex<?> index = database.getMetadata().getIndexManagerInternal().getIndex(database, "test_class_by_data");
     if (index == null) {
       testClass.createProperty("data", OType.EMBEDDEDLIST, OType.INTEGER);
       index = testClass.createIndex("test_class_by_data", OClass.INDEX_TYPE.UNIQUE, "data");
@@ -176,7 +164,37 @@ public class TruncateClassTest extends DocumentDBBaseTest {
     } else {
       testClass = schema.createClass("test_class");
     }
-    schema.save();
     return testClass;
+  }
+
+  @SuppressWarnings("unchecked")
+  @Test
+  public void testTruncateClassWithCommandCache() {
+
+    OSchema schema = database.getMetadata().getSchema();
+    OClass testClass = getOrCreateClass(schema);
+    boolean ccWasEnabled = false;
+    if (database.getMetadata().getCommandCache() != null) {
+      ccWasEnabled = database.getMetadata().getCommandCache().isEnabled();
+      database.getMetadata().getCommandCache().enable();
+    }
+
+    database.command(new OCommandSQL("truncate class test_class")).execute();
+
+    database.save(new ODocument(testClass).field("name", "x").field("data", Arrays.asList(1, 2)));
+    database.save(new ODocument(testClass).field("name", "y").field("data", Arrays.asList(3, 0)));
+
+    List<ODocument> result = database.query(new OSQLSynchQuery<ODocument>("select from test_class"));
+    Assert.assertEquals(result.size(), 2);
+
+    database.command(new OCommandSQL("truncate class test_class")).execute();
+
+    result = database.query(new OSQLSynchQuery<ODocument>("select from test_class"));
+    Assert.assertEquals(result.size(), 0);
+
+    schema.dropClass("test_class");
+    if (!ccWasEnabled && database.getMetadata().getCommandCache() != null) {
+      database.getMetadata().getCommandCache().disable();
+    }
   }
 }

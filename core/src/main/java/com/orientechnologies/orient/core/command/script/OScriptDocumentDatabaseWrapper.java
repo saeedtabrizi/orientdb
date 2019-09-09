@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,25 +14,19 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.command.script;
-
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 
 import com.orientechnologies.common.util.OCommonConst;
 import com.orientechnologies.orient.core.db.ODatabase;
 import com.orientechnologies.orient.core.db.ODatabase.ATTRIBUTES;
 import com.orientechnologies.orient.core.db.ODatabase.OPERATION_MODE;
 import com.orientechnologies.orient.core.db.ODatabase.STATUS;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.db.ODatabaseInternal;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.dictionary.ODictionary;
 import com.orientechnologies.orient.core.id.ORID;
@@ -46,28 +40,30 @@ import com.orientechnologies.orient.core.metadata.security.OSecurityUser;
 import com.orientechnologies.orient.core.metadata.security.OUser;
 import com.orientechnologies.orient.core.record.ORecord;
 import com.orientechnologies.orient.core.record.impl.ODocument;
-import com.orientechnologies.orient.core.sql.OCommandSQL;
+import com.orientechnologies.orient.core.sql.executor.OResultSet;
 import com.orientechnologies.orient.core.sql.query.OSQLQuery;
-import com.orientechnologies.orient.core.sql.query.OSQLSynchQuery;
 import com.orientechnologies.orient.core.storage.ORecordCallback;
 import com.orientechnologies.orient.core.tx.OTransaction;
 
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
 /**
  * Document Database wrapper class to use from scripts.
- * 
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
- * 
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 @SuppressWarnings("unchecked")
+
+@Deprecated
 public class OScriptDocumentDatabaseWrapper {
-  protected ODatabaseDocumentTx database;
+  protected ODatabaseDocumentInternal database;
 
-  public OScriptDocumentDatabaseWrapper(final ODatabaseDocumentTx database) {
+  public OScriptDocumentDatabaseWrapper(final ODatabaseDocumentInternal database) {
     this.database = database;
-  }
-
-  public OScriptDocumentDatabaseWrapper(final String iURL) {
-    this.database = new ODatabaseDocumentTx(iURL);
   }
 
   public void switchUser(final String iUserName, final String iUserPassword) {
@@ -81,7 +77,9 @@ public class OScriptDocumentDatabaseWrapper {
   }
 
   public OIdentifiable[] query(final String iText, final Object... iParameters) {
-    return query(new OSQLSynchQuery<Object>(iText), iParameters);
+    try (OResultSet rs = database.query(iText, iParameters)) {
+      return rs.stream().map(x -> x.toElement()).toArray(size -> new OIdentifiable[size]);
+    }
   }
 
   public OIdentifiable[] query(final OSQLQuery iQuery, final Object... iParameters) {
@@ -110,16 +108,13 @@ public class OScriptDocumentDatabaseWrapper {
   }
 
   public Object command(final String iText, final Object... iParameters) {
-    Object res = database.command(new OCommandSQL(iText)).execute(convertParameters(iParameters));
-    if (res instanceof List) {
-      final List<OIdentifiable> list = (List<OIdentifiable>) res;
-      return list.toArray(new OIdentifiable[list.size()]);
+    try (OResultSet rs = database.command(iText, iParameters)) {
+      return rs.stream().map(x -> x.toElement()).toArray(size -> new OIdentifiable[size]);
     }
-    return res;
   }
 
-  public OIndex<?> getIndex(final String iName) {
-    return database.getMetadata().getIndexManager().getIndex(iName);
+  public OIndex<?> getIndex(final String name) {
+    return database.getMetadata().getIndexManagerInternal().getIndex(database, name);
   }
 
   public boolean exists() {
@@ -191,8 +186,8 @@ public class OScriptDocumentDatabaseWrapper {
     return database.save(iRecord);
   }
 
-  public boolean dropCluster(String iClusterName, final boolean iTruncate) {
-    return database.dropCluster(iClusterName, iTruncate);
+  public boolean dropCluster(String iClusterName) {
+    return database.dropCluster(iClusterName);
   }
 
   public <THISDB extends ODatabase> THISDB create() {
@@ -200,7 +195,7 @@ public class OScriptDocumentDatabaseWrapper {
   }
 
   public boolean dropCluster(int iClusterId, final boolean iTruncate) {
-    return database.dropCluster(iClusterId, true);
+    return database.dropCluster(iClusterId);
   }
 
   public void close() {
@@ -329,7 +324,7 @@ public class OScriptDocumentDatabaseWrapper {
   }
 
   public void reload(ORecord iRecord) {
-    database.reload(iRecord);
+    database.reload(iRecord, null, false);
   }
 
   public void reload(ORecord iRecord, String iFetchPlan, boolean iIgnoreCache) {
@@ -381,8 +376,8 @@ public class OScriptDocumentDatabaseWrapper {
     return database.save(iRecord, iClusterName, iMode, iForceCreate, iRecordCreatedCallback, iRecordUpdatedCallback);
   }
 
-  public ODatabaseDocumentTx delete(ODocument iRecord) {
-    return database.delete(iRecord);
+  public ODatabaseDocument delete(ODocument iRecord) {
+    return (ODatabaseDocument) database.delete(iRecord);
   }
 
   public long countClass(String iClassName) {

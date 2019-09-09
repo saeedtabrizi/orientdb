@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.graph.sql;
@@ -28,30 +28,23 @@ import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.exception.OCommandExecutionException;
 import com.orientechnologies.orient.core.metadata.OMetadataInternal;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
-import com.orientechnologies.orient.core.sql.OCommandExecutorSQLSetAware;
-import com.orientechnologies.orient.core.sql.OCommandParameters;
-import com.orientechnologies.orient.core.sql.OCommandSQLParsingException;
-import com.orientechnologies.orient.core.sql.OSQLEngine;
-import com.orientechnologies.orient.core.sql.OSQLHelper;
+import com.orientechnologies.orient.core.sql.*;
+import com.orientechnologies.orient.core.sql.filter.OSQLFilterItem;
 import com.orientechnologies.orient.core.sql.functions.OSQLFunctionRuntime;
 import com.tinkerpop.blueprints.impls.orient.OrientBaseGraph;
 import com.tinkerpop.blueprints.impls.orient.OrientEdge;
 import com.tinkerpop.blueprints.impls.orient.OrientEdgeType;
 import com.tinkerpop.blueprints.impls.orient.OrientVertex;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * SQL CREATE EDGE command.
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OCommandExecutorSQLCreateEdge extends OCommandExecutorSQLSetAware implements OCommandDistributedReplicateRequest {
-  public static final String  NAME          = "CREATE EDGE";
+  public static final  String NAME          = "CREATE EDGE";
   private static final String KEYWORD_BATCH = "BATCH";
 
   private String                      from;
@@ -60,7 +53,7 @@ public class OCommandExecutorSQLCreateEdge extends OCommandExecutorSQLSetAware i
   private String                      edgeLabel;
   private String                      clusterName;
   private List<OPair<String, Object>> fields;
-  private int                         batch = 100;
+  private int batch = 100;
 
   @SuppressWarnings("unchecked")
   public OCommandExecutorSQLCreateEdge parse(final OCommandRequest iRequest) {
@@ -69,9 +62,7 @@ public class OCommandExecutorSQLCreateEdge extends OCommandExecutorSQLSetAware i
     String queryText = textRequest.getText();
     String originalQuery = queryText;
     try {
-      // System.out.println("NEW PARSER FROM: " + queryText);
       queryText = preParse(queryText, iRequest);
-      // System.out.println("NEW PARSER TO: " + queryText);
       textRequest.setText(queryText);
 
       final ODatabaseDocument database = getDatabase();
@@ -84,7 +75,7 @@ public class OCommandExecutorSQLCreateEdge extends OCommandExecutorSQLSetAware i
       String className = null;
 
       String tempLower = parseOptionalWord(false);
-      String temp = tempLower == null ? null : tempLower.toUpperCase();
+      String temp = tempLower == null ? null : tempLower.toUpperCase(Locale.ENGLISH);
 
       while (temp != null) {
         if (temp.equals("CLUSTER")) {
@@ -172,8 +163,11 @@ public class OCommandExecutorSQLCreateEdge extends OCommandExecutorSQLSetAware i
             if (fields != null)
               // EVALUATE FIELDS
               for (final OPair<String, Object> f : fields) {
-                if (f.getValue() instanceof OSQLFunctionRuntime)
+                if (f.getValue() instanceof OSQLFunctionRuntime) {
                   f.setValue(((OSQLFunctionRuntime) f.getValue()).getValue(to, null, context));
+                } else if (f.getValue() instanceof OSQLFilterItem) {
+                  f.setValue(((OSQLFilterItem) f.getValue()).getValue(to, null, context));
+                }
               }
 
             OrientEdge edge = null;
@@ -208,10 +202,11 @@ public class OCommandExecutorSQLCreateEdge extends OCommandExecutorSQLSetAware i
 
         if (edges.isEmpty()) {
           if (fromIds.isEmpty())
-            throw new OCommandExecutionException("No edge has been created because no source vertices");
+            throw new OCommandExecutionException("No edge has been created because no source vertices: " + this.toString());
           else if (toIds.isEmpty())
-            throw new OCommandExecutionException("No edge has been created because no target vertices");
-          throw new OCommandExecutionException("No edge has been created between " + fromIds + " and " + toIds);
+            throw new OCommandExecutionException("No edge has been created because no target vertices: " + this.toString());
+          throw new OCommandExecutionException(
+              "No edge has been created between " + fromIds + " and " + toIds + ": " + this.toString());
         }
 
         return edges;
@@ -241,6 +236,7 @@ public class OCommandExecutorSQLCreateEdge extends OCommandExecutorSQLSetAware i
 
   @Override
   public String getSyntax() {
-    return "CREATE EDGE [<class>] [CLUSTER <cluster>] FROM <rid>|(<query>|[<rid>]*) TO <rid>|(<query>|[<rid>]*) [SET <field> = <expression>[,]*]|CONTENT {<JSON>} [RETRY <retry> [WAIT <pauseBetweenRetriesInMs]] [BATCH <batch-size>]";
+    return "CREATE EDGE [<class>] [CLUSTER <cluster>] FROM <rid>|(<query>|[<rid>]*) TO <rid>|(<query>|[<rid>]*) [SET <field> = <expression>[,]*]|CONTENT {<JSON>} "
+        + "[RETRY <retry> [WAIT <pauseBetweenRetriesInMs]] [BATCH <batch-size>]";
   }
 }

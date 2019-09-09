@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
@@ -22,7 +22,7 @@ package com.orientechnologies.orient.core.sql;
 import com.orientechnologies.orient.core.command.OCommandDistributedReplicateRequest;
 import com.orientechnologies.orient.core.command.OCommandRequest;
 import com.orientechnologies.orient.core.command.OCommandRequestText;
-import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
+import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
 import com.orientechnologies.orient.core.exception.OCommandExecutionException;
 import com.orientechnologies.orient.core.index.OIndex;
 
@@ -31,7 +31,7 @@ import java.util.Map;
 /**
  * SQL REMOVE INDEX command: Remove an index
  *
- * @author Luca Garulli (l.garulli--at--orientechnologies.com)
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 @SuppressWarnings("unchecked")
 public class OCommandExecutorSQLRebuildIndex extends OCommandExecutorSQLAbstract implements OCommandDistributedReplicateRequest {
@@ -83,10 +83,10 @@ public class OCommandExecutorSQLRebuildIndex extends OCommandExecutorSQLAbstract
     if (name == null)
       throw new OCommandExecutionException("Cannot execute the command because it has not been parsed yet");
 
-    final ODatabaseDocument database = getDatabase();
+    final ODatabaseDocumentInternal database = getDatabase();
     if (name.equals("*")) {
       long totalIndexed = 0;
-      for (OIndex<?> idx : database.getMetadata().getIndexManager().getIndexes()) {
+      for (OIndex<?> idx : database.getMetadata().getIndexManagerInternal().getIndexes(database)) {
         if (idx.isAutomatic())
           totalIndexed += idx.rebuild();
       }
@@ -94,13 +94,13 @@ public class OCommandExecutorSQLRebuildIndex extends OCommandExecutorSQLAbstract
       return totalIndexed;
 
     } else {
-      final OIndex<?> idx = database.getMetadata().getIndexManager().getIndex(name);
+      final OIndex<?> idx = database.getMetadata().getIndexManagerInternal().getIndex(database, name);
       if (idx == null)
         throw new OCommandExecutionException("Index '" + name + "' not found");
 
       if (!idx.isAutomatic())
-        throw new OCommandExecutionException("Cannot rebuild index '" + name
-            + "' because it's manual and there aren't indications of what to index");
+        throw new OCommandExecutionException(
+            "Cannot rebuild index '" + name + "' because it's manual and there aren't indications of what to index");
 
       return idx.rebuild();
     }

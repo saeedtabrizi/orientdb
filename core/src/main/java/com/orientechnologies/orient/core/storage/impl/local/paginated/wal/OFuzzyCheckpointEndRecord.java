@@ -1,6 +1,6 @@
 /*
   *
-  *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+  *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
   *  *
   *  *  Licensed under the Apache License, Version 2.0 (the "License");
   *  *  you may not use this file except in compliance with the License.
@@ -14,14 +14,16 @@
   *  *  See the License for the specific language governing permissions and
   *  *  limitations under the License.
   *  *
-  *  * For more information: http://www.orientechnologies.com
+  *  * For more information: http://orientdb.com
   *
   */
 
 package com.orientechnologies.orient.core.storage.impl.local.paginated.wal;
 
+import java.nio.ByteBuffer;
+
 /**
- * @author Andrey Lomakin
+ * @author Andrey Lomakin (a.lomakin-at-orientdb.com)
  * @since 30.04.13
  */
 public class OFuzzyCheckpointEndRecord extends OAbstractWALRecord {
@@ -31,6 +33,10 @@ public class OFuzzyCheckpointEndRecord extends OAbstractWALRecord {
   @Override
   public int toStream(byte[] content, int offset) {
     return offset;
+  }
+
+  @Override
+  public void toStream(final ByteBuffer buffer) {
   }
 
   @Override
@@ -46,5 +52,10 @@ public class OFuzzyCheckpointEndRecord extends OAbstractWALRecord {
   @Override
   public boolean isUpdateMasterRecord() {
     return false;
+  }
+
+  @Override
+  public byte getId() {
+    return WALRecordTypes.FUZZY_CHECKPOINT_END_RECORD;
   }
 }

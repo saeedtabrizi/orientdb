@@ -40,13 +40,13 @@ public class ODocumentTrackingNestedCollectionsTest {
     Set objects = new HashSet();
 
     document.field("objects", objects);
-    document.save();
+    document.save(db.getClusterNameById(db.getDefaultClusterId()));
 
     objects = document.field("objects");
     Set subObjects = new HashSet();
     objects.add(subObjects);
 
-    document.save();
+    document.save(db.getClusterNameById(db.getDefaultClusterId()));
 
     orid = document.getIdentity();
     objects = document.field("objects");
@@ -55,7 +55,7 @@ public class ODocumentTrackingNestedCollectionsTest {
     ODocument nestedDoc = new ODocument();
     subObjects.add(nestedDoc);
 
-    document.save();
+    document.save(db.getClusterNameById(db.getDefaultClusterId()));
     db.getLocalCache().clear();
 
     document = db.load(orid);
@@ -79,19 +79,16 @@ public class ODocumentTrackingNestedCollectionsTest {
     ODocument nestedDoc = new ODocument();
     subObjects.add(nestedDoc);
 
-    document.save();
+    document.save(db.getClusterNameById(db.getDefaultClusterId()));
 
     objects = document.field("objects");
     subObjects = (Set) objects.iterator().next();
     subObjects.add("one");
 
-    OMultiValueChangeTimeLine<Object, Object> timeLine = document.getCollectionTimeLine("objects");
-
-    assertEquals(1, timeLine.getMultiValueChangeEvents().size());
-    assertTrue(timeLine.getMultiValueChangeEvents().get(0) instanceof ONestedMultiValueChangeEvent);
-    ONestedMultiValueChangeEvent nesetedEvent = (ONestedMultiValueChangeEvent) timeLine.getMultiValueChangeEvents().get(0);
-    assertEquals(1, nesetedEvent.getTimeLine().getMultiValueChangeEvents().size());
-    List<OMultiValueChangeEvent<?, ?>> multiValueChangeEvents = nesetedEvent.getTimeLine().getMultiValueChangeEvents();
+    assertTrue(document.isDirty());
+    OMultiValueChangeTimeLine<Object, Object> nestedTimiline = ((OTrackedMultiValue<Object, Object>) subObjects).getTimeLine();
+    assertEquals(1, nestedTimiline.getMultiValueChangeEvents().size());
+    List<OMultiValueChangeEvent<Object, Object>> multiValueChangeEvents = nestedTimiline.getMultiValueChangeEvents();
     assertEquals("one", multiValueChangeEvents.get(0).getValue());
 
   }
@@ -109,20 +106,15 @@ public class ODocumentTrackingNestedCollectionsTest {
     ODocument nestedDoc = new ODocument();
     subObjects.add(nestedDoc);
 
-    document.save();
+    document.save(db.getClusterNameById(db.getDefaultClusterId()));
 
     objects = document.field("objects");
     subObjects = (List) objects.iterator().next();
     subObjects.add("one");
     subObjects.add(new ODocument());
 
-    OMultiValueChangeTimeLine<Object, Object> timeLine = document.getCollectionTimeLine("objects");
-
-    assertEquals(1, timeLine.getMultiValueChangeEvents().size());
-    assertTrue(timeLine.getMultiValueChangeEvents().get(0) instanceof ONestedMultiValueChangeEvent);
-    ONestedMultiValueChangeEvent nesetedEvent = (ONestedMultiValueChangeEvent) timeLine.getMultiValueChangeEvents().get(0);
-    assertEquals(2, nesetedEvent.getTimeLine().getMultiValueChangeEvents().size());
-    List<OMultiValueChangeEvent<?, ?>> multiValueChangeEvents = nesetedEvent.getTimeLine().getMultiValueChangeEvents();
+    assertTrue(document.isDirty());
+    List<OMultiValueChangeEvent<Object, Object>> multiValueChangeEvents = ((OTrackedMultiValue<Object, Object>)subObjects).getTimeLine().getMultiValueChangeEvents();
     assertEquals(1, multiValueChangeEvents.get(0).getKey());
     assertEquals("one", multiValueChangeEvents.get(0).getValue());
     assertEquals(2, multiValueChangeEvents.get(1).getKey());
@@ -143,20 +135,15 @@ public class ODocumentTrackingNestedCollectionsTest {
     ODocument nestedDoc = new ODocument();
     subObjects.put("one", nestedDoc);
 
-    document.save();
+    document.save(db.getClusterNameById(db.getDefaultClusterId()));
 
     objects = document.field("objects");
     subObjects = (Map) objects.values().iterator().next();
     subObjects.put("one", "String");
     subObjects.put("two", new ODocument());
 
-    OMultiValueChangeTimeLine<Object, Object> timeLine = document.getCollectionTimeLine("objects");
-
-    assertEquals(1, timeLine.getMultiValueChangeEvents().size());
-    assertTrue(timeLine.getMultiValueChangeEvents().get(0) instanceof ONestedMultiValueChangeEvent);
-    ONestedMultiValueChangeEvent nesetedEvent = (ONestedMultiValueChangeEvent) timeLine.getMultiValueChangeEvents().get(0);
-    assertEquals(2, nesetedEvent.getTimeLine().getMultiValueChangeEvents().size());
-    List<OMultiValueChangeEvent<?, ?>> multiValueChangeEvents = nesetedEvent.getTimeLine().getMultiValueChangeEvents();
+    assertTrue(document.isDirty());
+    List<OMultiValueChangeEvent<Object, Object>> multiValueChangeEvents = ((OTrackedMultiValue<Object, Object>)subObjects).getTimeLine().getMultiValueChangeEvents();
     assertEquals("one", multiValueChangeEvents.get(0).getKey());
     assertEquals("String", multiValueChangeEvents.get(0).getValue());
     assertEquals("two", multiValueChangeEvents.get(1).getKey());

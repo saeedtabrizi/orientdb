@@ -11,9 +11,9 @@ import java.io.Serializable;
  * will be overwritten.
  * <p>
  * To add metadata inside of atomic operation use
- * {@link OAtomicOperation#addMetadata(com.orientechnologies.orient.core.storage.impl.local.paginated.atomicoperations.OAtomicOperationMetadata)}.
+ * {@link OAtomicOperationBinaryTracking#addMetadata(com.orientechnologies.orient.core.storage.impl.local.paginated.atomicoperations.OAtomicOperationMetadata)}.
  * <p>
- * To read metadata from atomic operation use {@link OAtomicOperation#getMetadata(java.lang.String)}
+ * To read metadata from atomic operation use {@link OAtomicOperationBinaryTracking#getMetadata(java.lang.String)}
  * <p>
  * If you wish to read metadata stored inside of atomic operation you may read them from
  * {@link com.orientechnologies.orient.core.storage.impl.local.paginated.wal.OAtomicUnitEndRecord#getAtomicOperationMetadata()}
@@ -22,6 +22,7 @@ import java.io.Serializable;
  *
  * @param <T> Type of atomic operation metadata.
  */
+@SuppressWarnings("SameReturnValue")
 public interface OAtomicOperationMetadata<T> extends Serializable {
   /**
    * @return Key associated with given metadata

@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2011 Luca Molino (molino.luca--AT--gmail.com*
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Date;
 
 import com.orientechnologies.common.util.OPatternConst;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.metadata.schema.OProperty;
@@ -33,7 +34,7 @@ import com.orientechnologies.orient.server.network.protocol.http.OHttpUtils;
 import com.orientechnologies.orient.server.network.protocol.http.command.OServerCommandAuthenticatedDbAbstract;
 
 /**
- * @author luca.molino
+ * @author Luca Molino (molino.luca--at--gmail.com)
  * 
  */
 public class OServerCommandGetFileDownload extends OServerCommandAuthenticatedDbAbstract {
@@ -55,7 +56,7 @@ public class OServerCommandGetFileDownload extends OServerCommandAuthenticatedDb
     iRequest.data.commandDetail = rid;
 
     final ORecordAbstract response;
-    ODatabaseDocumentTx db = getProfiledDatabaseInstance(iRequest);
+    ODatabaseDocument db = getProfiledDatabaseInstance(iRequest);
     try {
 
       response = db.load(new ORecordId(rid));

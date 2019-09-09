@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2015 Orient Technologies LTD (info(at)orientdb.com)
+ *  *  Copyright 2015 OrientDB LTD (info(at)orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -20,16 +20,17 @@
 package com.orientechnologies.orient.core.sql.parser.operators;
 
 import com.orientechnologies.orient.core.sql.parser.OContainsKeyOperator;
-import org.testng.Assert;
-import org.testng.annotations.Test;
+import org.junit.Assert;
+import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * @author Luigi Dell'Aquila
+ * @author Luigi Dell'Aquila (l.dellaquila-(at)-orientdb.com)
  */
 public class OContainsKeyOperatorTest {
+
   @Test
   public void test() {
     OContainsKeyOperator op = new OContainsKeyOperator(-1);

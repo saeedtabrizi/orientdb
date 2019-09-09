@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.index;
@@ -35,11 +35,11 @@ import java.util.*;
  */
 
 public class OCompositeIndexDefinition extends OAbstractIndexDefinition {
-  private static final long serialVersionUID = -885861736290603016L;
-  private final List<OIndexDefinition> indexDefinitions;
-  private       String                 className;
-  private int               multiValueDefinitionIndex = -1;
-  private OCompositeCollate collate                   = new OCompositeCollate(this);
+  private static final long                   serialVersionUID          = -885861736290603016L;
+  private final        List<OIndexDefinition> indexDefinitions;
+  private              String                 className;
+  private              int                    multiValueDefinitionIndex = -1;
+  private              OCompositeCollate      collate                   = new OCompositeCollate(this);
 
   public OCompositeIndexDefinition() {
     indexDefinitions = new ArrayList<OIndexDefinition>(5);
@@ -379,13 +379,7 @@ public class OCompositeIndexDefinition extends OAbstractIndexDefinition {
    */
   @Override
   public ODocument toStream() {
-    document.setInternalStatus(ORecordElement.STATUS.UNMARSHALLING);
-    try {
-      serializeToStream();
-    } finally {
-      document.setInternalStatus(ORecordElement.STATUS.LOADED);
-    }
-
+    serializeToStream();
     return document;
   }
 

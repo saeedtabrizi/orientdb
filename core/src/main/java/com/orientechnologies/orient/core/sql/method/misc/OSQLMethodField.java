@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Orient Technologies.
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  * Copyright 2013 Geomatys.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
  */
 package com.orientechnologies.orient.core.sql.method.misc;
 
-import com.orientechnologies.common.collection.OMultiCollectionIterator;
 import com.orientechnologies.common.collection.OMultiValue;
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.orient.core.command.OCommandContext;
@@ -24,15 +23,13 @@ import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.record.impl.ODocumentHelper;
+import com.orientechnologies.orient.core.sql.executor.OResult;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 /**
- * 
  * @author Johann Sorel (Geomatys)
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 public class OSQLMethodField extends OAbstractSQLMethod {
 
@@ -51,24 +48,32 @@ public class OSQLMethodField extends OAbstractSQLMethod {
     final String paramAsString = iParams[0].toString();
 
     if (ioResult != null) {
+      if (ioResult instanceof OResult) {
+        ioResult = ((OResult) ioResult).toElement();
+      }
+      if (ioResult instanceof Iterable && !(ioResult instanceof ODocument)) {
+        ioResult = ((Iterable) ioResult).iterator();
+      }
       if (ioResult instanceof String) {
         try {
           ioResult = new ODocument(new ORecordId((String) ioResult));
         } catch (Exception e) {
-          OLogManager.instance().error(this, "Error on reading rid with value '%s'", null, ioResult);
+          OLogManager.instance().error(this, "Error on reading rid with value '%s'", e, ioResult);
           ioResult = null;
         }
       } else if (ioResult instanceof OIdentifiable) {
         ioResult = ((OIdentifiable) ioResult).getRecord();
-      } else if (ioResult instanceof Collection<?> || ioResult instanceof OMultiCollectionIterator<?>
-          || ioResult.getClass().isArray()) {
+      } else if (ioResult instanceof Collection<?> || ioResult instanceof Iterator<?> || ioResult.getClass().isArray()) {
         final List<Object> result = new ArrayList<Object>(OMultiValue.getSize(ioResult));
         for (Object o : OMultiValue.getMultiValueIterable(ioResult, false)) {
           Object newlyAdded = ODocumentHelper.getFieldValue(o, paramAsString);
           if (OMultiValue.isMultiValue(newlyAdded)) {
-            for (Object item : OMultiValue.getMultiValueIterable(newlyAdded)) {
-              result.add(item);
-            }
+            if (newlyAdded instanceof Map || newlyAdded instanceof OIdentifiable) {
+              result.add(newlyAdded);
+            } else
+              for (Object item : OMultiValue.getMultiValueIterable(newlyAdded)) {
+                result.add(item);
+              }
           } else {
             result.add(newlyAdded);
           }

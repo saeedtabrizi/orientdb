@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,18 +58,6 @@ public class ServerTest extends DocumentDBBaseTest {
     } finally {
       server.close();
     }
-  }
-
-  @Test
-  public void testConnectClose() throws IOException {
-    ORemoteConnectionManager connManager = (((OEngineRemote) Orient.instance().getEngine("remote"))).getConnectionManager();
-
-    int count = connManager.getAvailableConnections(serverURL);
-    OServerAdmin server = new OServerAdmin(serverURL);
-    server.connect("root", ODatabaseHelper.getServerRootPassword());
-    server.close();
-
-    Assert.assertEquals(connManager.getAvailableConnections(serverURL), count);
   }
 
   @Test

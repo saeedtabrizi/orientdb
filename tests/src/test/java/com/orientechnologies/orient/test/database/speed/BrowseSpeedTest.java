@@ -12,7 +12,6 @@ import com.orientechnologies.orient.core.storage.impl.local.OAbstractPaginatedSt
 import org.testng.annotations.Test;
 
 import java.io.IOException;
-import java.util.TimerTask;
 
 /**
  * Test the speed on browsing records at storage level. Run this with the following syntax:
@@ -21,7 +20,7 @@ import java.util.TimerTask;
  * BrowseSpeedTest <directory where the database is stored> <class to use for browsing>
  * </pre>
  * 
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * @since 9/17/14
  */
 @Test
@@ -40,12 +39,9 @@ public class BrowseSpeedTest {
   }
 
   public void testIterationSpeed() throws IOException {
-    Orient.instance().scheduleTask(new TimerTask() {
-      @Override
-      public void run() {
-        final OAbstractPaginatedStorage stg = (OAbstractPaginatedStorage) Orient.instance().getStorages().iterator().next();
-        System.out.println("DiskCache used: " + stg.getReadCache().getUsedMemory());
-      }
+    Orient.instance().scheduleTask(() -> {
+      final OAbstractPaginatedStorage stg = (OAbstractPaginatedStorage) Orient.instance().getStorages().iterator().next();
+      System.out.println("DiskCache used: " + stg.getReadCache().getUsedMemory());
     }, 1000, 1000);
 
     browseStorageClusters();
@@ -77,7 +73,7 @@ public class BrowseSpeedTest {
       OCluster cluster = db.getStorage().getClusterById(clId);
       final long clusterRecords = cluster.getEntries();
       for (long rid = 0; rid < clusterRecords; ++rid) {
-        final ORawBuffer buffer = cluster.readRecord(rid);
+        final ORawBuffer buffer = cluster.readRecord(rid, true);
         loaded++;
       }
     }
@@ -92,7 +88,7 @@ public class BrowseSpeedTest {
     ODatabaseDocumentTx db = openDatabase();
     final long total = db.countClass(className);
 
-    ORecordIteratorClass iterator = new ORecordIteratorClass(db, db, className, true);
+    ORecordIteratorClass iterator = new ORecordIteratorClass(db, className, true);
 
     long start = System.currentTimeMillis();
 

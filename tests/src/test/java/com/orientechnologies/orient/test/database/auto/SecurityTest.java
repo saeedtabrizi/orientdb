@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2012 Luca Garulli (l.garulli--at--orientechnologies.com)
+ * Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ public class SecurityTest extends DocumentDBBaseTest {
   public void testParentRole() {
     database.open("admin", "admin");
 
-    final OSecurity security = database.getMetadata().getSecurity();
+    OSecurity security = database.getMetadata().getSecurity();
     ORole writer = security.getRole("writer");
 
     ORole writerChild = security.createRole("writerChild", writer, OSecurityRole.ALLOW_MODES.ALLOW_ALL_BUT);
@@ -149,6 +149,7 @@ public class SecurityTest extends DocumentDBBaseTest {
             database.close();
           }
           database.open("admin", "admin");
+          security = database.getMetadata().getSecurity();
         } finally {
           security.dropUser("writerChild");
         }
@@ -205,6 +206,7 @@ public class SecurityTest extends DocumentDBBaseTest {
       Assert.fail();
     } catch (OSecurityAccessException e) {
       database.open("admin", "admin");
+      security = database.getMetadata().getSecurity();
       security.dropUser("noRole");
     }
   }

@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql;
@@ -23,6 +23,7 @@ import com.orientechnologies.common.exception.OException;
 import com.orientechnologies.orient.core.command.OCommandRequest;
 import com.orientechnologies.orient.core.command.OCommandRequestText;
 import com.orientechnologies.orient.core.db.ODatabaseDocumentInternal;
+import com.orientechnologies.orient.core.db.document.ODatabaseDocument;
 import com.orientechnologies.orient.core.db.document.ODatabaseDocumentTx;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.db.record.ORecordLazyList;
@@ -48,7 +49,7 @@ import java.util.Set;
 /**
  * SQL CREATE LINK command: Transform a JOIN relationship to a physical LINK
  *
- * @author Luca Garulli
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  */
 @SuppressWarnings("unchecked")
 public class OCommandExecutorSQLCreateLink extends OCommandExecutorSQLAbstract {
@@ -174,11 +175,11 @@ public class OCommandExecutorSQLCreateLink extends OCommandExecutorSQLAbstract {
       throw new OCommandExecutionException("Cannot execute the command because it has not been parsed yet");
 
     final ODatabaseDocumentInternal database = getDatabase();
-    if (!(database.getDatabaseOwner() instanceof ODatabaseDocumentTx))
+    if (!(database.getDatabaseOwner() instanceof ODatabaseDocument))
       throw new OCommandSQLParsingException("This command supports only the database type ODatabaseDocumentTx and type '"
           + database.getClass() + "' was found");
 
-    final ODatabaseDocumentTx db = (ODatabaseDocumentTx) database.getDatabaseOwner();
+    final ODatabaseDocument db = (ODatabaseDocument) database.getDatabaseOwner();
 
     final OClass sourceClass = database.getMetadata().getSchema().getClass(sourceClassName);
     if (sourceClass == null)

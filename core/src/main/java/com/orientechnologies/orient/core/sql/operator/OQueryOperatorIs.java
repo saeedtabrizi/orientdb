@@ -1,6 +1,6 @@
 /*
  *
- *  *  Copyright 2014 Orient Technologies LTD (info(at)orientechnologies.com)
+ *  *  Copyright 2010-2016 OrientDB LTD (http://orientdb.com)
  *  *
  *  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  *  you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  *  *  See the License for the specific language governing permissions and
  *  *  limitations under the License.
  *  *
- *  * For more information: http://www.orientechnologies.com
+ *  * For more information: http://orientdb.com
  *
  */
 package com.orientechnologies.orient.core.sql.operator;
@@ -22,25 +22,19 @@ package com.orientechnologies.orient.core.sql.operator;
 import com.orientechnologies.orient.core.command.OCommandContext;
 import com.orientechnologies.orient.core.db.record.OIdentifiable;
 import com.orientechnologies.orient.core.id.ORID;
-import com.orientechnologies.orient.core.index.OCompositeIndexDefinition;
-import com.orientechnologies.orient.core.index.OIndex;
-import com.orientechnologies.orient.core.index.OIndexCursor;
-import com.orientechnologies.orient.core.index.OIndexCursorCollectionValue;
-import com.orientechnologies.orient.core.index.OIndexCursorSingleValue;
-import com.orientechnologies.orient.core.index.OIndexDefinition;
-import com.orientechnologies.orient.core.index.OIndexDefinitionMultiValue;
-import com.orientechnologies.orient.core.index.OIndexInternal;
+import com.orientechnologies.orient.core.index.*;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.sql.OSQLHelper;
 import com.orientechnologies.orient.core.sql.filter.OSQLFilterCondition;
+import com.orientechnologies.orient.core.sql.filter.OSQLFilterItemField;
 
 import java.util.Collection;
 import java.util.List;
 
 /**
  * IS operator. Different by EQUALS since works also for null. Example "IS null"
- * 
- * @author Luca Garulli
+ *
+ * @author Luca Garulli (l.garulli--(at)--orientdb.com)
  * 
  */
 public class OQueryOperatorIs extends OQueryOperatorEquality {
@@ -51,7 +45,15 @@ public class OQueryOperatorIs extends OQueryOperatorEquality {
 
   @Override
   protected boolean evaluateExpression(final OIdentifiable iRecord, final OSQLFilterCondition iCondition, final Object iLeft,
-      final Object iRight, OCommandContext iContext) {
+      Object iRight, OCommandContext iContext) {
+    if (iCondition.getLeft() instanceof OSQLFilterItemField) {
+      if (OSQLHelper.DEFINED.equals(iCondition.getRight()))
+        return evaluateDefined(iRecord, "" + iCondition.getLeft());
+
+      if (iCondition.getRight() instanceof OSQLFilterItemField && "not defined".equalsIgnoreCase("" + iCondition.getRight()))
+        return !evaluateDefined(iRecord, "" + iCondition.getLeft());
+    }
+
     if (OSQLHelper.NOT_NULL.equals(iRight))
       return iLeft != null;
     else if (OSQLHelper.NOT_NULL.equals(iLeft))
